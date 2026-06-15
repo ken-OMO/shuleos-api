@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\StreamController;
 
 /*
 |--------------------------------------------------------------------------
@@ -117,7 +118,7 @@ Route::prefix('teachers')
 */
 
 Route::prefix('grades')
-    ->middleware(['jwt', 'permission:manage_learning_areas'])
+    ->middleware(['jwt', 'permission:manage_users'])
     ->group(function () {
 
         Route::get('/', [GradeController::class, 'index']);
@@ -129,6 +130,28 @@ Route::prefix('grades')
         Route::put('/{id}', [GradeController::class, 'update']);
 
         Route::delete('/{id}', [GradeController::class, 'destroy']);
+
+    });
+
+/*
+|--------------------------------------------------------------------------
+| Stream Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('streams')
+    ->middleware(['jwt', 'permission:manage_users'])
+    ->group(function () {
+
+        Route::get('/', [StreamController::class, 'index']);
+
+        Route::get('/{id}', [StreamController::class, 'show']);
+
+        Route::post('/', [StreamController::class, 'store']);
+
+        Route::put('/{id}', [StreamController::class, 'update']);
+
+        Route::delete('/{id}', [StreamController::class, 'destroy']);
 
     });
 
