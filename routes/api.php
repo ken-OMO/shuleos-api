@@ -1,17 +1,27 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\GradeController;
+
+/*
+|--------------------------------------------------------------------------
+| Authentication Routes
+|--------------------------------------------------------------------------
+*/
 
 Route::prefix('auth')->group(function () {
 
     // Public Route
+
     Route::post('/login', [AuthController::class, 'login']);
 
     // Protected Routes
+
     Route::middleware('jwt')->group(function () {
 
         Route::get('/me', [AuthController::class, 'me']);
@@ -29,6 +39,7 @@ Route::prefix('auth')->group(function () {
 | School Routes
 |--------------------------------------------------------------------------
 */
+
 Route::prefix('schools')
     ->middleware(['jwt', 'permission:manage_users'])
     ->group(function () {
@@ -50,6 +61,7 @@ Route::prefix('schools')
 | User Routes
 |--------------------------------------------------------------------------
 */
+
 Route::prefix('users')
     ->middleware(['jwt', 'permission:manage_users'])
     ->group(function () {
@@ -64,9 +76,15 @@ Route::prefix('users')
 
         Route::delete('/{id}', [UserController::class, 'destroy']);
 
-        Route::post('/{id}/reset-password', [UserController::class, 'resetPassword']);
+        Route::post(
+            '/{id}/reset-password',
+            [UserController::class, 'resetPassword']
+        );
 
-        Route::post('/{id}/assign-role', [UserController::class, 'assignRole']);
+        Route::post(
+            '/{id}/assign-role',
+            [UserController::class, 'assignRole']
+        );
 
     });
 
@@ -75,6 +93,7 @@ Route::prefix('users')
 | Teacher Routes
 |--------------------------------------------------------------------------
 */
+
 Route::prefix('teachers')
     ->middleware(['jwt', 'permission:manage_users'])
     ->group(function () {
@@ -93,14 +112,40 @@ Route::prefix('teachers')
 
 /*
 |--------------------------------------------------------------------------
+| Grade Routes
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('grades')
+    ->middleware(['jwt', 'permission:manage_learning_areas'])
+    ->group(function () {
+
+        Route::get('/', [GradeController::class, 'index']);
+
+        Route::get('/{id}', [GradeController::class, 'show']);
+
+        Route::post('/', [GradeController::class, 'store']);
+
+        Route::put('/{id}', [GradeController::class, 'update']);
+
+        Route::delete('/{id}', [GradeController::class, 'destroy']);
+
+    });
+
+/*
+|--------------------------------------------------------------------------
 | Role Middleware Test Route
 |--------------------------------------------------------------------------
 */
+
 Route::get('/admin-test', function () {
 
     return response()->json([
+
         'success' => true,
+
         'message' => 'Platform Owner access granted'
+
     ]);
 
 })->middleware(['jwt', 'role:Platform Owner']);
@@ -110,11 +155,15 @@ Route::get('/admin-test', function () {
 | Permission Middleware Test Route
 |--------------------------------------------------------------------------
 */
+
 Route::get('/permission-test', function () {
 
     return response()->json([
+
         'success' => true,
+
         'message' => 'Permission granted'
+
     ]);
 
 })->middleware(['jwt', 'permission:manage_users']);
