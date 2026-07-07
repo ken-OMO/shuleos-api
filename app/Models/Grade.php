@@ -14,22 +14,32 @@ class Grade extends Model
 
     protected $keyType = 'string';
 
-    // grades table only has created_at
     public $timestamps = false;
 
     protected $fillable = [
+
         'id',
+
         'school_id',
+
         'education_level_id',
+
         'grade_name',
+
         'grade_order',
+
         'active',
+
         'created_at',
+
     ];
 
     protected $casts = [
+
         'active' => 'boolean',
+
         'created_at' => 'datetime',
+
     ];
 
     /**
@@ -38,8 +48,11 @@ class Grade extends Model
     public function school()
     {
         return $this->belongsTo(
+
             School::class,
+
             'school_id'
+
         );
     }
 
@@ -49,8 +62,11 @@ class Grade extends Model
     public function educationLevel()
     {
         return $this->belongsTo(
+
             EducationLevel::class,
+
             'education_level_id'
+
         );
     }
 
@@ -60,8 +76,27 @@ class Grade extends Model
     public function streams()
     {
         return $this->hasMany(
+
             Stream::class,
+
             'grade_id'
+
         );
     }
+
+    /**
+     * Learners relationship
+     */
+    public function learners()
+    {
+        return $this->hasMany(
+
+            Learner::class,
+
+            'grade_id'
+
+        );
+    }
+
+
 }

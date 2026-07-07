@@ -17,16 +17,25 @@ class EducationLevel extends Model
     public $timestamps = false;
 
     protected $fillable = [
+
         'id',
+
         'level_name',
+
         'level_order',
+
         'active',
+
         'created_at',
+
     ];
 
     protected $casts = [
+
         'active' => 'boolean',
+
         'created_at' => 'datetime',
+
     ];
 
     /**
@@ -35,8 +44,29 @@ class EducationLevel extends Model
     public function grades()
     {
         return $this->hasMany(
+
             Grade::class,
+
             'education_level_id'
+
+        );
+    }
+
+    /**
+     * Learning Areas relationship
+     */
+    public function learningAreas()
+    {
+        return $this->belongsToMany(
+
+            LearningArea::class,
+
+            'level_learning_areas',
+
+            'level_id',
+
+            'learning_area_id'
+
         );
     }
 }

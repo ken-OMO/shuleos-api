@@ -17,17 +17,27 @@ class Stream extends Model
     public $timestamps = false;
 
     protected $fillable = [
+
         'id',
+
         'school_id',
+
         'grade_id',
+
         'stream_name',
+
         'active',
+
         'created_at',
+
     ];
 
     protected $casts = [
+
         'active' => 'boolean',
+
         'created_at' => 'datetime',
+
     ];
 
     /**
@@ -36,8 +46,11 @@ class Stream extends Model
     public function school()
     {
         return $this->belongsTo(
+
             School::class,
+
             'school_id'
+
         );
     }
 
@@ -47,8 +60,27 @@ class Stream extends Model
     public function grade()
     {
         return $this->belongsTo(
+
             Grade::class,
+
             'grade_id'
+
         );
     }
+
+    /**
+     * Learners relationship
+     */
+    public function learners()
+    {
+        return $this->hasMany(
+
+            Learner::class,
+
+            'stream_id'
+
+        );
+    }
+
+
 }

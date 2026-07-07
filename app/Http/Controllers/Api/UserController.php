@@ -2,179 +2,653 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Controllers\BaseCrudController;
+use App\Http\Resources\UserResource;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-class UserController extends Controller
+class UserController extends BaseCrudController
 {
     /**
-     * List Users
+     * Module name used in audit logs.
+     */
+    private const MODULE = 'Users';
+
+    /**
+     * Relationships loaded with user responses.
+     */
+    private const RELATIONS = [
+
+        'school',
+
+        'role',
+
+    ];
+
+    /**
+     * Display a listing of users.
      */
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => User::where('is_deleted', false)
-                ->orderBy('first_name')
-                ->get()
-        ]);
+        $users = User::with(
+
+            self::RELATIONS
+
+        )
+        ->where('is_deleted', false)
+        ->orderBy('first_name')
+        ->get();
+
+        return $this->success(
+
+            UserResource::collection(
+
+                $users
+
+            ),
+
+            'Users retrieved successfully.'
+
+        );
     }
 
     /**
-     * Get Single User
+     * Display the specified user.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $user = User::find($id);
+        $user = User::with(
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found'
-            ], 404);
+            self::RELATIONS
+
+        )
+        ->where('is_deleted', false)
+        ->find($id);
+
+        if ($this->modelNotFound($user)) {
+
+            return $this->notFound(
+
+                'User not found.'
+
+            );
+
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $user
-        ]);
-    }
+        return $this->success(
 
-    /**
-     * Create User
+            new UserResource(
+
+                $user
+
+            ),
+
+            'User retrieved successfully.'
+
+        );
+    }
+        /**
+     * Store a newly created user.
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'school_id' => 'required',
-            'role_id' => 'required',
-            'username' => 'required|unique:users,username',
-            'first_name' => 'required',
-            'last_name' => 'required'
+        $validated = $request->validate([
+
+            'school_id' => 'required|exists:schools,id',
+
+            'role_id' => 'required|exists:roles,id',
+
+            'username' => 'required|string|max:100|unique:users,username',
+
+            'first_name' => 'required|string|max:100',
+
+            'middle_name' => 'nullable|string|max:100',
+
+            'last_name' => 'required|string|max:100',
+
+            'email' => 'nullable|email|max:255',
+
+            'phone' => 'nullable|string|max:20',
+
         ]);
 
-        $user = User::create([
-            'id' => (string) Str::uuid(),
-            'school_id' => $request->school_id,
-            'role_id' => $request->role_id,
-            'username' => $request->username,
-            'password_hash' => Hash::make('ChangeMe123!'),
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'first_name' => $request->first_name,
-            'middle_name' => $request->middle_name,
-            'last_name' => $request->last_name,
-            'active' => true,
-            'first_login' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $this->beginTransaction();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User created successfully',
-            'data' => $user
-        ], 201);
+        try {
+
+            $user = User::create([
+
+                'id' => (string) Str::uuid(),
+
+                'school_id' => $validated['school_id'],
+
+                'role_id' => $validated['role_id'],
+
+                'username' => $validated['username'],
+
+                'password_hash' => Hash::make('ChangeMe123!'),
+
+                'email' => $validated['email'] ?? null,
+
+                'phone' => $validated['phone'] ?? null,
+
+                'first_name' => $validated['first_name'],
+
+                'middle_name' => $validated['middle_name'] ?? null,
+
+                'last_name' => $validated['last_name'],
+
+                'active' => true,
+
+                'first_login' => true,
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Create',
+
+                model: $user,
+
+                oldValues: null,
+
+                newValues: $user->toArray(),
+
+                description: 'Created user account.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $user,
+
+                self::RELATIONS
+
+            );
+
+            return $this->created(
+
+                new UserResource(
+
+                    $user
+
+                ),
+
+                'User created successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to create user.',
+
+                [
+
+                    'school_id' => $request->school_id,
+
+                    'username' => $request->username,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to create user.'
+
+            );
+
+        }
     }
-
-    /**
-     * Update User
+        /**
+     * Update the specified user.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $user = User::find($id);
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found'
-            ], 404);
+        if ($this->modelNotFound($user)) {
+
+            return $this->notFound(
+
+                'User not found.'
+
+            );
+
         }
 
-        $user->update($request->except([
-            'id',
-            'password_hash'
-        ]));
+        if ($this->isDeleted($user)) {
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User updated successfully',
-            'data' => $user
+            return $this->badRequest(
+
+                'User has been deleted.'
+
+            );
+
+        }
+
+        $validated = $request->validate([
+
+            'role_id' => 'sometimes|exists:roles,id',
+
+            'username' => 'sometimes|string|max:100|unique:users,username,' . $id . ',id',
+
+            'first_name' => 'sometimes|string|max:100',
+
+            'middle_name' => 'nullable|string|max:100',
+
+            'last_name' => 'sometimes|string|max:100',
+
+            'email' => 'nullable|email|max:255',
+
+            'phone' => 'nullable|string|max:20',
+
+            'active' => 'sometimes|boolean',
+
         ]);
-    }
 
-    /**
-     * Soft Delete User
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $user->toArray();
+
+            $user->update(
+
+                $validated
+
+            );
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Update',
+
+                model: $user,
+
+                oldValues: $oldValues,
+
+                newValues: $user->fresh()->toArray(),
+
+                description: 'Updated user account.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $user,
+
+                self::RELATIONS
+
+            );
+
+            return $this->success(
+
+                new UserResource(
+
+                    $user
+
+                ),
+
+                'User updated successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to update user.',
+
+                [
+
+                    'user_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to update user.'
+
+            );
+
+        }
+    }
+        /**
+     * Soft delete the specified user.
      */
-    public function destroy($id)
+    public function destroy(Request $request, string $id)
     {
         $user = User::find($id);
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found'
-            ], 404);
+        if ($this->modelNotFound($user)) {
+
+            return $this->notFound(
+
+                'User not found.'
+
+            );
+
         }
 
-        $user->update([
-            'is_deleted' => true,
-            'deleted_at' => now()
-        ]);
+        if ($this->isDeleted($user)) {
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully'
-        ]);
+            return $this->badRequest(
+
+                'User has already been deleted.'
+
+            );
+
+        }
+
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $user->toArray();
+
+            $user->update([
+
+                'is_deleted' => true,
+
+                'deleted_at' => now(),
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Delete',
+
+                model: $user,
+
+                oldValues: $oldValues,
+
+                newValues: $user->fresh()->toArray(),
+
+                description: 'Soft deleted user account.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'User deleted successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to delete user.',
+
+                [
+
+                    'user_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to delete user.'
+
+            );
+
+        }
     }
-
-    /**
-     * Reset Password
+        /**
+     * Reset user password.
      */
-    public function resetPassword($id)
+    public function resetPassword(Request $request, string $id)
     {
         $user = User::find($id);
 
-        if (!$user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'User not found'
-            ], 404);
+        if ($this->modelNotFound($user)) {
+
+            return $this->notFound(
+
+                'User not found.'
+
+            );
+
         }
 
-        $user->update([
-            'password_hash' => Hash::make('ChangeMe123!'),
-            'first_login' => true,
-            'updated_at' => now()
-        ]);
+        if ($this->isDeleted($user)) {
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Password reset successfully'
-        ]);
+            return $this->badRequest(
+
+                'User has been deleted.'
+
+            );
+
+        }
+
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $user->toArray();
+
+            $user->update([
+
+                'password_hash' => Hash::make('ChangeMe123!'),
+
+                'first_login' => true,
+
+                'failed_login_attempts' => 0,
+
+                'account_locked_until' => null,
+
+                'password_reset_token' => null,
+
+                'password_reset_expires' => null,
+
+                'password_changed_at' => now(),
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Password Reset',
+
+                model: $user,
+
+                oldValues: $oldValues,
+
+                newValues: $user->fresh()->toArray(),
+
+                description: 'Administrator reset user password.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'Password reset successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to reset password.',
+
+                [
+
+                    'user_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to reset password.'
+
+            );
+
+        }
     }
-
-    /**
-     * Assign Additional Role
+        /**
+     * Assign an additional role to the user.
      */
-    public function assignRole(Request $request, $id)
+    public function assignRole(Request $request, string $id)
     {
-        $request->validate([
-            'role_id' => 'required'
+        $user = User::find($id);
+
+        if ($this->modelNotFound($user)) {
+
+            return $this->notFound(
+
+                'User not found.'
+
+            );
+
+        }
+
+        if ($this->isDeleted($user)) {
+
+            return $this->badRequest(
+
+                'User has been deleted.'
+
+            );
+
+        }
+
+        $validated = $request->validate([
+
+            'role_id' => 'required|exists:roles,id',
+
         ]);
 
-        DB::table('user_roles')->insert([
-            'user_id' => $id,
-            'role_id' => $request->role_id
-        ]);
+        $this->beginTransaction();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Role assigned successfully'
-        ]);
+        try {
+
+            DB::table('user_roles')->updateOrInsert(
+
+                [
+
+                    'user_id' => $user->id,
+
+                    'role_id' => $validated['role_id'],
+
+                ],
+
+                []
+
+            );
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Assign Role',
+
+                model: $user,
+
+                oldValues: null,
+
+                newValues: [
+
+                    'role_id' => $validated['role_id'],
+
+                ],
+
+                description: 'Assigned additional role to user.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'Role assigned successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to assign role.',
+
+                [
+
+                    'user_id' => $id,
+
+                    'role_id' => $validated['role_id'],
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to assign role.'
+
+            );
+
+        }
     }
 }

@@ -15,6 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'jwt'        => \App\Http\Middleware\JwtMiddleware::class,
+            'tenant' => \App\Http\Middleware\TenantMiddleware::class,
             'role'       => \App\Http\Middleware\RoleMiddleware::class,
             'permission' => \App\Http\Middleware\PermissionMiddleware::class,
         ]);

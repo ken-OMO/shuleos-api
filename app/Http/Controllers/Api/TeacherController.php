@@ -1,153 +1,169 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Teacher;
+use App\Actions\HumanResource\Teacher\ArchiveTeacherAction;
+use App\Actions\HumanResource\Teacher\CreateTeacherAction;
+use App\Actions\HumanResource\Teacher\UpdateTeacherAction;
+use App\Http\Controllers\BaseCrudController;
+use App\Http\Requests\Teacher\StoreTeacherRequest;
+use App\Http\Requests\Teacher\UpdateTeacherRequest;
 use App\Http\Resources\TeacherResource;
-use Illuminate\Support\Str;
+use App\Services\HumanResource\TeacherService;
 
-class TeacherController extends Controller
+final class TeacherController extends BaseCrudController
 {
     /**
-     * List Teachers
+     * Constructor.
+     */
+    public function __construct(
+        private readonly TeacherService $teachers,
+        private readonly CreateTeacherAction $createTeacher,
+        private readonly UpdateTeacherAction $updateTeacher,
+        private readonly ArchiveTeacherAction $archiveTeacher
+    ) {
+    }
+
+    /**
+     * Display teachers.
      */
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => TeacherResource::collection(
-                Teacher::with(['user', 'school'])
-                    ->where('is_deleted', false)
-                    ->orderBy('created_at', 'desc')
-                    ->get()
-            )
-        ]);
+        return $this->success(
+
+            TeacherResource::collection(
+
+                $this->teachers->list()
+
+            ),
+
+            'Teachers retrieved successfully.'
+
+        );
     }
 
     /**
-     * Get Single Teacher
+     * Display teacher.
      */
-    public function show($id)
+    public function show(
+        string $id
+    )
     {
-        $teacher = Teacher::with(['user', 'school'])
-            ->where('is_deleted', false)
-            ->find($id);
+        return $this->success(
 
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Teacher not found'
-            ], 404);
-        }
+            new TeacherResource(
 
-        return response()->json([
-            'success' => true,
-            'data' => new TeacherResource($teacher)
-        ]);
+                $this->teachers->find(
+
+                    $id
+
+                )
+
+            ),
+
+            'Teacher retrieved successfully.'
+
+        );
     }
 
     /**
-     * Create Teacher
+     * Store teacher.
      */
-    public function store(Request $request)
+    public function store(
+        StoreTeacherRequest $request
+    )
     {
-        $request->validate([
-            'school_id' => 'required|exists:schools,id',
-            'user_id' => 'required|exists:users,id',
-            'tsc_no' => 'required|unique:teachers,tsc_no',
-            'staff_no' => 'required|unique:teachers,staff_no',
-        ]);
+        $teacher = $this->createTeacher->execute(
 
-        $teacher = Teacher::create([
-            'id' => (string) Str::uuid(),
-            'school_id' => $request->school_id,
-            'user_id' => $request->user_id,
-            'tsc_no' => $request->tsc_no,
-            'staff_no' => $request->staff_no,
-            'gender' => $request->gender,
-            'designation' => $request->designation,
-            'employment_type' => $request->employment_type,
-            'phone' => $request->phone,
-            'email' => $request->email,
-            'national_id' => $request->national_id,
-            'date_joined' => $request->date_joined,
-            'active' => true,
-            'is_deleted' => false,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+            $request->validated()
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Teacher created successfully',
-            'data' => new TeacherResource(
-                Teacher::with(['user', 'school'])
-                    ->find($teacher->id)
-            )
-        ], 201);
-    }
-
-    /**
-     * Update Teacher
-     */
-    public function update(Request $request, $id)
-    {
-        $teacher = Teacher::find($id);
-
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Teacher not found'
-            ], 404);
-        }
-
-        $request->validate([
-            'tsc_no' => 'sometimes|unique:teachers,tsc_no,' . $id . ',id',
-            'staff_no' => 'sometimes|unique:teachers,staff_no,' . $id . ',id',
-        ]);
-
-        $teacher->update(
-            $request->except([
-                'id',
-                'school_id',
-                'user_id'
-            ])
         );
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Teacher updated successfully',
-            'data' => new TeacherResource(
-                Teacher::with(['user', 'school'])
-                    ->find($teacher->id)
-            )
-        ]);
+        /**
+         * Future:
+         *
+         * $this->audit(...)
+         */
+
+        return $this->created(
+
+            new TeacherResource(
+
+                $teacher
+
+            ),
+
+            'Teacher created successfully.'
+
+        );
     }
 
     /**
-     * Soft Delete Teacher
+     * Update teacher.
      */
-    public function destroy($id)
+    public function update(
+        UpdateTeacherRequest $request,
+        string $id
+    )
     {
-        $teacher = Teacher::find($id);
+        $teacher = $this->updateTeacher->execute(
 
-        if (!$teacher) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Teacher not found'
-            ], 404);
-        }
+            $id,
 
-        $teacher->update([
-            'is_deleted' => true,
-            'deleted_at' => now()
-        ]);
+            $request->validated()
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Teacher deleted successfully'
-        ]);
+        );
+
+        /**
+         * Future:
+         *
+         * $this->audit(...)
+         */
+
+        return $this->success(
+
+            new TeacherResource(
+
+                $teacher
+
+            ),
+
+            'Teacher updated successfully.'
+
+        );
+    }
+
+    /**
+     * Archive teacher.
+     */
+    public function destroy(
+        string $id
+    )
+    {
+        $teacher = $this->archiveTeacher->execute(
+
+            $id
+
+        );
+
+        /**
+         * Future:
+         *
+         * $this->audit(...)
+         */
+
+        return $this->success(
+
+            new TeacherResource(
+
+                $teacher
+
+            ),
+
+            'Teacher archived successfully.'
+
+        );
     }
 }

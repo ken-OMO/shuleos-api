@@ -29,8 +29,13 @@ class UserResource extends JsonResource
             'school_id' => $this->school_id,
             'role_id' => $this->role_id,
 
-            'school' => $this->whenLoaded('school'),
-            'role' => $this->whenLoaded('role'),
+          'school' => new SchoolResource(
+    $this->whenLoaded('school')
+),
+
+'role' => new RoleResource(
+    $this->whenLoaded('role')
+),
 
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

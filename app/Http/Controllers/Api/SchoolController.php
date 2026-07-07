@@ -2,130 +2,465 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
+use App\Http\Controllers\BaseCrudController;
+use App\Http\Resources\SchoolResource;
 use App\Models\School;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class SchoolController extends Controller
+class SchoolController extends BaseCrudController
 {
     /**
-     * Get all schools
+     * Module name used in audit logs.
+     */
+    private const MODULE = 'Schools';
+
+    /**
+     * Relationships loaded with school responses.
+     */
+    private const RELATIONS = [];
+
+    /**
+     * Display a listing of schools.
      */
     public function index()
     {
-        return response()->json([
-            'success' => true,
-            'data' => School::where('is_deleted', false)
-                ->orderBy('school_name')
-                ->get()
-        ]);
+        $schools = School::with(
+
+            self::RELATIONS
+
+        )
+        ->where('is_deleted', false)
+        ->orderBy('school_name')
+        ->get();
+
+        return $this->success(
+
+            SchoolResource::collection(
+
+                $schools
+
+            ),
+
+            'Schools retrieved successfully.'
+
+        );
     }
 
     /**
-     * Get single school
+     * Display the specified school.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $school = School::find($id);
+        $school = School::with(
 
-        if (!$school) {
-            return response()->json([
-                'success' => false,
-                'message' => 'School not found'
-            ], 404);
+            self::RELATIONS
+
+        )
+        ->where('is_deleted', false)
+        ->find($id);
+
+        if ($this->modelNotFound($school)) {
+
+            return $this->notFound(
+
+                'School not found.'
+
+            );
+
         }
 
-        return response()->json([
-            'success' => true,
-            'data' => $school
-        ]);
-    }
+        return $this->success(
 
-    /**
-     * Create school
+            new SchoolResource(
+
+                $school
+
+            ),
+
+            'School retrieved successfully.'
+
+        );
+    }
+        /**
+     * Store a newly created school.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
+
             'school_name' => 'required|string|max:255',
+
             'school_code' => 'required|string|max:50|unique:schools,school_code',
-            'email' => 'nullable|email',
+
+            'email' => 'nullable|email|max:255',
+
             'phone' => 'nullable|string|max:50',
+
             'county' => 'nullable|string|max:100',
+
+            'sub_county' => 'nullable|string|max:100',
+
+            'postal_address' => 'nullable|string|max:255',
+
+            'physical_address' => 'nullable|string|max:255',
+
+            'logo_url' => 'nullable|string|max:255',
+
+            'school_type' => 'nullable|string|max:100',
+
+            'ownership' => 'nullable|string|max:100',
+
+            'registration_number' => 'nullable|string|max:100',
+
+            'kra_pin' => 'nullable|string|max:50',
+
+            'website' => 'nullable|url|max:255',
+
         ]);
 
-        $school = School::create([
-            'id' => (string) Str::uuid(),
-            'school_name' => $validated['school_name'],
-            'school_code' => $validated['school_code'],
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'county' => $request->county,
-            'sub_county' => $request->sub_county,
-            'postal_address' => $request->postal_address,
-            'physical_address' => $request->physical_address,
-            'school_type' => $request->school_type,
-            'ownership' => $request->ownership,
-            'registration_number' => $request->registration_number,
-            'kra_pin' => $request->kra_pin,
-            'website' => $request->website,
-            'active' => true,
-            'is_deleted' => false,
-        ]);
+        $this->beginTransaction();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'School created successfully',
-            'data' => $school
-        ], 201);
+        try {
+
+            $school = School::create([
+
+                'id' => (string) Str::uuid(),
+
+                'school_name' => $validated['school_name'],
+
+                'school_code' => $validated['school_code'],
+
+                'email' => $validated['email'] ?? null,
+
+                'phone' => $validated['phone'] ?? null,
+
+                'county' => $validated['county'] ?? null,
+
+                'sub_county' => $validated['sub_county'] ?? null,
+
+                'postal_address' => $validated['postal_address'] ?? null,
+
+                'physical_address' => $validated['physical_address'] ?? null,
+
+                'logo_url' => $validated['logo_url'] ?? null,
+
+                'school_type' => $validated['school_type'] ?? null,
+
+                'ownership' => $validated['ownership'] ?? null,
+
+                'registration_number' => $validated['registration_number'] ?? null,
+
+                'kra_pin' => $validated['kra_pin'] ?? null,
+
+                'website' => $validated['website'] ?? null,
+
+                'active' => true,
+
+                'is_deleted' => false,
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Create',
+
+                model: $school,
+
+                oldValues: null,
+
+                newValues: $school->toArray(),
+
+                description: 'Created school.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $school,
+
+                self::RELATIONS
+
+            );
+
+            return $this->created(
+
+                new SchoolResource(
+
+                    $school
+
+                ),
+
+                'School created successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to create school.',
+
+                [
+
+                    'school_code' => $request->school_code,
+
+                    'school_name' => $request->school_name,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to create school.'
+
+            );
+
+        }
     }
-
-    /**
-     * Update school
+        /**
+     * Update the specified school.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $school = School::find($id);
 
-        if (!$school) {
-            return response()->json([
-                'success' => false,
-                'message' => 'School not found'
-            ], 404);
+        if ($this->modelNotFound($school)) {
+
+            return $this->notFound(
+
+                'School not found.'
+
+            );
+
         }
 
-        $school->update($request->all());
+        if ($this->isDeleted($school)) {
 
-        return response()->json([
-            'success' => true,
-            'message' => 'School updated successfully',
-            'data' => $school
+            return $this->badRequest(
+
+                'School has been deleted.'
+
+            );
+
+        }
+
+        $validated = $request->validate([
+
+            'school_name' => 'sometimes|string|max:255',
+
+            'school_code' => 'sometimes|string|max:50|unique:schools,school_code,' . $id . ',id',
+
+            'email' => 'nullable|email|max:255',
+
+            'phone' => 'nullable|string|max:50',
+
+            'county' => 'nullable|string|max:100',
+
+            'sub_county' => 'nullable|string|max:100',
+
+            'postal_address' => 'nullable|string|max:255',
+
+            'physical_address' => 'nullable|string|max:255',
+
+            'logo_url' => 'nullable|string|max:255',
+
+            'school_type' => 'nullable|string|max:100',
+
+            'ownership' => 'nullable|string|max:100',
+
+            'registration_number' => 'nullable|string|max:100',
+
+            'kra_pin' => 'nullable|string|max:50',
+
+            'website' => 'nullable|url|max:255',
+
+            'active' => 'sometimes|boolean',
+
         ]);
-    }
 
-    /**
-     * Soft delete school
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $school->toArray();
+
+            $school->update(
+
+                $validated
+
+            );
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Update',
+
+                model: $school,
+
+                oldValues: $oldValues,
+
+                newValues: $school->fresh()->toArray(),
+
+                description: 'Updated school.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $school,
+
+                self::RELATIONS
+
+            );
+
+            return $this->success(
+
+                new SchoolResource(
+
+                    $school
+
+                ),
+
+                'School updated successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to update school.',
+
+                [
+
+                    'school_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to update school.'
+
+            );
+
+        }
+    }
+        /**
+     * Soft delete the specified school.
      */
-    public function destroy($id)
+    public function destroy(Request $request, string $id)
     {
         $school = School::find($id);
 
-        if (!$school) {
-            return response()->json([
-                'success' => false,
-                'message' => 'School not found'
-            ], 404);
+        if ($this->modelNotFound($school)) {
+
+            return $this->notFound(
+
+                'School not found.'
+
+            );
+
         }
 
-        $school->update([
-            'is_deleted' => true,
-            'deleted_at' => now(),
-        ]);
+        if ($this->isDeleted($school)) {
 
-        return response()->json([
-            'success' => true,
-            'message' => 'School deleted successfully'
-        ]);
+            return $this->badRequest(
+
+                'School has already been deleted.'
+
+            );
+
+        }
+
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $school->toArray();
+
+            $school->update([
+
+                'is_deleted' => true,
+
+                'deleted_at' => now(),
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Delete',
+
+                model: $school,
+
+                oldValues: $oldValues,
+
+                newValues: $school->fresh()->toArray(),
+
+                description: 'Soft deleted school.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'School deleted successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to delete school.',
+
+                [
+
+                    'school_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to delete school.'
+
+            );
+
+        }
     }
 }

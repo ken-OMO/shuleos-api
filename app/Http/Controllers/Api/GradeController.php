@@ -2,203 +2,411 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Grade;
+use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\GradeResource;
+use App\Models\Grade;
+use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class GradeController extends Controller
+class GradeController extends BaseCrudController
 {
     /**
-     * List Grades
+     * Module name used in audit logs.
+     */
+    private const MODULE = 'Grades';
+
+    /**
+     * Relationships loaded with grade responses.
+     */
+    private const RELATIONS = [
+
+        'school',
+
+        'educationLevel',
+
+    ];
+
+    /**
+     * Display a listing of grades.
      */
     public function index()
     {
-        return response()->json([
-            'success' => true,
+        $grades = Grade::with(
 
-            'data' => GradeResource::collection(
+            self::RELATIONS
 
-                Grade::with([
-                    'school',
-                    'educationLevel'
-                ])
+        )
+        ->where('is_deleted', false)
+        ->orderBy('grade_order')
+        ->get();
 
-                ->orderBy('grade_order')
+        return $this->success(
 
-                ->get()
+            GradeResource::collection(
 
-            )
+                $grades
 
-        ]);
+            ),
+
+            'Grades retrieved successfully.'
+
+        );
     }
 
     /**
-     * Get Single Grade
+     * Display the specified grade.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $grade = Grade::with([
-            'school',
-            'educationLevel'
-        ])->find($id);
+        $grade = Grade::with(
 
-        if (!$grade) {
+            self::RELATIONS
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Grade not found'
-            ], 404);
+        )
+        ->where('is_deleted', false)
+        ->find($id);
+
+        if ($this->modelNotFound($grade)) {
+
+            return $this->notFound(
+
+                'Grade not found.'
+
+            );
 
         }
 
-        return response()->json([
+        return $this->success(
 
-            'success' => true,
+            new GradeResource(
 
-            'data' => new GradeResource($grade)
+                $grade
 
-        ]);
+            ),
+
+            'Grade retrieved successfully.'
+
+        );
     }
-
-    /**
-     * Create Grade
+        /**
+     * Store a newly created grade.
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
 
             'school_id' => 'required|exists:schools,id',
 
-            'education_level_id' =>
-                'required|exists:education_levels,id',
+            'education_level_id' => 'required|exists:education_levels,id',
 
-            'grade_name' => 'required',
+            'grade_name' => 'required|string|max:100',
 
             'grade_order' => 'required|integer',
 
         ]);
 
-        $grade = Grade::create([
+        $this->beginTransaction();
 
-            'id' => (string) Str::uuid(),
+        try {
 
-            'school_id' => $request->school_id,
+            $grade = Grade::create([
 
-            'education_level_id' =>
-                $request->education_level_id,
+                'id' => (string) Str::uuid(),
 
-            'grade_name' => $request->grade_name,
+                'school_id' => $validated['school_id'],
 
-            'grade_order' => $request->grade_order,
+                'education_level_id' => $validated['education_level_id'],
 
-            'active' => true,
+                'grade_name' => $validated['grade_name'],
 
-            'created_at' => now(),
+                'grade_order' => $validated['grade_order'],
 
-        ]);
+                'active' => true,
 
-        return response()->json([
+                'is_deleted' => false,
 
-            'success' => true,
+                'created_at' => now(),
 
-            'message' => 'Grade created successfully',
+            ]);
 
-            'data' => new GradeResource(
+            $this->audit(
 
-                Grade::with([
-                    'school',
-                    'educationLevel'
-                ])
+                request: $request,
 
-                ->find($grade->id)
+                module: self::MODULE,
 
-            )
+                action: 'Create',
 
-        ], 201);
+                model: $grade,
+
+                oldValues: null,
+
+                newValues: $grade->toArray(),
+
+                description: 'Created grade.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $grade,
+
+                self::RELATIONS
+
+            );
+
+            return $this->created(
+
+                new GradeResource(
+
+                    $grade
+
+                ),
+
+                'Grade created successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to create grade.',
+
+                [
+
+                    'school_id' => $request->school_id,
+
+                    'education_level_id' => $request->education_level_id,
+
+                    'grade_name' => $request->grade_name,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to create grade.'
+
+            );
+
+        }
     }
-
-    /**
-     * Update Grade
+        /**
+     * Update the specified grade.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $grade = Grade::find($id);
 
-        if (!$grade) {
+        if ($this->modelNotFound($grade)) {
 
-            return response()->json([
+            return $this->notFound(
 
-                'success' => false,
+                'Grade not found.'
 
-                'message' => 'Grade not found'
-
-            ], 404);
+            );
 
         }
 
-        $grade->update(
+        if ($this->isDeleted($grade)) {
 
-            $request->except([
+            return $this->badRequest(
 
-                'id',
+                'Grade has been deleted.'
 
-                'school_id',
+            );
 
-                'education_level_id'
+        }
 
-            ])
+        $validated = $request->validate([
 
-        );
+            'grade_name' => 'sometimes|string|max:100',
 
-        return response()->json([
+            'grade_order' => 'sometimes|integer',
 
-            'success' => true,
-
-            'message' => 'Grade updated successfully',
-
-            'data' => new GradeResource(
-
-                Grade::with([
-                    'school',
-                    'educationLevel'
-                ])
-
-                ->find($grade->id)
-
-            )
+            'active' => 'sometimes|boolean',
 
         ]);
-    }
 
-    /**
-     * Delete Grade
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $grade->toArray();
+
+            $grade->update(
+
+                $validated
+
+            );
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Update',
+
+                model: $grade,
+
+                oldValues: $oldValues,
+
+                newValues: $grade->fresh()->toArray(),
+
+                description: 'Updated grade.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $grade,
+
+                self::RELATIONS
+
+            );
+
+            return $this->success(
+
+                new GradeResource(
+
+                    $grade
+
+                ),
+
+                'Grade updated successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to update grade.',
+
+                [
+
+                    'grade_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to update grade.'
+
+            );
+
+        }
+    }
+        /**
+     * Soft delete the specified grade.
      */
-    public function destroy($id)
+    public function destroy(Request $request, string $id)
     {
         $grade = Grade::find($id);
 
-        if (!$grade) {
+        if ($this->modelNotFound($grade)) {
 
-            return response()->json([
+            return $this->notFound(
 
-                'success' => false,
+                'Grade not found.'
 
-                'message' => 'Grade not found'
-
-            ], 404);
+            );
 
         }
 
-        $grade->delete();
+        if ($this->isDeleted($grade)) {
 
-        return response()->json([
+            return $this->badRequest(
 
-            'success' => true,
+                'Grade has already been deleted.'
 
-            'message' => 'Grade deleted successfully'
+            );
 
-        ]);
+        }
+
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $grade->toArray();
+
+            $grade->update([
+
+                'is_deleted' => true,
+
+                'deleted_at' => now(),
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Delete',
+
+                model: $grade,
+
+                oldValues: $oldValues,
+
+                newValues: $grade->fresh()->toArray(),
+
+                description: 'Soft deleted grade.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'Grade deleted successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to delete grade.',
+
+                [
+
+                    'grade_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to delete grade.'
+
+            );
+
+        }
     }
 }

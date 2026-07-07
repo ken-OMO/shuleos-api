@@ -2,77 +2,98 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\StreamResource;
 use App\Models\Stream;
-
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
-class StreamController extends Controller
+class StreamController extends BaseCrudController
 {
     /**
-     * List Streams
+     * Module name used in audit logs.
+     */
+    private const MODULE = 'Streams';
+
+    /**
+     * Relationships loaded with stream responses.
+     */
+    private const RELATIONS = [
+
+        'grade',
+
+        'school',
+
+    ];
+
+    /**
+     * Display a listing of streams.
      */
     public function index()
     {
-        $streams = Stream::with([
-                'grade',
-                'school'
-            ])
-            ->orderBy('stream_name')
-            ->get();
+        $streams = Stream::with(
 
-        return response()->json([
+            self::RELATIONS
 
-            'success' => true,
+        )
+        ->where('is_deleted', false)
+        ->orderBy('stream_name')
+        ->get();
 
-            'data' => StreamResource::collection(
+        return $this->success(
+
+            StreamResource::collection(
+
                 $streams
-            )
 
-        ]);
+            ),
+
+            'Streams retrieved successfully.'
+
+        );
     }
 
     /**
-     * Get Single Stream
+     * Display the specified stream.
      */
-    public function show($id)
+    public function show(string $id)
     {
-        $stream = Stream::with([
-                'grade',
-                'school'
-            ])
-            ->find($id);
+        $stream = Stream::with(
 
-        if (!$stream) {
+            self::RELATIONS
 
-            return response()->json([
+        )
+        ->where('is_deleted', false)
+        ->find($id);
 
-                'success' => false,
+        if ($this->modelNotFound($stream)) {
 
-                'message' => 'Stream not found'
+            return $this->notFound(
 
-            ], 404);
+                'Stream not found.'
+
+            );
+
         }
 
-        return response()->json([
+        return $this->success(
 
-            'success' => true,
+            new StreamResource(
 
-            'data' => new StreamResource(
                 $stream
-            )
 
-        ]);
+            ),
+
+            'Stream retrieved successfully.'
+
+        );
     }
-
-    /**
-     * Create Stream
+        /**
+     * Store a newly created stream.
      */
     public function store(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
 
             'school_id' => 'required|exists:schools,id',
 
@@ -82,59 +103,126 @@ class StreamController extends Controller
 
         ]);
 
-        $stream = Stream::create([
+        $this->beginTransaction();
 
-            'id' => (string) Str::uuid(),
+        try {
 
-            'school_id' => $request->school_id,
+            $stream = Stream::create([
 
-            'grade_id' => $request->grade_id,
+                'id' => (string) Str::uuid(),
 
-            'stream_name' => $request->stream_name,
+                'school_id' => $validated['school_id'],
 
-            'active' => true,
+                'grade_id' => $validated['grade_id'],
 
-            'created_at' => now(),
+                'stream_name' => $validated['stream_name'],
 
-        ]);
+                'active' => true,
 
-        return response()->json([
+                'is_deleted' => false,
 
-            'success' => true,
+                'created_at' => now(),
 
-            'message' => 'Stream created successfully',
+            ]);
 
-            'data' => new StreamResource(
+            $this->audit(
 
-                Stream::with([
-                    'grade',
-                    'school'
-                ])->find($stream->id)
+                request: $request,
 
-            )
+                module: self::MODULE,
 
-        ], 201);
+                action: 'Create',
+
+                model: $stream,
+
+                oldValues: null,
+
+                newValues: $stream->toArray(),
+
+                description: 'Created stream.'
+
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $stream,
+
+                self::RELATIONS
+
+            );
+
+            return $this->created(
+
+                new StreamResource(
+
+                    $stream
+
+                ),
+
+                'Stream created successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to create stream.',
+
+                [
+
+                    'school_id' => $request->school_id,
+
+                    'grade_id' => $request->grade_id,
+
+                    'stream_name' => $request->stream_name,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to create stream.'
+
+            );
+
+        }
     }
-
-    /**
-     * Update Stream
+        /**
+     * Update the specified stream.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $id)
     {
         $stream = Stream::find($id);
 
-        if (!$stream) {
+        if ($this->modelNotFound($stream)) {
 
-            return response()->json([
+            return $this->notFound(
 
-                'success' => false,
+                'Stream not found.'
 
-                'message' => 'Stream not found'
+            );
 
-            ], 404);
         }
 
-        $request->validate([
+        if ($this->isDeleted($stream)) {
+
+            return $this->badRequest(
+
+                'Stream has been deleted.'
+
+            );
+
+        }
+
+        $validated = $request->validate([
 
             'stream_name' => 'sometimes|string|max:50',
 
@@ -142,66 +230,177 @@ class StreamController extends Controller
 
         ]);
 
-        $stream->update(
+        $this->beginTransaction();
 
-            $request->except([
+        try {
 
-                'id',
+            $oldValues = $stream->toArray();
 
-                'school_id',
+            $stream->update(
 
-                'grade_id',
+                $validated
 
-                'created_at'
+            );
 
-            ])
+            $this->audit(
 
-        );
+                request: $request,
 
-        return response()->json([
+                module: self::MODULE,
 
-            'success' => true,
+                action: 'Update',
 
-            'message' => 'Stream updated successfully',
+                model: $stream,
 
-            'data' => new StreamResource(
+                oldValues: $oldValues,
 
-                Stream::with([
-                    'grade',
-                    'school'
-                ])->find($stream->id)
+                newValues: $stream->fresh()->toArray(),
 
-            )
+                description: 'Updated stream.'
 
-        ]);
+            );
+
+            $this->commit();
+
+            $this->loadRelations(
+
+                $stream,
+
+                self::RELATIONS
+
+            );
+
+            return $this->success(
+
+                new StreamResource(
+
+                    $stream
+
+                ),
+
+                'Stream updated successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to update stream.',
+
+                [
+
+                    'stream_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to update stream.'
+
+            );
+
+        }
     }
-
-    /**
-     * Delete Stream
+        /**
+     * Soft delete the specified stream.
      */
-    public function destroy($id)
+    public function destroy(Request $request, string $id)
     {
         $stream = Stream::find($id);
 
-        if (!$stream) {
+        if ($this->modelNotFound($stream)) {
 
-            return response()->json([
+            return $this->notFound(
 
-                'success' => false,
+                'Stream not found.'
 
-                'message' => 'Stream not found'
+            );
 
-            ], 404);
         }
 
-        $stream->delete();
+        if ($this->isDeleted($stream)) {
 
-        return response()->json([
+            return $this->badRequest(
 
-            'success' => true,
+                'Stream has already been deleted.'
 
-            'message' => 'Stream deleted successfully'
+            );
 
-        ]);
+        }
+
+        $this->beginTransaction();
+
+        try {
+
+            $oldValues = $stream->toArray();
+
+            $stream->update([
+
+                'is_deleted' => true,
+
+                'deleted_at' => now(),
+
+            ]);
+
+            $this->audit(
+
+                request: $request,
+
+                module: self::MODULE,
+
+                action: 'Delete',
+
+                model: $stream,
+
+                oldValues: $oldValues,
+
+                newValues: $stream->fresh()->toArray(),
+
+                description: 'Soft deleted stream.'
+
+            );
+
+            $this->commit();
+
+            return $this->success(
+
+                null,
+
+                'Stream deleted successfully.'
+
+            );
+
+        } catch (\Throwable $e) {
+
+            $this->rollback();
+
+            $this->logError(
+
+                'Failed to delete stream.',
+
+                [
+
+                    'stream_id' => $id,
+
+                    'exception' => $e,
+
+                ]
+
+            );
+
+            return $this->error(
+
+                'Failed to delete stream.'
+
+            );
+
+        }
     }
 }
