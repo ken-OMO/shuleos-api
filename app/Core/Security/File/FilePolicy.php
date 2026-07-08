@@ -95,6 +95,8 @@ final readonly class FilePolicy
 
         public bool $scanArchives = true,
 
+        public bool $scanForViruses = true,
+
         public bool $requireMalwareSandbox = false,
 
         public bool $requireDigitalSignature = false,
@@ -622,6 +624,11 @@ final readonly class FilePolicy
         return $this->scanArchives;
     }
 
+    public function scansForViruses(): bool
+{
+    return $this->scanForViruses;
+}
+
     /**
      * Whether malware sandbox analysis is required.
      */
@@ -727,6 +734,8 @@ final readonly class FilePolicy
 
             'scan_archives' =>
                 $this->scanArchives,
+
+                $this->scanForViruses,
 
             'require_malware_sandbox' =>
                 $this->requireMalwareSandbox,

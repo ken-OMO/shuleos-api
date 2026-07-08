@@ -7,13 +7,22 @@ namespace App\Core\Security\File;
 use App\Core\Security\File\Contracts\FileValidator;
 use Illuminate\Http\UploadedFile;
 
+/**
+ * Executes the ShuleOS File Security Pipeline.
+ *
+ * This manager coordinates all registered
+ * validators and produces a single
+ * FileSecurityReport.
+ */
 final readonly class FileSecurityManager
 {
     /**
      * @param iterable<FileValidator> $validators
      */
     public function __construct(
+
         private iterable $validators
+
     ) {
     }
 
@@ -21,44 +30,49 @@ final readonly class FileSecurityManager
      * Execute the security pipeline.
      */
     public function scan(
+
         UploadedFile $file,
-        FilePolicy $policy,
-        string $uploadId,
-        string $sha256
-    ): FileSecurityResult {
 
-        $result = new FileSecurityResult(
+        FilePolicy $policy
 
-            uploadId: $uploadId,
+    ): FileSecurityReport {
 
-            fileName: $file->getClientOriginalName(),
+        $report = new FileSecurityReport();
+                /*
+        |--------------------------------------------------------------------------
+        | Collect Validators
+        |--------------------------------------------------------------------------
+        */
 
-            sha256: $sha256
+        $validators = iterator_to_array(
+
+            $this->validators
 
         );
 
         /*
         |--------------------------------------------------------------------------
-        | Sort validators by execution order
+        | Sort Validators
         |--------------------------------------------------------------------------
         */
-
-        $validators = iterator_to_array($this->validators);
 
         usort(
 
             $validators,
 
             static fn (
+
                 FileValidator $a,
+
                 FileValidator $b
+
             ) =>
 
-            $a->validator()->order()
+                $a->priority()
 
-            <=>
+                <=>
 
-            $b->validator()->order()
+                $b->priority()
 
         );
 
@@ -68,7 +82,25 @@ final readonly class FileSecurityManager
         |--------------------------------------------------------------------------
         */
 
-        foreach ($validators as $validator) {
+        foreach (
+
+            $validators as $validator
+
+        ) {
+
+            if (
+
+                ! $validator->supports(
+
+                    $policy
+
+                )
+
+            ) {
+
+                continue;
+
+            }
 
             $validator->validate(
 
@@ -76,17 +108,29 @@ final readonly class FileSecurityManager
 
                 $policy,
 
-                $result
+                $report
 
             );
 
             /*
             |--------------------------------------------------------------------------
-            | Stop immediately if upload is no longer allowed.
+            | Stop On Critical Failure
             |--------------------------------------------------------------------------
             */
 
-            if (! $result->passed()) {
+            if (
+
+                $report->failed()
+
+                &&
+
+                $validator
+
+                    ->name()
+
+                    ->isCritical()
+
+            ) {
 
                 break;
 
@@ -94,9 +138,10 @@ final readonly class FileSecurityManager
 
         }
 
-        $result->finish();
+        $report->finish();
 
-        return $result;
+        return $report;
 
     }
+
 }
