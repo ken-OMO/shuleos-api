@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace App\Core\Security\File\Validators;
 
-use App\Core\Security\File\Contracts\FileValidator;
 use App\Core\Security\File\Contracts\VirusScannerInterface;
 use App\Core\Security\File\FilePolicy;
 use App\Core\Security\File\FileSecurityReport;
-use App\Core\Security\File\SecurityIssue;
 use App\Core\Security\File\SecurityIssueCode;
 use App\Core\Security\File\SecurityValidator;
 use Illuminate\Http\UploadedFile;
@@ -16,18 +14,16 @@ use Illuminate\Http\UploadedFile;
 /**
  * Virus scanner validator.
  *
- * Delegates malware scanning to the
- * configured virus scanner implementation.
+ * Delegates malware scanning to the configured
+ * VirusScannerInterface implementation.
  */
-final class VirusScanner implements FileValidator
+final class VirusScanner extends AbstractFileValidator
 {
     /**
-     * Create a new validator.
+     * Create the virus scanner validator.
      */
     public function __construct(
-
         private readonly VirusScannerInterface $scanner
-
     ) {
     }
 
@@ -47,123 +43,46 @@ final class VirusScanner implements FileValidator
         FilePolicy $policy,
         FileSecurityReport $report
     ): void {
-
-        /*
-        |--------------------------------------------------------------------------
-        | Virus Scanning Disabled
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-
-            ! $policy->scansForViruses()
-
-        ) {
-
-            return;
-
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Scanner Not Available
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-
-            ! $this->scanner->available()
-
-        ) {
-
-            $report->addValidatorResult(
-
-                SecurityValidator::VIRUS_SCAN,
-
-                false
-
+        if (! $this->scanner->available()) {
+            $this->fail(
+                report: $report,
+                code: SecurityIssueCode::SANDBOX_ANALYSIS_FAILED,
+                context: [
+                    'scanner' => $this->scanner->name(),
+                    'file_name' => $file->getClientOriginalName(),
+                    'reason' => 'The configured virus scanner is unavailable.',
+                ]
             );
 
             return;
-
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Execute Scan
-        |--------------------------------------------------------------------------
-        */
+        $clean = $this->scanner->scan($file);
 
-        $clean = $this->scanner->scan(
-
-            $file
-
-        );
-
-        $report->addValidatorResult(
-
-            SecurityValidator::VIRUS_SCAN,
-
-            $clean
-
-        );
-
-        if (
-
-            $clean
-
-        ) {
+        if ($clean) {
+            $this->pass($report);
 
             return;
-
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Malware Detected
-        |--------------------------------------------------------------------------
-        */
-
-        $report->addIssue(
-
-            new SecurityIssue(
-
-                SecurityIssueCode::VIRUS_DETECTED,
-
-                [
-
-                    'scanner' => $this->scanner->name(),
-
-                    'threat' => $this->scanner->detectedThreat(),
-
-                    'file_name' => $file->getClientOriginalName(),
-
-                ]
-
-            )
-
+        $this->fail(
+            report: $report,
+            code: SecurityIssueCode::VIRUS_DETECTED,
+            context: [
+                'scanner' => $this->scanner->name(),
+                'threat' => $this->scanner->detectedThreat(),
+                'file_name' => $file->getClientOriginalName(),
+            ]
         );
-
     }
 
     /**
-     * Determine whether this validator
-     * supports the supplied policy.
+     * Determine whether this validator supports
+     * the supplied policy.
      */
     public function supports(
         FilePolicy $policy
-    ): bool
-    {
+    ): bool {
         return $policy->scansForViruses();
-    }
-
-    /**
-     * Validator execution priority.
-     *
-     * Lower numbers execute first.
-     */
-    public function priority(): int
-    {
-        return SecurityValidator::VIRUS_SCAN->order();
     }
 }

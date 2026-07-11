@@ -4,23 +4,33 @@ declare(strict_types=1);
 
 namespace App\Core\Security\File\Validators;
 
-use App\Core\Security\File\Contracts\FileValidator;
 use App\Core\Security\File\FilePolicy;
 use App\Core\Security\File\FileSecurityReport;
-use App\Core\Security\File\SecurityIssue;
 use App\Core\Security\File\SecurityIssueCode;
 use App\Core\Security\File\SecurityValidator;
 use Illuminate\Http\UploadedFile;
+use RuntimeException;
 use ZipArchive;
 
 /**
- * Validates Microsoft Office documents.
+ * Validates Microsoft Office Open XML documents.
  *
- * Ensures that DOCX, XLSX and PPTX files
+ * Ensures that DOCX, XLSX, and PPTX files
  * contain the correct internal structure.
  */
-final class OfficeDocumentValidator implements FileValidator
+final class OfficeDocumentValidator extends AbstractFileValidator
 {
+    /**
+     * Supported Office Open XML extensions.
+     *
+     * @var list<string>
+     */
+    private const SUPPORTED_EXTENSIONS = [
+        'docx',
+        'xlsx',
+        'pptx',
+    ];
+
     /**
      * Validator identifier.
      */
@@ -28,193 +38,142 @@ final class OfficeDocumentValidator implements FileValidator
     {
         return SecurityValidator::OFFICE_DOCUMENT;
     }
-        /**
-     * Validate Office document structure.
+
+    /**
+     * Validate the Office document structure.
      */
     public function validate(
         UploadedFile $file,
         FilePolicy $policy,
         FileSecurityReport $report
     ): void {
-
         $extension = strtolower(
-
-            $file->getClientOriginalExtension()
-
+            trim($file->getClientOriginalExtension())
         );
 
-        if (
-
-            !in_array(
-
-                $extension,
-
-                [
-
-                    'docx',
-
-                    'xlsx',
-
-                    'pptx',
-
-                ],
-
-                true
-
-            )
-
-        ) {
-
+        if (! in_array($extension, self::SUPPORTED_EXTENSIONS, true)) {
             return;
-
         }
 
-        if (
-
-            !$this->validateStructure(
-
-                $file,
-
-                $extension
-
-            )
-
-        ) {
-
-            $report->addIssue(
-
-                new SecurityIssue(
-
-                    SecurityIssueCode::FILE_CORRUPTED,
-
-                    [
-
-                        'extension' => $extension,
-
-                        'file_name' => $file->getClientOriginalName(),
-
-                    ]
-
-                )
-
+        try {
+            $this->assertValidStructure(
+                file: $file,
+                extension: $extension
             );
 
-        }
-
-    }
-        /**
-     * Validate the internal structure
-     * of an Office document.
-     */
-    private function validateStructure(
-        UploadedFile $file,
-        string $extension
-    ): bool {
-
-        $zip = new ZipArchive();
-
-        if (
-
-            $zip->open(
-
-                $file->getRealPath()
-
-            ) !== true
-
-        ) {
-
-            return false;
-
-        }
-
-        $requiredDirectory = match ($extension) {
-
-            'docx' => 'word/',
-
-            'xlsx' => 'xl/',
-
-            'pptx' => 'ppt/',
-
-            default => null,
-
-        };
-
-        if (
-
-            $requiredDirectory === null
-
-        ) {
-
-            $zip->close();
-
-            return true;
-
-        }
-
-        $found = false;
-
-        for (
-
-            $index = 0;
-
-            $index < $zip->numFiles;
-
-            $index++
-
-        ) {
-
-            $name = $zip->getNameIndex(
-
-                $index
-
+            $this->pass($report);
+        } catch (RuntimeException $exception) {
+            $this->fail(
+                report: $report,
+                code: SecurityIssueCode::FILE_CORRUPTED,
+                context: [
+                    'extension' => $extension,
+                    'file_name' => $file->getClientOriginalName(),
+                    'reason' => $exception->getMessage(),
+                ]
             );
-
-            if (
-
-                $name !== false &&
-
-                str_starts_with(
-
-                    $name,
-
-                    $requiredDirectory
-
-                )
-
-            ) {
-
-                $found = true;
-
-                break;
-
-            }
-
         }
-
-        $zip->close();
-
-        return $found;
-
-    }
-        /**
-     * Determine whether this validator
-     * supports the supplied policy.
-     */
-    public function supports(
-        FilePolicy $policy
-    ): bool {
-
-        return true;
-
     }
 
     /**
-     * Validator execution priority.
+ * Determine whether this validator supports
+ * the supplied policy.
+ */
+public function supports(
+    FilePolicy $policy
+): bool {
+    foreach (self::SUPPORTED_EXTENSIONS as $extension) {
+        if ($policy->allowsExtension($extension)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+    /**
+     * Verify the internal Office document structure.
      *
-     * Lower numbers execute first.
+     * @throws RuntimeException
      */
-    public function priority(): int
-    {
-        return 40;
+    private function assertValidStructure(
+        UploadedFile $file,
+        string $extension
+    ): void {
+        $path = $file->getRealPath();
+
+        if (
+            $path === false
+            || ! is_file($path)
+            || ! is_readable($path)
+        ) {
+            throw new RuntimeException(
+                'The uploaded Office document cannot be read.'
+            );
+        }
+
+        $zip = new ZipArchive();
+
+        $openResult = $zip->open($path);
+
+        if ($openResult !== true) {
+            throw new RuntimeException(
+                'The uploaded Office document is not a valid ZIP container.'
+            );
+        }
+
+        try {
+            foreach (
+                $this->requiredEntries($extension)
+                as $requiredEntry
+            ) {
+                if ($zip->locateName($requiredEntry) === false) {
+                    throw new RuntimeException(
+                        sprintf(
+                            'Required Office document entry [%s] is missing.',
+                            $requiredEntry
+                        )
+                    );
+                }
+            }
+        } finally {
+            $zip->close();
+        }
+    }
+
+    /**
+     * Return the required internal entries.
+     *
+     * @return list<string>
+     */
+    private function requiredEntries(
+        string $extension
+    ): array {
+        return match ($extension) {
+            'docx' => [
+                '[Content_Types].xml',
+                '_rels/.rels',
+                'word/document.xml',
+            ],
+
+            'xlsx' => [
+                '[Content_Types].xml',
+                '_rels/.rels',
+                'xl/workbook.xml',
+            ],
+
+            'pptx' => [
+                '[Content_Types].xml',
+                '_rels/.rels',
+                'ppt/presentation.xml',
+            ],
+
+            default => throw new RuntimeException(
+                sprintf(
+                    'Unsupported Office document extension [%s].',
+                    $extension
+                )
+            ),
+        };
     }
 }

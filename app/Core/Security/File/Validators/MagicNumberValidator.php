@@ -4,25 +4,27 @@ declare(strict_types=1);
 
 namespace App\Core\Security\File\Validators;
 
-use App\Core\Security\File\Contracts\FileValidator;
 use App\Core\Security\File\FilePolicy;
 use App\Core\Security\File\FileSecurityReport;
 use App\Core\Security\File\MagicNumberDatabase;
-use App\Core\Security\File\SecurityIssue;
 use App\Core\Security\File\SecurityIssueCode;
 use App\Core\Security\File\SecurityValidator;
 use Illuminate\Http\UploadedFile;
+use RuntimeException;
 
 /**
- * Validates uploaded files using their
- * binary magic numbers.
+ * Validates uploaded files using binary signatures.
  *
- * This validator compares the actual
- * binary signature of a file against the
- * official signature database.
+ * Compares the file's actual contents against
+ * the registered signatures for its extension.
  */
-final class MagicNumberValidator implements FileValidator
+final class MagicNumberValidator extends AbstractFileValidator
 {
+    /**
+     * Maximum number of header bytes to read.
+     */
+    private const HEADER_BYTES = 64;
+
     /**
      * Validator identifier.
      */
@@ -30,155 +32,162 @@ final class MagicNumberValidator implements FileValidator
     {
         return SecurityValidator::MAGIC_NUMBER;
     }
-        /**
-     * Validate file signature.
+
+    /**
+     * Validate the uploaded file's binary signature.
      */
     public function validate(
         UploadedFile $file,
         FilePolicy $policy,
         FileSecurityReport $report
     ): void {
-
-        if (
-
-            !$policy->requireMagicNumberValidation
-
-        ) {
-
-            return;
-
-        }
-
         $extension = strtolower(
-
-            $file->getClientOriginalExtension()
-
+            trim($file->getClientOriginalExtension())
         );
 
-        if (
+        /*
+        |--------------------------------------------------------------------------
+        | Unsupported Signature Type
+        |--------------------------------------------------------------------------
+        */
 
-            !MagicNumberDatabase::supports($extension)
-
-        ) {
-
+        if (! MagicNumberDatabase::supports($extension)) {
             return;
-
         }
 
-        $header = $this->readHeader(
-
-            $file
-
+        $signatures = MagicNumberDatabase::forExtension(
+            $extension
         );
 
-        foreach (
+        /*
+        |--------------------------------------------------------------------------
+        | Text Formats Without Fixed Magic Numbers
+        |--------------------------------------------------------------------------
+        */
 
-            MagicNumberDatabase::forExtension($extension)
+        if ($signatures === []) {
+            return;
+        }
 
-            as $magic
+        /*
+        |--------------------------------------------------------------------------
+        | Read File Header
+        |--------------------------------------------------------------------------
+        */
 
-        ) {
+        try {
+            $header = $this->readHeader($file);
+        } catch (RuntimeException $exception) {
+            $this->fail(
+                report: $report,
+                code: SecurityIssueCode::FILE_CORRUPTED,
+                context: [
+                    'extension' => $extension,
+                    'file_name' => $file->getClientOriginalName(),
+                    'reason' => $exception->getMessage(),
+                ]
+            );
 
-            if (
+            return;
+        }
 
-                $magic->matches($header)
+        /*
+        |--------------------------------------------------------------------------
+        | Compare Known Signatures
+        |--------------------------------------------------------------------------
+        */
 
-            ) {
+        foreach ($signatures as $magicNumber) {
+            if ($magicNumber->matches($header)) {
+                $this->pass($report);
 
                 return;
-
             }
-
         }
 
-        $report->addIssue(
+        /*
+        |--------------------------------------------------------------------------
+        | Invalid Signature
+        |--------------------------------------------------------------------------
+        */
 
-            new SecurityIssue(
-
-                SecurityIssueCode::INVALID_MAGIC_NUMBER,
-
-                [
-
-                    'extension' => $extension,
-
-                    'file_name' => $file->getClientOriginalName(),
-
-                ]
-
-            )
-
+        $this->fail(
+            report: $report,
+            code: SecurityIssueCode::INVALID_MAGIC_NUMBER,
+            context: [
+                'extension' => $extension,
+                'file_name' => $file->getClientOriginalName(),
+                'detected_header' => $header,
+                'expected_signatures' => array_map(
+                    static fn ($magicNumber): string =>
+                        $magicNumber->signature(),
+                    $signatures
+                ),
+            ]
         );
-
     }
-        /**
-     * Read the first bytes of the file
-     * and convert them to hexadecimal.
-     */
-    private function readHeader(
-        UploadedFile $file,
-        int $bytes = 32
-    ): string {
 
-        $handle = fopen(
-
-            $file->getRealPath(),
-
-            'rb'
-
-        );
-
-        if (
-
-            $handle === false
-
-        ) {
-
-            return '';
-
-        }
-
-        $data = fread(
-
-            $handle,
-
-            $bytes
-
-        );
-
-        fclose(
-
-            $handle
-
-        );
-
-        return strtoupper(
-
-            bin2hex(
-
-                $data ?: ''
-
-            )
-
-        );
-
-    }
-        /**
-     * Whether this validator supports
+    /**
+     * Determine whether this validator supports
      * the supplied policy.
      */
     public function supports(
         FilePolicy $policy
     ): bool {
-
-        return $policy->requireMagicNumberValidation;
-
+        return $policy->requiresMagicNumberValidation();
     }
 
     /**
-     * Validator priority.
+     * Read the file header and convert it to hexadecimal.
+     *
+     * @throws RuntimeException
      */
-    public function priority(): int
-    {
-        return 30;
+    private function readHeader(
+        UploadedFile $file
+    ): string {
+        $path = $file->getRealPath();
+
+        if (
+            $path === false
+            || ! is_file($path)
+            || ! is_readable($path)
+        ) {
+            throw new RuntimeException(
+                'The uploaded file cannot be read.'
+            );
+        }
+
+        $handle = fopen($path, 'rb');
+
+        if ($handle === false) {
+            throw new RuntimeException(
+                'Failed to open the uploaded file.'
+            );
+        }
+
+        try {
+            $data = fread(
+                $handle,
+                self::HEADER_BYTES
+            );
+
+            if ($data === false) {
+                throw new RuntimeException(
+                    'Failed to read the uploaded file header.'
+                );
+            }
+
+            if ($data === '') {
+                throw new RuntimeException(
+                    'The uploaded file is empty.'
+                );
+            }
+
+            return strtoupper(
+                bin2hex($data)
+            );
+        } finally {
+            fclose($handle);
+        }
     }
 }
