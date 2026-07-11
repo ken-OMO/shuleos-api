@@ -37,6 +37,7 @@ class AssessmentRegistration extends Model
         'created_by',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -45,6 +46,7 @@ class AssessmentRegistration extends Model
         'assessment_year' => 'integer',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -80,4 +82,5 @@ class AssessmentRegistration extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }
