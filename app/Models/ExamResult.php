@@ -33,6 +33,7 @@ class ExamResult extends Model
         'entered_by',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -41,6 +42,7 @@ class ExamResult extends Model
         'marks' => 'decimal:2',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -98,4 +100,5 @@ class ExamResult extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }

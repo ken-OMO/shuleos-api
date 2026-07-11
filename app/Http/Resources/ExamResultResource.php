@@ -12,6 +12,7 @@ class ExamResultResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'exam_id'=>$this->exam_id,'learner_id'=>$this->learner_id,'learning_area_id'=>$this->learning_area_id,'paper_id'=>$this->paper_id,
 
             'marks'
                 => $this->marks,
