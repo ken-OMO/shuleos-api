@@ -35,10 +35,12 @@ class Exam extends Model
         'end_date',
 
         'active',
+        'status',
 
         'created_by',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -51,6 +53,7 @@ class Exam extends Model
         'active' => 'boolean',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -163,4 +166,5 @@ class Exam extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }
