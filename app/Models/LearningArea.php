@@ -83,60 +83,60 @@ class LearningArea extends Model
 
         );
     }
-/**
- * Teacher Assignments
- */
-public function teacherAssignments()
-{
-    return $this->hasMany(
 
-        TeacherAssignment::class,
+    /**
+     * Teacher Assignments
+     */
+    public function teacherAssignments()
+    {
+        return $this->hasMany(
 
-        'learning_area_id'
+            TeacherAssignment::class,
 
-    );
-}
+            'learning_area_id'
 
-/**
- * Schemes Of Work
- */
-public function schemesOfWork()
-{
-    return $this->hasMany(
+        );
+    }
 
-        SchemeOfWork::class,
+    /**
+     * Schemes Of Work
+     */
+    public function schemesOfWork()
+    {
+        return $this->hasMany(
 
-        'learning_area_id'
+            SchemeOfWork::class,
 
-    );
-}
+            'learning_area_id'
 
-/**
- * Lesson Plans
- */
-public function lessonPlans()
-{
-    return $this->hasMany(
+        );
+    }
 
-        LessonPlan::class,
+    /**
+     * Lesson Plans
+     */
+    public function lessonPlans()
+    {
+        return $this->hasMany(
 
-        'learning_area_id'
+            LessonPlan::class,
 
-    );
-}
+            'learning_area_id'
 
-/**
- * Curriculum Coverage
- */
-public function curriculumCoverage()
-{
-    return $this->hasMany(
+        );
+    }
 
-        CurriculumCoverage::class,
+    /**
+     * Curriculum Coverage
+     */
+    public function curriculumCoverage()
+    {
+        return $this->hasMany(
 
-        'learning_area_id'
+            CurriculumCoverage::class,
 
-    );
-}
+            'learning_area_id'
 
+        );
+    }
 }

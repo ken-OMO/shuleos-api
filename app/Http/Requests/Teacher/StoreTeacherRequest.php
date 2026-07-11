@@ -104,32 +104,23 @@ final class StoreTeacherRequest extends FormRequest
     {
         return [
 
-            'school_id.required' =>
-                'Please select a school.',
+            'school_id.required' => 'Please select a school.',
 
-            'school_id.exists' =>
-                'The selected school does not exist.',
+            'school_id.exists' => 'The selected school does not exist.',
 
-            'user_id.exists' =>
-                'The selected user account does not exist.',
+            'user_id.exists' => 'The selected user account does not exist.',
 
-            'tsc_no.required' =>
-                'TSC Number is required.',
+            'tsc_no.required' => 'TSC Number is required.',
 
-            'tsc_no.unique' =>
-                'This TSC Number already exists.',
+            'tsc_no.unique' => 'This TSC Number already exists.',
 
-            'staff_no.required' =>
-                'Staff Number is required.',
+            'staff_no.required' => 'Staff Number is required.',
 
-            'staff_no.unique' =>
-                'This Staff Number already exists.',
+            'staff_no.unique' => 'This Staff Number already exists.',
 
-            'email.email' =>
-                'Please enter a valid email address.',
+            'email.email' => 'Please enter a valid email address.',
 
-            'email.unique' =>
-                'This email address is already assigned to another teacher.',
+            'email.unique' => 'This email address is already assigned to another teacher.',
 
         ];
     }

@@ -162,9 +162,9 @@ final class SecureFileStorage
         );
 
         $temporaryPath = $this->directory
-            . DIRECTORY_SEPARATOR
-            . $storageId
-            . '.pending';
+            .DIRECTORY_SEPARATOR
+            .$storageId
+            .'.pending';
 
         $finalPath = $this->path(
             $storageId
@@ -220,7 +220,7 @@ final class SecureFileStorage
 
             throw new RuntimeException(
                 'Secure file storage failed: '
-                . $exception->getMessage(),
+                .$exception->getMessage(),
                 previous: $exception
             );
         }
@@ -277,7 +277,7 @@ final class SecureFileStorage
 
             throw new RuntimeException(
                 'Secure file decryption failed: '
-                . $exception->getMessage(),
+                .$exception->getMessage(),
                 previous: $exception
             );
         }
@@ -631,9 +631,9 @@ final class SecureFileStorage
         }
 
         return $this->directory
-            . DIRECTORY_SEPARATOR
-            . $storageId
-            . '.secure';
+            .DIRECTORY_SEPARATOR
+            .$storageId
+            .'.secure';
     }
 
     /**
@@ -671,7 +671,7 @@ final class SecureFileStorage
     /**
      * Read an exact number of bytes.
      *
-     * @param resource $stream
+     * @param  resource  $stream
      *
      * @throws RuntimeException
      */
@@ -702,7 +702,7 @@ final class SecureFileStorage
     /**
      * Write all supplied bytes.
      *
-     * @param resource $stream
+     * @param  resource  $stream
      *
      * @throws RuntimeException
      */

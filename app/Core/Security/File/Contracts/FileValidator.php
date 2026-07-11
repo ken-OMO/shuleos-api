@@ -26,7 +26,7 @@ use Illuminate\Http\UploadedFile;
  */
 interface FileValidator
 {
-       /**
+    /**
      * Validate an uploaded file.
      *
      * Adds any detected issues to the supplied

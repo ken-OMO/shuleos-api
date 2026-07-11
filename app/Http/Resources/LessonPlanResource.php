@@ -9,8 +9,7 @@ class LessonPlanResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
@@ -22,17 +21,13 @@ class LessonPlanResource extends JsonResource
 
             'introduction' => $this->introduction,
 
-            'lesson_development'
-                => $this->lesson_development,
+            'lesson_development' => $this->lesson_development,
 
-            'conclusion'
-                => $this->conclusion,
+            'conclusion' => $this->conclusion,
 
-            'reflection'
-                => $this->reflection,
+            'reflection' => $this->reflection,
 
-            'status'
-                => $this->status,
+            'status' => $this->status,
 
             'assignment' => $this->whenLoaded(
 

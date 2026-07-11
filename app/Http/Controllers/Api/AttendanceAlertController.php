@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\AttendanceAlert;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AttendanceAlertResource;
+use App\Models\AttendanceAlert;
+use Illuminate\Http\Request;
 
 class AttendanceAlertController extends Controller
 {
@@ -45,29 +45,22 @@ class AttendanceAlertController extends Controller
 
     public function store(
         Request $request
-    )
-    {
+    ) {
         $validated = $request->validate([
 
             'id' => 'required|uuid',
 
-            'school_id'
-                => 'required|uuid',
+            'school_id' => 'required|uuid',
 
-            'learner_id'
-                => 'required|uuid',
+            'learner_id' => 'required|uuid',
 
-            'attendance_id'
-                => 'required|uuid',
+            'attendance_id' => 'required|uuid',
 
-            'parent_notified'
-                => 'boolean',
+            'parent_notified' => 'boolean',
 
-            'notification_method'
-                => 'nullable|string|max:100',
+            'notification_method' => 'nullable|string|max:100',
 
-            'notified_at'
-                => 'nullable|date',
+            'notified_at' => 'nullable|date',
 
         ]);
 
@@ -87,20 +80,16 @@ class AttendanceAlertController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $alert = AttendanceAlert::findOrFail($id);
 
         $validated = $request->validate([
 
-            'parent_notified'
-                => 'sometimes|boolean',
+            'parent_notified' => 'sometimes|boolean',
 
-            'notification_method'
-                => 'sometimes|string|max:100',
+            'notification_method' => 'sometimes|string|max:100',
 
-            'notified_at'
-                => 'sometimes|date',
+            'notified_at' => 'sometimes|date',
 
         ]);
 
@@ -125,9 +114,7 @@ class AttendanceAlertController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Attendance alert deleted successfully'
+            'message' => 'Attendance alert deleted successfully',
 
         ]);
     }

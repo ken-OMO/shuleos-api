@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
@@ -17,24 +17,24 @@ class AuthController extends Controller
     {
         $request->validate([
             'username' => 'required',
-            'password' => 'required'
+            'password' => 'required',
         ]);
 
         $user = User::where('username', $request->username)
             ->where('active', true)
             ->first();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid username or password'
+                'message' => 'Invalid username or password',
             ], 401);
         }
 
-        if (!Hash::check($request->password, $user->password_hash)) {
+        if (! Hash::check($request->password, $user->password_hash)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Invalid username or password'
+                'message' => 'Invalid username or password',
             ], 401);
         }
 
@@ -50,8 +50,8 @@ class AuthController extends Controller
                 'last_name' => $user->last_name,
                 'email' => $user->email,
                 'school_id' => $user->school_id,
-                'role_id' => $user->role_id
-            ]
+                'role_id' => $user->role_id,
+            ],
         ]);
     }
 
@@ -63,22 +63,22 @@ class AuthController extends Controller
         try {
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not found'
+                    'message' => 'User not found',
                 ], 404);
             }
 
             return response()->json([
                 'success' => true,
-                'user' => $user
+                'user' => $user,
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Authentication failed.',
             ], 401);
         }
     }
@@ -93,13 +93,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Logged out successfully'
+                'message' => 'Logged out successfully',
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Logout failed.',
             ], 401);
         }
     }
@@ -114,13 +114,13 @@ class AuthController extends Controller
 
             return response()->json([
                 'success' => true,
-                'token' => $newToken
+                'token' => $newToken,
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Token refresh failed.',
             ], 401);
         }
     }

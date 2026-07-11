@@ -21,14 +21,13 @@ final readonly class DuplicateDetector
      */
     public function __construct(
         private FileHash $hasher
-    ) {
-    }
+    ) {}
 
     /**
      * Determine whether an uploaded file matches
      * any known cryptographic hash.
      *
-     * @param iterable<string> $knownHashes
+     * @param  iterable<string>  $knownHashes
      */
     public function isDuplicate(
         UploadedFile $file,
@@ -47,7 +46,7 @@ final readonly class DuplicateDetector
      *
      * Returns null when no duplicate exists.
      *
-     * @param iterable<string> $knownHashes
+     * @param  iterable<string>  $knownHashes
      */
     public function findDuplicate(
         UploadedFile $file,
@@ -70,7 +69,7 @@ final readonly class DuplicateDetector
      * Determine whether a calculated hash exists
      * within the known hash collection.
      *
-     * @param iterable<string> $knownHashes
+     * @param  iterable<string>  $knownHashes
      */
     public function containsHash(
         string $hash,

@@ -9,44 +9,36 @@ class AttendanceAlertResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'parent_notified'
-                => $this->parent_notified,
+            'parent_notified' => $this->parent_notified,
 
-            'notification_method'
-                => $this->notification_method,
+            'notification_method' => $this->notification_method,
 
-            'notified_at'
-                => $this->notified_at,
+            'notified_at' => $this->notified_at,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'learner'
-                => $this->whenLoaded(
+            'learner' => $this->whenLoaded(
 
-                    'learner'
+                'learner'
 
-                ),
+            ),
 
-            'attendance'
-                => $this->whenLoaded(
+            'attendance' => $this->whenLoaded(
 
-                    'attendance'
+                'attendance'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

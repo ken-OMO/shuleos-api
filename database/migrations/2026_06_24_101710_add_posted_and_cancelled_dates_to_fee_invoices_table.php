@@ -33,7 +33,7 @@ return new class extends Migration
 
                 'posted_at',
 
-                'cancelled_at'
+                'cancelled_at',
 
             ]);
 

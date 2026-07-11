@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class Timetable extends Model
+class Timetable extends TenantModel
 {
     use HasFactory;
 
@@ -28,80 +27,81 @@ class Timetable extends Model
         'created_by',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function profile()
-{
-    return $this->belongsTo(
+    public function profile()
+    {
+        return $this->belongsTo(
 
-        TimetableProfile::class,
+            TimetableProfile::class,
 
-        'timetable_profile_id'
+            'timetable_profile_id'
 
-    );
-}
+        );
+    }
 
-public function academicYear()
-{
-    return $this->belongsTo(
+    public function academicYear()
+    {
+        return $this->belongsTo(
 
-        AcademicYear::class,
+            AcademicYear::class,
 
-        'academic_year_id'
+            'academic_year_id'
 
-    );
-}
+        );
+    }
 
-public function term()
-{
-    return $this->belongsTo(
+    public function term()
+    {
+        return $this->belongsTo(
 
-        Term::class,
+            Term::class,
 
-        'term_id'
+            'term_id'
 
-    );
-}
+        );
+    }
 
-public function conflicts()
-{
-    return $this->hasMany(
+    public function conflicts()
+    {
+        return $this->hasMany(
 
-        TimetableConflict::class,
+            TimetableConflict::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 
-public function publications()
-{
-    return $this->hasMany(
+    public function publications()
+    {
+        return $this->hasMany(
 
-        TimetablePublication::class,
+            TimetablePublication::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 
-public function generationRuns()
-{
-    return $this->hasMany(
+    public function generationRuns()
+    {
+        return $this->hasMany(
 
-        TimetableGenerationRun::class,
+            TimetableGenerationRun::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 }

@@ -136,18 +136,18 @@ final class TeacherService extends BaseService
             self::RELATIONS
 
         )
-        ->where(
+            ->where(
 
-            'is_deleted',
+                'is_deleted',
 
-            false
+                false
 
-        )
-        ->findOrFail(
+            )
+            ->findOrFail(
 
-            $id
+                $id
 
-        );
+            );
 
         return $teacher;
 

@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TimetableConstraint extends Model
+class TimetableConstraint extends TenantModel
 {
     use HasFactory;
 
@@ -24,14 +23,15 @@ class TimetableConstraint extends Model
         'description',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 }

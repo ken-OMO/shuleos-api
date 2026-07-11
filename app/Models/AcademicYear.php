@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class AcademicYear extends Model
+class AcademicYear extends TenantModel
 {
     protected $table = 'academic_years';
 

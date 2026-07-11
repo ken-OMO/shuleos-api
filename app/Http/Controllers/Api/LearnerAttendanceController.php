@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\LearnerAttendance;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LearnerAttendanceResource;
+use App\Models\LearnerAttendance;
+use Illuminate\Http\Request;
 
 class LearnerAttendanceController extends Controller
 {
@@ -77,20 +77,15 @@ class LearnerAttendanceController extends Controller
 
             'stream_id' => 'required|uuid',
 
-            'attendance_session_id'
-                => 'required|uuid',
+            'attendance_session_id' => 'required|uuid',
 
-            'attendance_status_id'
-                => 'required|uuid',
+            'attendance_status_id' => 'required|uuid',
 
-            'attendance_date'
-                => 'required|date',
+            'attendance_date' => 'required|date',
 
-            'remarks'
-                => 'nullable|string',
+            'remarks' => 'nullable|string',
 
-            'marked_by'
-                => 'required|uuid',
+            'marked_by' => 'required|uuid',
 
         ]);
 
@@ -108,17 +103,14 @@ class LearnerAttendanceController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $attendance = LearnerAttendance::findOrFail($id);
 
         $validated = $request->validate([
 
-            'attendance_status_id'
-                => 'sometimes|uuid',
+            'attendance_status_id' => 'sometimes|uuid',
 
-            'remarks'
-                => 'sometimes|string',
+            'remarks' => 'sometimes|string',
 
         ]);
 
@@ -143,9 +135,7 @@ class LearnerAttendanceController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Attendance deleted successfully'
+            'message' => 'Attendance deleted successfully',
 
         ]);
     }

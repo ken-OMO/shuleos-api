@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableSubstitution;
 use App\Http\Resources\TimetableSubstitutionResource;
+use App\Models\TimetableSubstitution;
 use Illuminate\Http\Request;
 
 class TimetableSubstitutionController extends Controller
@@ -14,8 +14,7 @@ class TimetableSubstitutionController extends Controller
         return TimetableSubstitutionResource::collection(
 
             TimetableSubstitution::orderByDesc('substitution_date')
-
-            ->get()
+                ->get()
 
         );
     }

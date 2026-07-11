@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class AuditLog extends Model
+class AuditLog extends TenantModel
 {
     protected $table = 'audit_logs';
 

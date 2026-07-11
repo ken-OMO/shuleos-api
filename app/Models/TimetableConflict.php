@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TimetableConflict extends Model
+class TimetableConflict extends TenantModel
 {
     use HasFactory;
 
@@ -26,25 +25,26 @@ class TimetableConflict extends Model
         'resolved_at',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function timetable()
-{
-    return $this->belongsTo(
+    public function timetable()
+    {
+        return $this->belongsTo(
 
-        Timetable::class,
+            Timetable::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 }

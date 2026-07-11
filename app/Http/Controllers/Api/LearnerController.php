@@ -38,9 +38,9 @@ class LearnerController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderByDesc('created_at')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderByDesc('created_at')
+            ->get();
 
         return $this->success(
 
@@ -65,8 +65,8 @@ class LearnerController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($learner)) {
 
@@ -90,36 +90,37 @@ class LearnerController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created learner.
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
 
-            'school_id'      => 'required|exists:schools,id',
+            'school_id' => 'required|exists:schools,id',
 
-            'grade_id'       => 'required|exists:grades,id',
+            'grade_id' => 'required|exists:grades,id',
 
-            'stream_id'      => 'required|exists:streams,id',
+            'stream_id' => 'required|exists:streams,id',
 
-            'admission_no'   => 'required|unique:learners,admission_no',
+            'admission_no' => 'required|unique:learners,admission_no',
 
-            'first_name'     => 'required|string|max:100',
+            'first_name' => 'required|string|max:100',
 
-            'middle_name'    => 'nullable|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
 
-            'last_name'      => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
 
-            'gender'         => 'nullable|string|max:20',
+            'gender' => 'nullable|string|max:20',
 
-            'date_of_birth'  => 'nullable|date',
+            'date_of_birth' => 'nullable|date',
 
             'admission_date' => 'nullable|date',
 
-            'upi'            => 'nullable|string|max:100',
+            'upi' => 'nullable|string|max:100',
 
-            'assessment_no'  => 'nullable|string|max:100',
+            'assessment_no' => 'nullable|string|max:100',
 
         ]);
 
@@ -229,7 +230,8 @@ class LearnerController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified learner.
      */
     public function update(Request $request, string $id)
@@ -258,7 +260,7 @@ class LearnerController extends BaseCrudController
 
         $validated = $request->validate([
 
-            'admission_no' => 'sometimes|unique:learners,admission_no,' . $id . ',id',
+            'admission_no' => 'sometimes|unique:learners,admission_no,'.$id.',id',
 
             'first_name' => 'sometimes|string|max:100',
 
@@ -360,7 +362,8 @@ class LearnerController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified learner.
      */
     public function destroy(Request $request, string $id)

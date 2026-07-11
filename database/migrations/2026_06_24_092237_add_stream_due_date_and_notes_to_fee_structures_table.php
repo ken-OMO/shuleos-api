@@ -41,7 +41,7 @@ return new class extends Migration
 
                 'due_date',
 
-                'notes'
+                'notes',
 
             ]);
 

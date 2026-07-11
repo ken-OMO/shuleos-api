@@ -15,23 +15,17 @@ class ExamLearningAreaResource extends JsonResource
             'exam_id' => $this->exam_id,
             'learning_area_id' => $this->learning_area_id,
 
-            'number_of_papers'
-                => $this->number_of_papers,
+            'number_of_papers' => $this->number_of_papers,
 
-            'total_marks'
-                => $this->total_marks,
+            'total_marks' => $this->total_marks,
 
-            'exam'
-                => $this->whenLoaded('exam'),
+            'exam' => $this->whenLoaded('exam'),
 
-            'learning_area'
-                => $this->whenLoaded('learningArea'),
+            'learning_area' => $this->whenLoaded('learningArea'),
 
-            'papers'
-                => $this->whenLoaded('papers'),
+            'papers' => $this->whenLoaded('papers'),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

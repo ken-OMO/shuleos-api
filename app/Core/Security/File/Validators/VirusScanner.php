@@ -24,8 +24,7 @@ final class VirusScanner extends AbstractFileValidator
      */
     public function __construct(
         private readonly VirusScannerInterface $scanner
-    ) {
-    }
+    ) {}
 
     /**
      * Validator identifier.

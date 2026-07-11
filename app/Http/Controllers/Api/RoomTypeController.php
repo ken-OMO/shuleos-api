@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
-use App\Models\RoomType;
-
 use App\Http\Resources\RoomTypeResource;
-
+use App\Models\RoomType;
 use Illuminate\Http\Request;
 
 class RoomTypeController extends Controller
@@ -17,8 +14,7 @@ class RoomTypeController extends Controller
         return RoomTypeResource::collection(
 
             RoomType::orderBy('type_name')
-
-            ->get()
+                ->get()
 
         );
     }

@@ -9,16 +9,14 @@ class LessonNoteResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
             'school_id' => $this->school_id,
             'lesson_plan_id' => $this->lesson_plan_id,
 
-            'note_content'
-                => $this->note_content,
+            'note_content' => $this->note_content,
 
             'lesson_plan' => $this->whenLoaded(
 
@@ -26,11 +24,9 @@ class LessonNoteResource extends JsonResource
 
             ),
 
-            'created_by'
-                => $this->created_by,
+            'created_by' => $this->created_by,
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

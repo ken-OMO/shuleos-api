@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class FinanceSetting extends Model
+class FinanceSetting extends TenantModel
 {
     use HasFactory;
 
@@ -30,17 +29,18 @@ class FinanceSetting extends Model
         'active',
 
     ];
+
     /**
- * School
- */
-public function school()
-{
-    return $this->belongsTo(
+     * School
+     */
+    public function school()
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 }

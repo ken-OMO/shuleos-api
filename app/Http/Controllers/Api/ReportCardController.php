@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\ReportCard;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ReportCardResource;
+use App\Models\ReportCard;
+use Illuminate\Http\Request;
 
 class ReportCardController extends Controller
 {
@@ -53,8 +53,7 @@ class ReportCardController extends Controller
 
     public function store(
         Request $request
-    )
-    {
+    ) {
         $validated = $request->validate([
 
             'id' => 'required|uuid',
@@ -65,44 +64,31 @@ class ReportCardController extends Controller
 
             'exam_id' => 'required|uuid',
 
-            'academic_year_id'
-                => 'required|uuid',
+            'academic_year_id' => 'required|uuid',
 
-            'term_id'
-                => 'required|uuid',
+            'term_id' => 'required|uuid',
 
-            'overall_score'
-                => 'required|numeric',
+            'overall_score' => 'required|numeric',
 
-            'overall_grade'
-                => 'required|string|max:10',
+            'overall_grade' => 'required|string|max:10',
 
-            'total_points'
-                => 'required|numeric',
+            'total_points' => 'required|numeric',
 
-            'stream_position'
-                => 'required|integer',
+            'stream_position' => 'required|integer',
 
-            'grade_position'
-                => 'required|integer',
+            'grade_position' => 'required|integer',
 
-            'school_position'
-                => 'required|integer',
+            'school_position' => 'required|integer',
 
-            'total_learners'
-                => 'required|integer',
+            'total_learners' => 'required|integer',
 
-            'attendance_percentage'
-                => 'required|numeric',
+            'attendance_percentage' => 'required|numeric',
 
-            'class_teacher_comment'
-                => 'nullable|string',
+            'class_teacher_comment' => 'nullable|string',
 
-            'principal_comment'
-                => 'nullable|string',
+            'principal_comment' => 'nullable|string',
 
-            'pathway_recommendation'
-                => 'nullable|string',
+            'pathway_recommendation' => 'nullable|string',
 
         ]);
 
@@ -122,44 +108,32 @@ class ReportCardController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $reportCard = ReportCard::findOrFail($id);
 
         $validated = $request->validate([
 
-            'overall_score'
-                => 'sometimes|numeric',
+            'overall_score' => 'sometimes|numeric',
 
-            'overall_grade'
-                => 'sometimes|string|max:10',
+            'overall_grade' => 'sometimes|string|max:10',
 
-            'total_points'
-                => 'sometimes|numeric',
+            'total_points' => 'sometimes|numeric',
 
-            'stream_position'
-                => 'sometimes|integer',
+            'stream_position' => 'sometimes|integer',
 
-            'grade_position'
-                => 'sometimes|integer',
+            'grade_position' => 'sometimes|integer',
 
-            'school_position'
-                => 'sometimes|integer',
+            'school_position' => 'sometimes|integer',
 
-            'total_learners'
-                => 'sometimes|integer',
+            'total_learners' => 'sometimes|integer',
 
-            'attendance_percentage'
-                => 'sometimes|numeric',
+            'attendance_percentage' => 'sometimes|numeric',
 
-            'class_teacher_comment'
-                => 'sometimes|string',
+            'class_teacher_comment' => 'sometimes|string',
 
-            'principal_comment'
-                => 'sometimes|string',
+            'principal_comment' => 'sometimes|string',
 
-            'pathway_recommendation'
-                => 'sometimes|string',
+            'pathway_recommendation' => 'sometimes|string',
 
         ]);
 
@@ -184,9 +158,7 @@ class ReportCardController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Report card deleted successfully'
+            'message' => 'Report card deleted successfully',
 
         ]);
     }

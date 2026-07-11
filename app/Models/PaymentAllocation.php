@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class PaymentAllocation extends Model
+class PaymentAllocation extends TenantModel
 {
     use HasFactory;
 
@@ -22,36 +21,37 @@ class PaymentAllocation extends Model
         'created_by',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function payment()
-{
-    return $this->belongsTo(
+    public function payment()
+    {
+        return $this->belongsTo(
 
-        Payment::class,
+            Payment::class,
 
-        'payment_id'
+            'payment_id'
 
-    );
-}
+        );
+    }
 
-public function invoice()
-{
-    return $this->belongsTo(
+    public function invoice()
+    {
+        return $this->belongsTo(
 
-        FeeInvoice::class,
+            FeeInvoice::class,
 
-        'invoice_id'
+            'invoice_id'
 
-    );
-}
+        );
+    }
 }

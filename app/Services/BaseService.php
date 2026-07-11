@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use Closure;
 use App\Core\Database\Transaction;
+use Closure;
 use Illuminate\Support\Facades\Log;
 
 abstract class BaseService

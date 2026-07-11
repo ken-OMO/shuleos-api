@@ -1,11 +1,89 @@
 <?php
+
 namespace App\Http\Controllers\Api;
-use App\Http\Controllers\BaseCrudController;use App\Http\Resources\LessonNoteResource;use App\Models\LessonNote;use App\Services\Teaching\LessonNoteService;use Illuminate\Http\Request;use Illuminate\Support\Facades\DB;
-class LessonNoteController extends BaseCrudController{
-private const MODULE='Lesson Notes';private const RELATIONS=['lessonPlan'];public function __construct(private readonly LessonNoteService$service){}
-public function index(Request$r){$v=$r->validate(['lesson_plan_id'=>'sometimes|uuid','per_page'=>'sometimes|integer|min:1|max:100']);$q=LessonNote::with(self::RELATIONS)->current()->where('school_id',$this->school($r))->when(isset($v['lesson_plan_id']),fn($x)=>$x->where('lesson_plan_id',$v['lesson_plan_id']));return$this->success(LessonNoteResource::collection($q->orderByDesc('created_at')->paginate($v['per_page']??20)),'Lesson notes retrieved successfully.');}
-public function show(Request$r,string$id){$n=$this->query($r)->with(self::RELATIONS)->find($id);return$n?$this->success(new LessonNoteResource($n),'Lesson note retrieved successfully.'):$this->notFound('Lesson note not found.');}
-public function store(Request$r){$v=$r->validate(['school_id'=>'sometimes|uuid|exists:schools,id','lesson_plan_id'=>'required|uuid|exists:lesson_plans,id','note_content'=>'required|string|max:50000','created_by'=>'sometimes|nullable|uuid|exists:users,id']);$n=DB::transaction(function()use($r,$v){$n=$this->service->create($v,$this->school($r,$v),auth()->id());$this->audit($r,self::MODULE,'Create',$n,null,$n->toArray(),'Created lesson note.');return$n;});return$this->created(new LessonNoteResource($n->load(self::RELATIONS)),'Lesson note created successfully.');}
-public function update(Request$r,string$id){$n=$this->query($r)->find($id);if(!$n)return$this->notFound('Lesson note not found.');$v=$r->validate(['note_content'=>'required|string|max:50000']);$old=$n->toArray();DB::transaction(function()use($r,$n,$v,$old){$n->update($v);$this->audit($r,self::MODULE,'Update',$n,$old,$n->fresh()->toArray(),'Updated lesson note.');});return$this->success(new LessonNoteResource($n->refresh()->load(self::RELATIONS)),'Lesson note updated successfully.');}
-public function destroy(Request$r,string$id){$n=$this->query($r)->find($id);if(!$n)return$this->notFound('Lesson note not found.');DB::transaction(function()use($r,$n){$old=$n->toArray();$n->update(['is_deleted'=>true,'deleted_at'=>now(),'deleted_by'=>auth()->id()]);$this->audit($r,self::MODULE,'Delete',$n,$old,$n->toArray(),'Soft deleted lesson note.');});return$this->success(null,'Lesson note deleted successfully.');}
-private function query(Request$r){return LessonNote::current()->where('school_id',$this->school($r));}private function school(Request$r,array$v=[]):string{$id=$r->attributes->get('tenant_school_id')??$v['school_id']??$r->input('school_id');abort_if(!$id,403,'School context not found.');return(string)$id;}}
+
+use App\Http\Controllers\BaseCrudController;
+use App\Http\Resources\LessonNoteResource;
+use App\Models\LessonNote;
+use App\Services\Teaching\LessonNoteService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class LessonNoteController extends BaseCrudController
+{
+    private const MODULE = 'Lesson Notes';
+
+    private const RELATIONS = ['lessonPlan'];
+
+    public function __construct(private readonly LessonNoteService $service) {}
+
+    public function index(Request $r)
+    {
+        $v = $r->validate(['lesson_plan_id' => 'sometimes|uuid', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $q = LessonNote::with(self::RELATIONS)->current()->where('school_id', $this->school($r))->when(isset($v['lesson_plan_id']), fn ($x) => $x->where('lesson_plan_id', $v['lesson_plan_id']));
+
+        return $this->success(LessonNoteResource::collection($q->orderByDesc('created_at')->paginate($v['per_page'] ?? 20)), 'Lesson notes retrieved successfully.');
+    }
+
+    public function show(Request $r, string $id)
+    {
+        $n = $this->query($r)->with(self::RELATIONS)->find($id);
+
+        return $n ? $this->success(new LessonNoteResource($n), 'Lesson note retrieved successfully.') : $this->notFound('Lesson note not found.');
+    }
+
+    public function store(Request $r)
+    {
+        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'lesson_plan_id' => 'required|uuid|exists:lesson_plans,id', 'note_content' => 'required|string|max:50000', 'created_by' => 'sometimes|nullable|uuid|exists:users,id']);
+        $n = DB::transaction(function () use ($r, $v) {
+            $n = $this->service->create($v, $this->school($r, $v), auth()->id());
+            $this->audit($r, self::MODULE, 'Create', $n, null, $n->toArray(), 'Created lesson note.');
+
+            return $n;
+        });
+
+        return $this->created(new LessonNoteResource($n->load(self::RELATIONS)), 'Lesson note created successfully.');
+    }
+
+    public function update(Request $r, string $id)
+    {
+        $n = $this->query($r)->find($id);
+        if (! $n) {
+            return $this->notFound('Lesson note not found.');
+        }$v = $r->validate(['note_content' => 'required|string|max:50000']);
+        $old = $n->toArray();
+        DB::transaction(function () use ($r, $n, $v, $old) {
+            $n->update($v);
+            $this->audit($r, self::MODULE, 'Update', $n, $old, $n->fresh()->toArray(), 'Updated lesson note.');
+        });
+
+        return $this->success(new LessonNoteResource($n->refresh()->load(self::RELATIONS)), 'Lesson note updated successfully.');
+    }
+
+    public function destroy(Request $r, string $id)
+    {
+        $n = $this->query($r)->find($id);
+        if (! $n) {
+            return $this->notFound('Lesson note not found.');
+        }DB::transaction(function () use ($r, $n) {
+            $old = $n->toArray();
+            $n->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+            $this->audit($r, self::MODULE, 'Delete', $n, $old, $n->toArray(), 'Soft deleted lesson note.');
+        });
+
+        return $this->success(null, 'Lesson note deleted successfully.');
+    }
+
+    private function query(Request $r)
+    {
+        return LessonNote::current()->where('school_id', $this->school($r));
+    }
+
+    private function school(Request $r, array $v = []): string
+    {
+        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
+        abort_if(! $id,403,'School context not found.');
+
+        return (string) $id;
+    }
+}

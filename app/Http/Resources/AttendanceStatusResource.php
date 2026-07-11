@@ -9,30 +9,24 @@ class AttendanceStatusResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'status_name'
-                => $this->status_name,
+            'status_name' => $this->status_name,
 
-            'status_code'
-                => $this->status_code,
+            'status_code' => $this->status_code,
 
-            'active'
-                => $this->active,
+            'active' => $this->active,
 
-            'attendance_records'
-                => $this->whenLoaded(
+            'attendance_records' => $this->whenLoaded(
 
-                    'attendanceRecords'
+                'attendanceRecords'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

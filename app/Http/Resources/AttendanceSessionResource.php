@@ -9,37 +9,30 @@ class AttendanceSessionResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'session_name'
-                => $this->session_name,
+            'session_name' => $this->session_name,
 
-            'session_order'
-                => $this->session_order,
+            'session_order' => $this->session_order,
 
-            'active'
-                => $this->active,
+            'active' => $this->active,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'attendance_records'
-                => $this->whenLoaded(
+            'attendance_records' => $this->whenLoaded(
 
-                    'attendanceRecords'
+                'attendanceRecords'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

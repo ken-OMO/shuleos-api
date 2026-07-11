@@ -32,7 +32,7 @@ class TeacherAssignmentService
 
     public function update(TeacherAssignment $assignment, array $data): TeacherAssignment
     {
-        if (($data['is_class_teacher'] ?? false) && !$assignment->is_class_teacher) {
+        if (($data['is_class_teacher'] ?? false) && ! $assignment->is_class_teacher) {
             $this->ensureClassTeacherAvailable([
                 ...$assignment->only(['stream_id', 'academic_year_id', 'term_id']),
                 ...$data,
@@ -56,7 +56,7 @@ class TeacherAssignmentService
             $valid = $valid && Stream::whereKey($data['stream_id'])->where('school_id', $schoolId)->where('grade_id', $data['grade_id'])->where('active', true)->exists();
         }
 
-        if (!$valid) {
+        if (! $valid) {
             throw ValidationException::withMessages(['assignment' => 'The assignment contains inactive, mismatched, or cross-school records.']);
         }
     }

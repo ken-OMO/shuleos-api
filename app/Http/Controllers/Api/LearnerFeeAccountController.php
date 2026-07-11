@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\LearnerFeeAccount;
 use App\Http\Resources\LearnerFeeAccountResource;
+use App\Models\LearnerFeeAccount;
 use Illuminate\Http\Request;
 
 class LearnerFeeAccountController extends Controller
@@ -14,8 +14,7 @@ class LearnerFeeAccountController extends Controller
         return LearnerFeeAccountResource::collection(
 
             LearnerFeeAccount::orderBy('account_number')
-
-            ->get()
+                ->get()
 
         );
     }

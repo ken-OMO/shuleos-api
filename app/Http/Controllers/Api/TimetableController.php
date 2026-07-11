@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Timetable;
 use App\Http\Resources\TimetableResource;
+use App\Models\Timetable;
 use Illuminate\Http\Request;
 
 class TimetableController extends Controller
@@ -14,8 +14,7 @@ class TimetableController extends Controller
         return TimetableResource::collection(
 
             Timetable::orderBy('timetable_name')
-
-            ->get()
+                ->get()
 
         );
     }

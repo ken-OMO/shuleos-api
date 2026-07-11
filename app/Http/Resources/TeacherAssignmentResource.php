@@ -9,8 +9,7 @@ class TeacherAssignmentResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
@@ -29,14 +28,11 @@ class TeacherAssignmentResource extends JsonResource
 
             'term_id' => $this->term_id,
 
-            'lessons_per_week'
-                => $this->lessons_per_week,
+            'lessons_per_week' => $this->lessons_per_week,
 
-            'is_class_teacher'
-                => $this->is_class_teacher,
+            'is_class_teacher' => $this->is_class_teacher,
 
-            'active'
-                => $this->active,
+            'active' => $this->active,
 
             'teacher' => $this->whenLoaded(
 
@@ -74,8 +70,7 @@ class TeacherAssignmentResource extends JsonResource
 
             ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

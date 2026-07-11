@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Teacher extends Model
+class Teacher extends TenantModel
 {
     protected $table = 'teachers';
 
@@ -95,74 +93,74 @@ class Teacher extends Model
 
         );
     }
-/**
- * Teacher Assignments
- */
-public function assignments()
-{
-    return $this->hasMany(
 
-        TeacherAssignment::class,
+    /**
+     * Teacher Assignments
+     */
+    public function assignments()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            TeacherAssignment::class,
 
-    );
-}
+            'teacher_id'
 
-/**
- * Lesson Plans
- */
-public function lessonPlans()
-{
-    return $this->hasMany(
+        );
+    }
 
-        LessonPlan::class,
+    /**
+     * Lesson Plans
+     */
+    public function lessonPlans()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            LessonPlan::class,
 
-    );
-}
+            'teacher_id'
 
-/**
- * Lesson Notes
- */
-public function lessonNotes()
-{
-    return $this->hasMany(
+        );
+    }
 
-        LessonNote::class,
+    /**
+     * Lesson Notes
+     */
+    public function lessonNotes()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            LessonNote::class,
 
-    );
-}
+            'teacher_id'
 
-/**
- * Records Of Work
- */
-public function recordsOfWork()
-{
-    return $this->hasMany(
+        );
+    }
 
-        RecordOfWork::class,
+    /**
+     * Records Of Work
+     */
+    public function recordsOfWork()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            RecordOfWork::class,
 
-    );
-}
+            'teacher_id'
 
-/**
- * Curriculum Coverage
- */
-public function curriculumCoverage()
-{
-    return $this->hasMany(
+        );
+    }
 
-        CurriculumCoverage::class,
+    /**
+     * Curriculum Coverage
+     */
+    public function curriculumCoverage()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            CurriculumCoverage::class,
 
-    );
-}
+            'teacher_id'
 
+        );
+    }
 }

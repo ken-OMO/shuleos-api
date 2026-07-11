@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Learner extends Model
+class Learner extends TenantModel
 {
     protected $table = 'learners';
 

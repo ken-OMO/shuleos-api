@@ -36,9 +36,9 @@ class StreamController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderBy('stream_name')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderBy('stream_name')
+            ->get();
 
         return $this->success(
 
@@ -63,8 +63,8 @@ class StreamController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($stream)) {
 
@@ -88,7 +88,8 @@ class StreamController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created stream.
      */
     public function store(Request $request)
@@ -195,7 +196,8 @@ class StreamController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified stream.
      */
     public function update(Request $request, string $id)
@@ -308,7 +310,8 @@ class StreamController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified stream.
      */
     public function destroy(Request $request, string $id)

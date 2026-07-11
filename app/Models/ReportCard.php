@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class ReportCard extends Model
+class ReportCard extends TenantModel
 {
     protected $table = 'report_cards';
 

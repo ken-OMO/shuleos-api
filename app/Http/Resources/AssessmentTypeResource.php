@@ -9,36 +9,30 @@ class AssessmentTypeResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
             'school_id' => $this->school_id,
             'exams_count' => $this->whenCounted('exams'),
 
-            'assessment_type_name'
-                => $this->assessment_type_name,
+            'assessment_type_name' => $this->assessment_type_name,
 
-            'active'
-                => $this->active,
+            'active' => $this->active,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'exams'
-                => $this->whenLoaded(
+            'exams' => $this->whenLoaded(
 
-                    'exams'
+                'exams'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

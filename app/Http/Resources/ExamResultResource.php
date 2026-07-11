@@ -12,36 +12,29 @@ class ExamResultResource extends JsonResource
         return [
 
             'id' => $this->id,
-            'exam_id'=>$this->exam_id,'learner_id'=>$this->learner_id,'learning_area_id'=>$this->learning_area_id,'paper_id'=>$this->paper_id,
+            'exam_id' => $this->exam_id, 'learner_id' => $this->learner_id, 'learning_area_id' => $this->learning_area_id, 'paper_id' => $this->paper_id,
 
-            'marks'
-                => $this->marks,
+            'marks' => $this->marks,
 
-            'exam'
-                => $this->whenLoaded('exam'),
+            'exam' => $this->whenLoaded('exam'),
 
-            'learner'
-                => $this->whenLoaded('learner'),
+            'learner' => $this->whenLoaded('learner'),
 
-            'learning_area'
-                => $this->whenLoaded(
+            'learning_area' => $this->whenLoaded(
 
-                    'learningArea'
+                'learningArea'
 
-                ),
+            ),
 
-            'paper'
-                => $this->whenLoaded('paper'),
+            'paper' => $this->whenLoaded('paper'),
 
-            'entered_by'
-                => $this->whenLoaded(
+            'entered_by' => $this->whenLoaded(
 
-                    'enteredBy'
+                'enteredBy'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

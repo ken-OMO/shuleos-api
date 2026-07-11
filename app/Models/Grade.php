@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Grade extends Model
+class Grade extends TenantModel
 {
     protected $table = 'grades';
 
@@ -97,6 +95,4 @@ class Grade extends Model
 
         );
     }
-
-
 }

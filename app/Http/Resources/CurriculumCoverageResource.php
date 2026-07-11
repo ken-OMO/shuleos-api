@@ -9,8 +9,7 @@ class CurriculumCoverageResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
@@ -20,51 +19,41 @@ class CurriculumCoverageResource extends JsonResource
             'scheme_lesson_id' => $this->scheme_lesson_id,
             'record_of_work_id' => $this->record_of_work_id,
 
-            'date_completed'
-                => $this->date_completed,
+            'date_completed' => $this->date_completed,
 
-            'strand'
-                => $this->strand,
+            'strand' => $this->strand,
 
-            'sub_strand'
-                => $this->sub_strand,
+            'sub_strand' => $this->sub_strand,
 
-            'week_number'
-                => $this->week_number,
+            'week_number' => $this->week_number,
 
-            'completed'
-                => $this->completed,
+            'completed' => $this->completed,
 
-            'teacher_assignment'
-                => $this->whenLoaded(
+            'teacher_assignment' => $this->whenLoaded(
 
-                    'teacherAssignment'
+                'teacherAssignment'
 
-                ),
+            ),
 
-            'scheme'
-                => $this->whenLoaded(
+            'scheme' => $this->whenLoaded(
 
-                    'scheme'
+                'scheme'
 
-                ),
+            ),
 
-            'scheme_lesson'
-                => $this->whenLoaded(
+            'scheme_lesson' => $this->whenLoaded(
 
-                    'schemeLesson'
+                'schemeLesson'
 
-                ),
+            ),
 
-            'record_of_work'
-                => $this->whenLoaded(
+            'record_of_work' => $this->whenLoaded(
 
-                    'recordOfWork'
+                'recordOfWork'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

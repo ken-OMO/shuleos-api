@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class MeritList extends Model
+class MeritList extends TenantModel
 {
     protected $table = 'merit_lists';
 

@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\AttendanceStatus;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AttendanceStatusResource;
+use App\Models\AttendanceStatus;
+use Illuminate\Http\Request;
 
 class AttendanceStatusController extends Controller
 {
@@ -41,14 +41,11 @@ class AttendanceStatusController extends Controller
 
             'id' => 'required|uuid',
 
-            'status_name'
-                => 'required|string|max:100',
+            'status_name' => 'required|string|max:100',
 
-            'status_code'
-                => 'required|string|max:10',
+            'status_code' => 'required|string|max:10',
 
-            'active'
-                => 'boolean',
+            'active' => 'boolean',
 
         ]);
 
@@ -68,20 +65,16 @@ class AttendanceStatusController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $status = AttendanceStatus::findOrFail($id);
 
         $validated = $request->validate([
 
-            'status_name'
-                => 'sometimes|string|max:100',
+            'status_name' => 'sometimes|string|max:100',
 
-            'status_code'
-                => 'sometimes|string|max:10',
+            'status_code' => 'sometimes|string|max:10',
 
-            'active'
-                => 'sometimes|boolean',
+            'active' => 'sometimes|boolean',
 
         ]);
 
@@ -106,9 +99,7 @@ class AttendanceStatusController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Attendance status deleted successfully'
+            'message' => 'Attendance status deleted successfully',
 
         ]);
     }

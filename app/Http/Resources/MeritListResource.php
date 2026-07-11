@@ -9,64 +9,52 @@ class MeritListResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'total_score'
-                => $this->total_score,
+            'total_score' => $this->total_score,
 
-            'total_points'
-                => $this->total_points,
+            'total_points' => $this->total_points,
 
-            'stream_position'
-                => $this->stream_position,
+            'stream_position' => $this->stream_position,
 
-            'grade_position'
-                => $this->grade_position,
+            'grade_position' => $this->grade_position,
 
-            'school_position'
-                => $this->school_position,
+            'school_position' => $this->school_position,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'exam'
-                => $this->whenLoaded(
+            'exam' => $this->whenLoaded(
 
-                    'exam'
+                'exam'
 
-                ),
+            ),
 
-            'learner'
-                => $this->whenLoaded(
+            'learner' => $this->whenLoaded(
 
-                    'learner'
+                'learner'
 
-                ),
+            ),
 
-            'grade'
-                => $this->whenLoaded(
+            'grade' => $this->whenLoaded(
 
-                    'grade'
+                'grade'
 
-                ),
+            ),
 
-            'stream'
-                => $this->whenLoaded(
+            'stream' => $this->whenLoaded(
 
-                    'stream'
+                'stream'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

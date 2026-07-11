@@ -4,9 +4,9 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
-use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\DB;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Symfony\Component\HttpFoundation\Response;
 
 class PermissionMiddleware
 {
@@ -16,10 +16,10 @@ class PermissionMiddleware
 
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not found'
+                    'message' => 'User not found',
                 ], 404);
             }
 
@@ -29,10 +29,10 @@ class PermissionMiddleware
                 ->where('permissions.permission_name', $permission)
                 ->exists();
 
-            if (!$hasPermission) {
+            if (! $hasPermission) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Permission denied: ' . $permission
+                    'message' => 'Permission denied: '.$permission,
                 ], 403);
             }
 
@@ -42,7 +42,7 @@ class PermissionMiddleware
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Unable to verify permission.',
             ], 401);
         }
     }

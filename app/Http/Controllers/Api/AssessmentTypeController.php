@@ -1,10 +1,79 @@
 <?php
+
 namespace App\Http\Controllers\Api;
-use App\Http\Controllers\BaseCrudController;use App\Http\Resources\AssessmentTypeResource;use App\Models\AssessmentType;use App\Services\Assessment\AssessmentTypeService;use Illuminate\Http\Request;
-class AssessmentTypeController extends BaseCrudController{private const MODULE='Assessment Types';public function __construct(private readonly AssessmentTypeService$service){}
-public function index(Request$r){$v=$r->validate(['active'=>'sometimes|boolean','per_page'=>'sometimes|integer|min:1|max:100']);$q=AssessmentType::withCount('exams')->current()->where('school_id',$this->school($r))->when(array_key_exists('active',$v),fn($x)=>$x->where('active',$v['active']));return$this->success(AssessmentTypeResource::collection($q->orderBy('assessment_type_name')->paginate($v['per_page']??20)),'Assessment types retrieved successfully.');}
-public function show(Request$r,string$id){$t=$this->q($r)->withCount('exams')->find($id);return$t?$this->success(new AssessmentTypeResource($t),'Assessment type retrieved successfully.'):$this->notFound('Assessment type not found.');}
-public function store(Request$r){$v=$r->validate(['school_id'=>'sometimes|uuid|exists:schools,id','assessment_type_name'=>'required|string|max:255','active'=>'sometimes|boolean']);$t=$this->service->create($v,$this->school($r,$v));$this->audit($r,self::MODULE,'Create',$t,null,$t->toArray(),'Created assessment type.');return$this->created(new AssessmentTypeResource($t),'Assessment type created successfully.');}
-public function update(Request$r,string$id){$t=$this->q($r)->find($id);if(!$t)return$this->notFound('Assessment type not found.');$v=$r->validate(['assessment_type_name'=>'sometimes|string|max:255','active'=>'sometimes|boolean']);if(isset($v['assessment_type_name'])){$duplicate=AssessmentType::current()->where('school_id',$t->school_id)->whereKeyNot($t->id)->whereRaw('LOWER(assessment_type_name) = ?',[mb_strtolower(trim($v['assessment_type_name']))])->exists();if($duplicate)return$this->validation(['assessment_type_name'=>['This assessment type already exists in the school.']]);$v['assessment_type_name']=trim($v['assessment_type_name']);}$t->update($v);return$this->success(new AssessmentTypeResource($t->refresh()),'Assessment type updated successfully.');}
-public function destroy(Request$r,string$id){$t=$this->q($r)->find($id);if(!$t)return$this->notFound('Assessment type not found.');$this->service->delete($t,auth()->id());return$this->success(null,'Assessment type deleted successfully.');}
-private function q(Request$r){return AssessmentType::current()->where('school_id',$this->school($r));}private function school(Request$r,array$v=[]):string{$id=$r->attributes->get('tenant_school_id')??$v['school_id']??$r->input('school_id');abort_if(!$id,403,'School context not found.');return(string)$id;}}
+
+use App\Http\Controllers\BaseCrudController;
+use App\Http\Resources\AssessmentTypeResource;
+use App\Models\AssessmentType;
+use App\Services\Assessment\AssessmentTypeService;
+use Illuminate\Http\Request;
+
+class AssessmentTypeController extends BaseCrudController
+{
+    private const MODULE = 'Assessment Types';
+
+    public function __construct(private readonly AssessmentTypeService $service) {}
+
+    public function index(Request $r)
+    {
+        $v = $r->validate(['active' => 'sometimes|boolean', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $q = AssessmentType::withCount('exams')->current()->where('school_id', $this->school($r))->when(array_key_exists('active', $v), fn ($x) => $x->where('active', $v['active']));
+
+        return $this->success(AssessmentTypeResource::collection($q->orderBy('assessment_type_name')->paginate($v['per_page'] ?? 20)), 'Assessment types retrieved successfully.');
+    }
+
+    public function show(Request $r, string $id)
+    {
+        $t = $this->q($r)->withCount('exams')->find($id);
+
+        return $t ? $this->success(new AssessmentTypeResource($t), 'Assessment type retrieved successfully.') : $this->notFound('Assessment type not found.');
+    }
+
+    public function store(Request $r)
+    {
+        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'assessment_type_name' => 'required|string|max:255', 'active' => 'sometimes|boolean']);
+        $t = $this->service->create($v, $this->school($r, $v));
+        $this->audit($r, self::MODULE, 'Create', $t, null, $t->toArray(), 'Created assessment type.');
+
+        return $this->created(new AssessmentTypeResource($t), 'Assessment type created successfully.');
+    }
+
+    public function update(Request $r, string $id)
+    {
+        $t = $this->q($r)->find($id);
+        if (! $t) {
+            return $this->notFound('Assessment type not found.');
+        }$v = $r->validate(['assessment_type_name' => 'sometimes|string|max:255', 'active' => 'sometimes|boolean']);
+        if (isset($v['assessment_type_name'])) {
+            $duplicate = AssessmentType::current()->where('school_id', $t->school_id)->whereKeyNot($t->id)->whereRaw('LOWER(assessment_type_name) = ?', [mb_strtolower(trim($v['assessment_type_name']))])->exists();
+            if ($duplicate) {
+                return $this->validation(['assessment_type_name' => ['This assessment type already exists in the school.']]);
+            }$v['assessment_type_name'] = trim($v['assessment_type_name']);
+        }$t->update($v);
+
+        return $this->success(new AssessmentTypeResource($t->refresh()), 'Assessment type updated successfully.');
+    }
+
+    public function destroy(Request $r, string $id)
+    {
+        $t = $this->q($r)->find($id);
+        if (! $t) {
+            return $this->notFound('Assessment type not found.');
+        }$this->service->delete($t, auth()->id());
+
+        return $this->success(null, 'Assessment type deleted successfully.');
+    }
+
+    private function q(Request $r)
+    {
+        return AssessmentType::current()->where('school_id', $this->school($r));
+    }
+
+    private function school(Request $r, array $v = []): string
+    {
+        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
+        abort_if(! $id,403,'School context not found.');
+
+        return (string) $id;
+    }
+}

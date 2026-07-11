@@ -1,3 +1,26 @@
 <?php
-use Illuminate\Database\Migrations\Migration;use Illuminate\Database\Schema\Blueprint;use Illuminate\Support\Facades\Schema;
-return new class extends Migration{public function up():void{Schema::table('exam_papers',function(Blueprint$t){$t->boolean('is_deleted')->default(false)->after('max_marks');$t->timestamp('deleted_at')->nullable()->after('created_at');$t->uuid('deleted_by')->nullable()->after('deleted_at');$t->index(['exam_learning_area_id','is_deleted'],'exam_papers_area_idx');});}public function down():void{Schema::table('exam_papers',function(Blueprint$t){$t->dropIndex('exam_papers_area_idx');$t->dropColumn(['is_deleted','deleted_at','deleted_by']);});}};
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('exam_papers', function (Blueprint $t) {
+            $t->boolean('is_deleted')->default(false)->after('max_marks');
+            $t->timestamp('deleted_at')->nullable()->after('created_at');
+            $t->uuid('deleted_by')->nullable()->after('deleted_at');
+            $t->index(['exam_learning_area_id', 'is_deleted'], 'exam_papers_area_idx');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('exam_papers', function (Blueprint $t) {
+            $t->dropIndex('exam_papers_area_idx');
+            $t->dropColumn(['is_deleted', 'deleted_at', 'deleted_by']);
+        });
+    }
+};

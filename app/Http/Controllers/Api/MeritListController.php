@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\MeritList;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\MeritListResource;
+use App\Models\MeritList;
+use Illuminate\Http\Request;
 
 class MeritListController extends Controller
 {
@@ -53,8 +53,7 @@ class MeritListController extends Controller
 
     public function store(
         Request $request
-    )
-    {
+    ) {
         $validated = $request->validate([
 
             'id' => 'required|uuid',
@@ -69,20 +68,15 @@ class MeritListController extends Controller
 
             'stream_id' => 'required|uuid',
 
-            'total_score'
-                => 'required|numeric',
+            'total_score' => 'required|numeric',
 
-            'total_points'
-                => 'required|numeric',
+            'total_points' => 'required|numeric',
 
-            'stream_position'
-                => 'required|integer',
+            'stream_position' => 'required|integer',
 
-            'grade_position'
-                => 'required|integer',
+            'grade_position' => 'required|integer',
 
-            'school_position'
-                => 'required|integer',
+            'school_position' => 'required|integer',
 
         ]);
 
@@ -102,26 +96,20 @@ class MeritListController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $meritList = MeritList::findOrFail($id);
 
         $validated = $request->validate([
 
-            'total_score'
-                => 'sometimes|numeric',
+            'total_score' => 'sometimes|numeric',
 
-            'total_points'
-                => 'sometimes|numeric',
+            'total_points' => 'sometimes|numeric',
 
-            'stream_position'
-                => 'sometimes|integer',
+            'stream_position' => 'sometimes|integer',
 
-            'grade_position'
-                => 'sometimes|integer',
+            'grade_position' => 'sometimes|integer',
 
-            'school_position'
-                => 'sometimes|integer',
+            'school_position' => 'sometimes|integer',
 
         ]);
 
@@ -146,9 +134,7 @@ class MeritListController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Merit list deleted successfully'
+            'message' => 'Merit list deleted successfully',
 
         ]);
     }

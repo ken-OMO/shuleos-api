@@ -107,29 +107,21 @@ enum SecurityIssueCategory: string
     {
         return match ($this) {
 
-            self::VALIDATION =>
-                'File format and structural validation.',
+            self::VALIDATION => 'File format and structural validation.',
 
-            self::MALWARE =>
-                'Malicious software detection.',
+            self::MALWARE => 'Malicious software detection.',
 
-            self::OFFICE_DOCUMENT =>
-                'Office document security analysis.',
+            self::OFFICE_DOCUMENT => 'Office document security analysis.',
 
-            self::FILE_INTEGRITY =>
-                'Verification of file authenticity and integrity.',
+            self::FILE_INTEGRITY => 'Verification of file authenticity and integrity.',
 
-            self::AUTHORIZATION =>
-                'Authentication and authorization checks.',
+            self::AUTHORIZATION => 'Authentication and authorization checks.',
 
-            self::STORAGE =>
-                'Secure file storage and quarantine.',
+            self::STORAGE => 'Secure file storage and quarantine.',
 
-            self::IMPORT =>
-                'Import structure and content validation.',
+            self::IMPORT => 'Import structure and content validation.',
 
-            self::UNKNOWN =>
-                'Unclassified security issue.',
+            self::UNKNOWN => 'Unclassified security issue.',
 
         };
     }

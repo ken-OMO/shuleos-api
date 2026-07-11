@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 class SchemeOfWorkController extends BaseCrudController
 {
     private const MODULE = 'Schemes Of Work';
+
     private const RELATIONS = ['learningArea', 'grade', 'academicYear', 'term', 'lessons'];
 
     public function __construct(private readonly SchemeOfWorkService $service) {}
@@ -27,12 +28,14 @@ class SchemeOfWorkController extends BaseCrudController
         foreach (['learning_area_id', 'grade_id', 'academic_year_id', 'term_id', 'active'] as $filter) {
             $query->when(array_key_exists($filter, $validated), fn ($q) => $q->where($filter, $validated[$filter]));
         }
+
         return $this->success(SchemeOfWorkResource::collection($query->orderByDesc('created_at')->paginate($validated['per_page'] ?? 20)), 'Schemes of work retrieved successfully.');
     }
 
     public function show(Request $request, string $id)
     {
         $scheme = SchemeOfWork::with(self::RELATIONS)->current()->where('school_id', $this->schoolId($request))->find($id);
+
         return $scheme ? $this->success(new SchemeOfWorkResource($scheme), 'Scheme of work retrieved successfully.') : $this->notFound('Scheme of work not found.');
     }
 
@@ -48,40 +51,49 @@ class SchemeOfWorkController extends BaseCrudController
         $scheme = DB::transaction(function () use ($request, $validated, $schoolId) {
             $scheme = $this->service->create($validated, $schoolId, auth()->id());
             $this->audit($request, self::MODULE, 'Create', $scheme, null, $scheme->toArray(), 'Created scheme of work.');
+
             return $scheme;
         });
+
         return $this->created(new SchemeOfWorkResource($scheme->load(self::RELATIONS)), 'Scheme of work created successfully.');
     }
 
     public function update(Request $request, string $id)
     {
         $scheme = SchemeOfWork::current()->where('school_id', $this->schoolId($request))->find($id);
-        if (!$scheme) return $this->notFound('Scheme of work not found.');
+        if (! $scheme) {
+            return $this->notFound('Scheme of work not found.');
+        }
         $validated = $request->validate(['title' => 'sometimes|string|max:255', 'active' => 'sometimes|boolean']);
         $old = $scheme->toArray();
         DB::transaction(function () use ($request, $scheme, $validated, $old) {
             $scheme->update($validated);
             $this->audit($request, self::MODULE, 'Update', $scheme, $old, $scheme->fresh()->toArray(), 'Updated scheme of work.');
         });
+
         return $this->success(new SchemeOfWorkResource($scheme->refresh()->load(self::RELATIONS)), 'Scheme of work updated successfully.');
     }
 
     public function destroy(Request $request, string $id)
     {
         $scheme = SchemeOfWork::current()->where('school_id', $this->schoolId($request))->find($id);
-        if (!$scheme) return $this->notFound('Scheme of work not found.');
+        if (! $scheme) {
+            return $this->notFound('Scheme of work not found.');
+        }
         DB::transaction(function () use ($request, $scheme) {
             $old = $scheme->toArray();
             $scheme->update(['active' => false, 'is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
             $this->audit($request, self::MODULE, 'Delete', $scheme, $old, $scheme->toArray(), 'Soft deleted scheme of work.');
         });
+
         return $this->success(null, 'Scheme of work deleted successfully.');
     }
 
     private function schoolId(Request $request, array $validated = []): string
     {
         $id = $request->attributes->get('tenant_school_id') ?? $validated['school_id'] ?? $request->input('school_id');
-        abort_if(!$id, 403, 'School context not found.');
+        abort_if(! $id, 403, 'School context not found.');
+
         return (string) $id;
     }
 }

@@ -49,7 +49,7 @@ return new class extends Migration
 
                 'learner_id',
 
-                'parent_id'
+                'parent_id',
 
             ]);
         });

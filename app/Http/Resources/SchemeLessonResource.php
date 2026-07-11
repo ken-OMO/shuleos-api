@@ -9,8 +9,7 @@ class SchemeLessonResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
@@ -24,17 +23,13 @@ class SchemeLessonResource extends JsonResource
 
             'sub_strand' => $this->sub_strand,
 
-            'specific_learning_outcome'
-                => $this->specific_learning_outcome,
+            'specific_learning_outcome' => $this->specific_learning_outcome,
 
-            'learning_experience'
-                => $this->learning_experience,
+            'learning_experience' => $this->learning_experience,
 
-            'resources'
-                => $this->resources,
+            'resources' => $this->resources,
 
-            'assessment_method'
-                => $this->assessment_method,
+            'assessment_method' => $this->assessment_method,
 
             'week' => $this->whenLoaded(
 

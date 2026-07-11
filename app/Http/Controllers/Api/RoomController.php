@@ -3,11 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
-use App\Models\Room;
-
 use App\Http\Resources\RoomResource;
-
+use App\Models\Room;
 use Illuminate\Http\Request;
 
 class RoomController extends Controller
@@ -17,8 +14,7 @@ class RoomController extends Controller
         return RoomResource::collection(
 
             Room::orderBy('room_name')
-
-            ->get()
+                ->get()
 
         );
     }

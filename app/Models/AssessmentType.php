@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class AssessmentType extends Model
+class AssessmentType extends TenantModel
 {
     protected $table = 'assessment_types';
 
@@ -27,7 +25,7 @@ class AssessmentType extends Model
         'active',
 
         'created_at',
-        'is_deleted','deleted_at','deleted_by',
+        'is_deleted', 'deleted_at', 'deleted_by',
 
     ];
 
@@ -36,7 +34,7 @@ class AssessmentType extends Model
         'active' => 'boolean',
 
         'created_at' => 'datetime',
-        'is_deleted'=>'boolean','deleted_at'=>'datetime',
+        'is_deleted' => 'boolean', 'deleted_at' => 'datetime',
 
     ];
 
@@ -61,5 +59,9 @@ class AssessmentType extends Model
 
         );
     }
-    public function scopeCurrent($query){return $query->where('is_deleted',false);}
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
+    }
 }

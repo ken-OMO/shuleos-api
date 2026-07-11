@@ -1,77 +1,62 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\SchoolController;
-use App\Http\Controllers\Api\UserController;
-use App\Http\Controllers\Api\TeacherController;
-use App\Http\Controllers\Api\GradeController;
-use App\Http\Controllers\Api\StreamController;
-use App\Http\Controllers\Api\LearnerController;
-use App\Http\Controllers\Api\GuardianController;
-use App\Http\Controllers\Api\LearningAreaController;
-use App\Http\Controllers\Api\LearningAreaAllocationController;
-
-use App\Http\Controllers\Api\AcademicYearController;
-use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\AcademicWeekController;
-
-use App\Http\Controllers\Api\TeacherAssignmentController;
-use App\Http\Controllers\Api\SchemeOfWorkController;
-use App\Http\Controllers\Api\SchemeLessonController;
-use App\Http\Controllers\Api\LessonPlanController;
-use App\Http\Controllers\Api\LessonNoteController;
-use App\Http\Controllers\Api\RecordOfWorkController;
-use App\Http\Controllers\Api\CurriculumCoverageController;
-
-use App\Http\Controllers\Api\AssessmentTypeController;
+use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AssessmentRegistrationController;
-
+use App\Http\Controllers\Api\AssessmentTypeController;
+use App\Http\Controllers\Api\AttendanceAlertController;
+use App\Http\Controllers\Api\AttendanceSessionController;
+use App\Http\Controllers\Api\AttendanceStatusController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
 use App\Http\Controllers\Api\ExamPaperController;
 use App\Http\Controllers\Api\ExamResultController;
-
-use App\Http\Controllers\Api\MarkEntryPermissionController;
-
-use App\Http\Controllers\Api\MeritListController;
-use App\Http\Controllers\Api\ReportCardController;
-use App\Http\Controllers\Api\AttendanceStatusController;
-use App\Http\Controllers\Api\AttendanceSessionController;
+use App\Http\Controllers\Api\FeeCategoryController;
+use App\Http\Controllers\Api\FeeInvoiceController;
+use App\Http\Controllers\Api\FeeStructureController;
+use App\Http\Controllers\Api\FinanceSettingController;
+use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\GuardianController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
-use App\Http\Controllers\Api\AttendanceAlertController;
-
+use App\Http\Controllers\Api\LearnerController;
+use App\Http\Controllers\Api\LearnerFeeAccountController;
+use App\Http\Controllers\Api\LearningAreaAllocationController;
+use App\Http\Controllers\Api\LearningAreaController;
+use App\Http\Controllers\Api\LessonNoteController;
+use App\Http\Controllers\Api\LessonPlanController;
+use App\Http\Controllers\Api\MarkEntryPermissionController;
+use App\Http\Controllers\Api\MeritListController;
+use App\Http\Controllers\Api\PaymentAllocationController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentMethodController;
+use App\Http\Controllers\Api\PaymentPlanController;
+use App\Http\Controllers\Api\RecordOfWorkController;
+use App\Http\Controllers\Api\ReportCardController;
+use App\Http\Controllers\Api\RoomConstraintController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\RoomTypeController;
-
-use App\Http\Controllers\Api\TimetableProfileController;
-use App\Http\Controllers\Api\TimetablePeriodController;
-use App\Http\Controllers\Api\TimetableEntryController;
-use App\Http\Controllers\Api\TimetableConstraintController;
-use App\Http\Controllers\Api\RoomConstraintController;
-
-use App\Http\Controllers\Api\TimetableController;
+use App\Http\Controllers\Api\SchemeLessonController;
+use App\Http\Controllers\Api\SchemeOfWorkController;
+use App\Http\Controllers\Api\SchoolController;
+use App\Http\Controllers\Api\StreamController;
+use App\Http\Controllers\Api\TeacherAssignmentController;
+use App\Http\Controllers\Api\TeacherAvailabilityController;
+use App\Http\Controllers\Api\TeacherConstraintController;
+use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\TimetableConflictController;
+use App\Http\Controllers\Api\TimetableConstraintController;
+use App\Http\Controllers\Api\TimetableController;
+use App\Http\Controllers\Api\TimetableEntryController;
 use App\Http\Controllers\Api\TimetableGenerationRunController;
+use App\Http\Controllers\Api\TimetablePeriodController;
+use App\Http\Controllers\Api\TimetableProfileController;
 use App\Http\Controllers\Api\TimetablePublicationController;
 use App\Http\Controllers\Api\TimetableSubstitutionController;
-
-use App\Http\Controllers\Api\TeacherConstraintController;
-use App\Http\Controllers\Api\TeacherAvailabilityController;
-
-use App\Http\Controllers\Api\FeeCategoryController;
-
-use App\Http\Controllers\Api\PaymentPlanController;
-
-use App\Http\Controllers\Api\PaymentMethodController;
-
-use App\Http\Controllers\Api\FinanceSettingController;
-use App\Http\Controllers\Api\FeeStructureController;
-use App\Http\Controllers\Api\LearnerFeeAccountController;
-use App\Http\Controllers\Api\FeeInvoiceController;
-use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\PaymentAllocationController;
+use App\Http\Controllers\Api\UserController;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -85,9 +70,25 @@ $secure = [
 
     'tenant',
 
-    'permission:manage_users'
+    'module.permission',
 
 ];
+
+Route::prefix('academic-years')->middleware($secure)->group(function () {
+    Route::get('/', [AcademicYearController::class, 'index']);
+    Route::get('/{id}', [AcademicYearController::class, 'show']);
+    Route::post('/', [AcademicYearController::class, 'store']);
+    Route::put('/{id}', [AcademicYearController::class, 'update']);
+    Route::delete('/{id}', [AcademicYearController::class, 'destroy']);
+});
+
+Route::prefix('terms')->middleware($secure)->group(function () {
+    Route::get('/', [TermController::class, 'index']);
+    Route::get('/{id}', [TermController::class, 'show']);
+    Route::post('/', [TermController::class, 'store']);
+    Route::put('/{id}', [TermController::class, 'update']);
+    Route::delete('/{id}', [TermController::class, 'destroy']);
+});
 /*
 |--------------------------------------------------------------------------
 | Authentication Routes
@@ -96,7 +97,8 @@ $secure = [
 
 Route::prefix('auth')->group(function () {
 
-    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/login', [AuthController::class, 'login'])
+        ->middleware('throttle:5,1');
 
     Route::middleware('jwt')->group(function () {
 
@@ -131,7 +133,6 @@ Route::prefix('schools')
         Route::delete('/{id}', [SchoolController::class, 'destroy']);
 
     });
-
 
 /*
 |--------------------------------------------------------------------------
@@ -460,7 +461,7 @@ Route::prefix('curriculum-coverage')
         Route::delete('/{id}', [CurriculumCoverageController::class, 'destroy']);
 
     });
-    /*
+/*
 |--------------------------------------------------------------------------
 | Exams Engine Routes
 |--------------------------------------------------------------------------
@@ -594,7 +595,7 @@ Route::prefix('merit-lists')
 
             MeritListController::class,
 
-            'index'
+            'index',
 
         ]);
 
@@ -602,7 +603,7 @@ Route::prefix('merit-lists')
 
             MeritListController::class,
 
-            'show'
+            'show',
 
         ]);
 
@@ -610,7 +611,7 @@ Route::prefix('merit-lists')
 
             MeritListController::class,
 
-            'store'
+            'store',
 
         ]);
 
@@ -618,7 +619,7 @@ Route::prefix('merit-lists')
 
             MeritListController::class,
 
-            'update'
+            'update',
 
         ]);
 
@@ -626,7 +627,7 @@ Route::prefix('merit-lists')
 
             MeritListController::class,
 
-            'destroy'
+            'destroy',
 
         ]);
 
@@ -648,29 +649,6 @@ Route::prefix('report-cards')
 
     });
 
-/*
-|--------------------------------------------------------------------------
-| Role Middleware Test
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware([
-
-    'jwt',
-
-    'role:Platform Owner'
-
-])->get('/admin-test', function () {
-
-    return response()->json([
-
-        'success' => true,
-
-        'message' => 'Platform Owner access granted',
-
-    ]);
-
-});
 /*
 |--------------------------------------------------------------------------
 | Attendance Engine Routes
@@ -741,7 +719,7 @@ Route::prefix('attendance-alerts')
 
     });
 
-    /*
+/*
 |--------------------------------------------------------------------------
 | Room Type Routes
 |--------------------------------------------------------------------------
@@ -785,13 +763,13 @@ Route::prefix('rooms')
 
     });
 
-    /*
+/*
 |--------------------------------------------------------------------------
 | Timetable Routes
 |--------------------------------------------------------------------------
 */
 
-$middleware = ['jwt', 'permission:manage_users'];
+$middleware = $secure;
 
 Route::prefix('timetable-profiles')
     ->middleware($middleware)
@@ -991,81 +969,74 @@ Route::prefix('timetable-substitutions')
 |--------------------------------------------------------------------------
 */
 
-Route::apiResource(
+Route::middleware($secure)->group(function () {
 
-    'fee-categories',
+    Route::apiResource(
 
-    FeeCategoryController::class
+        'fee-categories',
 
-);
+        FeeCategoryController::class
 
-Route::apiResource(
+    );
 
-    'payment-plans',
+    Route::apiResource(
 
-    PaymentPlanController::class
+        'payment-plans',
 
-);
+        PaymentPlanController::class
 
-Route::apiResource(
+    );
 
-    'payment-methods',
+    Route::apiResource(
 
-    PaymentMethodController::class
+        'payment-methods',
 
-);
+        PaymentMethodController::class
 
-Route::apiResource(
+    );
 
-    'finance-settings',
+    Route::apiResource(
 
-    FinanceSettingController::class
+        'finance-settings',
 
-);
-Route::apiResource(
+        FinanceSettingController::class
 
-    'fee-structures',
+    );
+    Route::apiResource(
 
-    FeeStructureController::class
+        'fee-structures',
 
-);
-Route::apiResource(
+        FeeStructureController::class
 
-    'fee-invoices',
+    );
+    Route::apiResource(
 
-    FeeInvoiceController::class
+        'fee-invoices',
 
-);
-Route::apiResource(
+        FeeInvoiceController::class
 
-    'payments',
+    );
+    Route::apiResource(
 
-    PaymentController::class
+        'payments',
 
-);
-Route::apiResource(
+        PaymentController::class
 
-    'payment-allocations',
+    );
+    Route::apiResource(
 
-    PaymentAllocationController::class
+        'payment-allocations',
 
-);
-/*
-|--------------------------------------------------------------------------
-| Permission Middleware Test
-|--------------------------------------------------------------------------
-*/
+        PaymentAllocationController::class
 
-Route::middleware($secure)
+    );
 
-->get('/permission-test', function () {
+    Route::apiResource(
 
-    return response()->json([
+        'learner-fee-accounts',
 
-        'success' => true,
+        LearnerFeeAccountController::class
 
-        'message' => 'Permission granted',
-
-    ]);
+    );
 
 });

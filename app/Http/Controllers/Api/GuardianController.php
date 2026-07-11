@@ -38,9 +38,9 @@ class GuardianController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderByDesc('created_at')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderByDesc('created_at')
+            ->get();
 
         return $this->success(
 
@@ -65,8 +65,8 @@ class GuardianController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($guardian)) {
 
@@ -90,7 +90,8 @@ class GuardianController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created guardian.
      */
     public function store(Request $request)
@@ -209,7 +210,8 @@ class GuardianController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified guardian.
      */
     public function update(Request $request, string $id)
@@ -332,7 +334,8 @@ class GuardianController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified guardian.
      */
     public function destroy(Request $request, string $id)

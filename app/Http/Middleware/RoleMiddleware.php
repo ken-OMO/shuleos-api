@@ -4,8 +4,8 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
 {
@@ -15,25 +15,29 @@ class RoleMiddleware
 
             $user = JWTAuth::parseToken()->authenticate();
 
-            if (!$user) {
+            if (! $user) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'User not found'
+                    'message' => 'User not found',
                 ], 404);
             }
 
-            if ($user->role_id) {
+            if (! $user->role_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'A role is required.',
+                ], 403);
+            }
 
-                $userRole = \DB::table('roles')
-                    ->where('id', $user->role_id)
-                    ->value('role_name');
+            $userRole = \DB::table('roles')
+                ->where('id', $user->role_id)
+                ->value('role_name');
 
-                if ($userRole !== $role) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Access denied. Required role: ' . $role
-                    ], 403);
-                }
+            if ($userRole !== $role) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied.',
+                ], 403);
             }
 
             return $next($request);
@@ -42,7 +46,7 @@ class RoleMiddleware
 
             return response()->json([
                 'success' => false,
-                'message' => $e->getMessage()
+                'message' => 'Unable to verify role.',
             ], 401);
         }
     }

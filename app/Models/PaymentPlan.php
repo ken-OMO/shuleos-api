@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class PaymentPlan extends Model
+class PaymentPlan extends TenantModel
 {
     use HasFactory;
 
@@ -22,31 +21,32 @@ class PaymentPlan extends Model
         'active',
 
     ];
+
     /**
- * School
- */
-public function school()
-{
-    return $this->belongsTo(
+     * School
+     */
+    public function school()
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-/**
- * Fee Structures
- */
-public function feeStructures()
-{
-    return $this->hasMany(
+    /**
+     * Fee Structures
+     */
+    public function feeStructures()
+    {
+        return $this->hasMany(
 
-        FeeStructure::class,
+            FeeStructure::class,
 
-        'payment_plan_id'
+            'payment_plan_id'
 
-    );
-}
+        );
+    }
 }

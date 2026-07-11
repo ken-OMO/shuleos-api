@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableProfile;
 use App\Http\Resources\TimetableProfileResource;
+use App\Models\TimetableProfile;
 use Illuminate\Http\Request;
 
 class TimetableProfileController extends Controller
@@ -49,7 +49,7 @@ class TimetableProfileController extends Controller
             ->delete();
 
         return response()->json([
-            'success' => true
+            'success' => true,
         ]);
     }
 }

@@ -9,72 +9,60 @@ class LearnerAttendanceResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'attendance_date'
-                => $this->attendance_date,
+            'attendance_date' => $this->attendance_date,
 
-            'remarks'
-                => $this->remarks,
+            'remarks' => $this->remarks,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'learner'
-                => $this->whenLoaded(
+            'learner' => $this->whenLoaded(
 
-                    'learner'
+                'learner'
 
-                ),
+            ),
 
-            'grade'
-                => $this->whenLoaded(
+            'grade' => $this->whenLoaded(
 
-                    'grade'
+                'grade'
 
-                ),
+            ),
 
-            'stream'
-                => $this->whenLoaded(
+            'stream' => $this->whenLoaded(
 
-                    'stream'
+                'stream'
 
-                ),
+            ),
 
-            'attendance_session'
-                => $this->whenLoaded(
+            'attendance_session' => $this->whenLoaded(
 
-                    'attendanceSession'
+                'attendanceSession'
 
-                ),
+            ),
 
-            'attendance_status'
-                => $this->whenLoaded(
+            'attendance_status' => $this->whenLoaded(
 
-                    'attendanceStatus'
+                'attendanceStatus'
 
-                ),
+            ),
 
-            'marked_by'
-                => $this->whenLoaded(
+            'marked_by' => $this->whenLoaded(
 
-                    'markedBy'
+                'markedBy'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
-            'updated_at'
-                => $this->updated_at,
+            'updated_at' => $this->updated_at,
 
         ];
     }

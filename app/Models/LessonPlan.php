@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class LessonPlan extends Model
+class LessonPlan extends TenantModel
 {
     protected $table = 'lesson_plans';
 
@@ -32,7 +30,7 @@ class LessonPlan extends Model
         'created_at',
         'is_deleted',
 
-'deleted_at',
+        'deleted_at',
         'deleted_by',
 
     ];
@@ -43,10 +41,14 @@ class LessonPlan extends Model
         'created_at' => 'datetime',
         'is_deleted' => 'boolean',
 
-'deleted_at' => 'datetime',
+        'deleted_at' => 'datetime',
 
     ];
-    public function scopeCurrent($query){return $query->where('is_deleted',false);}
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
+    }
 
     public function assignment()
     {

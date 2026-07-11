@@ -1,12 +1,113 @@
 <?php
+
 namespace Tests\Feature;
-use App\Models\LessonPlan;use App\Services\Teaching\LessonPlanService;use Illuminate\Database\Schema\Blueprint;use Illuminate\Support\Facades\DB;use Illuminate\Support\Facades\Schema;use Illuminate\Support\Str;use Illuminate\Validation\ValidationException;use Tests\TestCase;
-class LessonPlanTest extends TestCase{
-private array$id;
-protected function setUp():void{parent::setUp();$this->schema();foreach(['school','area','grade','year','term','assignment','scheme','lesson']as$n)$this->id[$n]=(string)Str::uuid();DB::table('teacher_assignments')->insert(['id'=>$this->id['assignment'],'school_id'=>$this->id['school'],'learning_area_id'=>$this->id['area'],'grade_id'=>$this->id['grade'],'academic_year_id'=>$this->id['year'],'term_id'=>$this->id['term'],'active'=>true,'is_deleted'=>false]);DB::table('schemes_of_work')->insert(['id'=>$this->id['scheme'],'school_id'=>$this->id['school'],'learning_area_id'=>$this->id['area'],'grade_id'=>$this->id['grade'],'academic_year_id'=>$this->id['year'],'term_id'=>$this->id['term'],'active'=>true,'is_deleted'=>false]);DB::table('scheme_lessons')->insert(['id'=>$this->id['lesson'],'scheme_id'=>$this->id['scheme'],'is_deleted'=>false]);}
-public function test_it_creates_a_compatible_lesson_plan():void{$p=app(LessonPlanService::class)->create($this->data(),$this->id['school'],null);$this->assertSame('draft',$p->status);$this->assertDatabaseHas('lesson_plans',['teacher_assignment_id'=>$this->id['assignment'],'scheme_lesson_id'=>$this->id['lesson']]);}
-public function test_it_rejects_mismatched_assignment_and_scheme():void{DB::table('schemes_of_work')->where('id',$this->id['scheme'])->update(['grade_id'=>(string)Str::uuid()]);$this->expectException(ValidationException::class);app(LessonPlanService::class)->create($this->data(),$this->id['school'],null);}
-public function test_it_rejects_duplicate_plans():void{$s=app(LessonPlanService::class);$s->create($this->data(),$this->id['school'],null);$this->expectException(ValidationException::class);$s->create($this->data(),$this->id['school'],null);}
-public function test_it_enforces_status_transitions():void{$s=app(LessonPlanService::class);$p=$s->create($this->data(),$this->id['school'],null);$s->transition($p,'submitted');$this->assertSame('submitted',$p->fresh()->status);$this->expectException(ValidationException::class);$s->transition($p->fresh(),'draft');}
-private function data():array{return['teacher_assignment_id'=>$this->id['assignment'],'scheme_lesson_id'=>$this->id['lesson'],'lesson_date'=>'2026-07-14','lesson_development'=>'Guided practice'];}
-private function schema():void{foreach(['lesson_plans','scheme_lessons','schemes_of_work','teacher_assignments']as$t)Schema::dropIfExists($t);Schema::create('teacher_assignments',function(Blueprint$t){$t->uuid('id')->primary();$t->uuid('school_id');$t->uuid('learning_area_id');$t->uuid('grade_id');$t->uuid('academic_year_id');$t->uuid('term_id');$t->boolean('active');$t->boolean('is_deleted');});Schema::create('schemes_of_work',function(Blueprint$t){$t->uuid('id')->primary();$t->uuid('school_id');$t->uuid('learning_area_id');$t->uuid('grade_id');$t->uuid('academic_year_id');$t->uuid('term_id');$t->boolean('active');$t->boolean('is_deleted');});Schema::create('scheme_lessons',function(Blueprint$t){$t->uuid('id')->primary();$t->uuid('scheme_id');$t->boolean('is_deleted');});Schema::create('lesson_plans',function(Blueprint$t){$t->uuid('id')->primary();$t->uuid('school_id');$t->uuid('teacher_assignment_id');$t->uuid('scheme_lesson_id');$t->date('lesson_date');$t->text('introduction')->nullable();$t->text('lesson_development');$t->text('conclusion')->nullable();$t->text('reflection')->nullable();$t->string('status');$t->uuid('created_by')->nullable();$t->timestamp('created_at')->nullable();$t->boolean('is_deleted');$t->timestamp('deleted_at')->nullable();$t->uuid('deleted_by')->nullable();$t->unique(['teacher_assignment_id','scheme_lesson_id']);});}}
+
+use App\Services\Teaching\LessonPlanService;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Tests\TestCase;
+
+class LessonPlanTest extends TestCase
+{
+    private array $id;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->schema();
+        foreach (['school', 'area', 'grade', 'year', 'term', 'assignment', 'scheme', 'lesson'] as $n) {
+            $this->id[$n] = (string) Str::uuid();
+        }DB::table('teacher_assignments')->insert(['id' => $this->id['assignment'], 'school_id' => $this->id['school'], 'learning_area_id' => $this->id['area'], 'grade_id' => $this->id['grade'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'active' => true, 'is_deleted' => false]);
+        DB::table('schemes_of_work')->insert(['id' => $this->id['scheme'], 'school_id' => $this->id['school'], 'learning_area_id' => $this->id['area'], 'grade_id' => $this->id['grade'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'active' => true, 'is_deleted' => false]);
+        DB::table('scheme_lessons')->insert(['id' => $this->id['lesson'], 'scheme_id' => $this->id['scheme'], 'is_deleted' => false]);
+    }
+
+    public function test_it_creates_a_compatible_lesson_plan(): void
+    {
+        $p = app(LessonPlanService::class)->create($this->data(), $this->id['school'], null);
+        $this->assertSame('draft', $p->status);
+        $this->assertDatabaseHas('lesson_plans', ['teacher_assignment_id' => $this->id['assignment'], 'scheme_lesson_id' => $this->id['lesson']]);
+    }
+
+    public function test_it_rejects_mismatched_assignment_and_scheme(): void
+    {
+        DB::table('schemes_of_work')->where('id', $this->id['scheme'])->update(['grade_id' => (string) Str::uuid()]);
+        $this->expectException(ValidationException::class);
+        app(LessonPlanService::class)->create($this->data(), $this->id['school'], null);
+    }
+
+    public function test_it_rejects_duplicate_plans(): void
+    {
+        $s = app(LessonPlanService::class);
+        $s->create($this->data(), $this->id['school'], null);
+        $this->expectException(ValidationException::class);
+        $s->create($this->data(), $this->id['school'], null);
+    }
+
+    public function test_it_enforces_status_transitions(): void
+    {
+        $s = app(LessonPlanService::class);
+        $p = $s->create($this->data(), $this->id['school'], null);
+        $s->transition($p, 'submitted');
+        $this->assertSame('submitted', $p->fresh()->status);
+        $this->expectException(ValidationException::class);
+        $s->transition($p->fresh(), 'draft');
+    }
+
+    private function data(): array
+    {
+        return ['teacher_assignment_id' => $this->id['assignment'], 'scheme_lesson_id' => $this->id['lesson'], 'lesson_date' => '2026-07-14', 'lesson_development' => 'Guided practice'];
+    }
+
+    private function schema(): void
+    {
+        foreach (['lesson_plans', 'scheme_lessons', 'schemes_of_work', 'teacher_assignments'] as $t) {
+            Schema::dropIfExists($t);
+        }Schema::create('teacher_assignments', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('learning_area_id');
+            $t->uuid('grade_id');
+            $t->uuid('academic_year_id');
+            $t->uuid('term_id');
+            $t->boolean('active');
+            $t->boolean('is_deleted');
+        });
+        Schema::create('schemes_of_work', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('learning_area_id');
+            $t->uuid('grade_id');
+            $t->uuid('academic_year_id');
+            $t->uuid('term_id');
+            $t->boolean('active');
+            $t->boolean('is_deleted');
+        });
+        Schema::create('scheme_lessons', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('scheme_id');
+            $t->boolean('is_deleted');
+        });
+        Schema::create('lesson_plans', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('teacher_assignment_id');
+            $t->uuid('scheme_lesson_id');
+            $t->date('lesson_date');
+            $t->text('introduction')->nullable();
+            $t->text('lesson_development');
+            $t->text('conclusion')->nullable();
+            $t->text('reflection')->nullable();
+            $t->string('status');
+            $t->uuid('created_by')->nullable();
+            $t->timestamp('created_at')->nullable();
+            $t->boolean('is_deleted');
+            $t->timestamp('deleted_at')->nullable();
+            $t->uuid('deleted_by')->nullable();
+            $t->unique(['teacher_assignment_id', 'scheme_lesson_id']);
+        });
+    }
+}

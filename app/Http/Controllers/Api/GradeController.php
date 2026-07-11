@@ -36,9 +36,9 @@ class GradeController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderBy('grade_order')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderBy('grade_order')
+            ->get();
 
         return $this->success(
 
@@ -63,8 +63,8 @@ class GradeController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($grade)) {
 
@@ -88,7 +88,8 @@ class GradeController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created grade.
      */
     public function store(Request $request)
@@ -199,7 +200,8 @@ class GradeController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified grade.
      */
     public function update(Request $request, string $id)
@@ -314,7 +316,8 @@ class GradeController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified grade.
      */
     public function destroy(Request $request, string $id)

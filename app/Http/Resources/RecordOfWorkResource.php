@@ -9,28 +9,22 @@ class RecordOfWorkResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
             'school_id' => $this->school_id,
             'lesson_plan_id' => $this->lesson_plan_id,
 
-            'date_taught'
-                => $this->date_taught,
+            'date_taught' => $this->date_taught,
 
-            'content_covered'
-                => $this->content_covered,
+            'content_covered' => $this->content_covered,
 
-            'learner_response'
-                => $this->learner_response,
+            'learner_response' => $this->learner_response,
 
-            'teacher_reflection'
-                => $this->teacher_reflection,
+            'teacher_reflection' => $this->teacher_reflection,
 
-            'status'
-                => $this->status,
+            'status' => $this->status,
 
             'lesson_plan' => $this->whenLoaded(
 
@@ -38,18 +32,15 @@ class RecordOfWorkResource extends JsonResource
 
             ),
 
-            'curriculum_coverage'
-                => $this->whenLoaded(
+            'curriculum_coverage' => $this->whenLoaded(
 
-                    'curriculumCoverage'
+                'curriculumCoverage'
 
-                ),
+            ),
 
-            'created_by'
-                => $this->created_by,
+            'created_by' => $this->created_by,
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

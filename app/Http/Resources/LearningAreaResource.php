@@ -12,59 +12,38 @@ class LearningAreaResource extends JsonResource
      */
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'learning_area_name' =>
+            'learning_area_name' => $this->learning_area_name,
 
-                $this->learning_area_name,
+            'short_name' => $this->short_name,
 
-            'short_name' =>
+            'category' => $this->category,
 
-                $this->short_name,
+            'is_core' => $this->is_core,
 
-            'category' =>
+            'is_examined' => $this->is_examined,
 
-                $this->category,
+            'is_custom' => $this->is_custom,
 
-            'is_core' =>
+            'active' => $this->active,
 
-                $this->is_core,
+            'education_levels' => $this->whenLoaded(
 
-            'is_examined' =>
+                'educationLevels'
 
-                $this->is_examined,
+            ),
 
-            'is_custom' =>
+            'allocations' => $this->whenLoaded(
 
-                $this->is_custom,
+                'allocations'
 
-            'active' =>
+            ),
 
-                $this->active,
-
-            'education_levels' =>
-
-                $this->whenLoaded(
-
-                    'educationLevels'
-
-                ),
-
-            'allocations' =>
-
-                $this->whenLoaded(
-
-                    'allocations'
-
-                ),
-
-            'created_at' =>
-
-                $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

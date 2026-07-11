@@ -26,20 +26,15 @@ class ExamResource extends JsonResource
 
             'active' => $this->active,
 
-            'assessment_type'
-                => $this->whenLoaded('assessmentType'),
+            'assessment_type' => $this->whenLoaded('assessmentType'),
 
-            'academic_year'
-                => $this->whenLoaded('academicYear'),
+            'academic_year' => $this->whenLoaded('academicYear'),
 
-            'term'
-                => $this->whenLoaded('term'),
+            'term' => $this->whenLoaded('term'),
 
-            'learning_areas'
-                => $this->whenLoaded('learningAreas'),
+            'learning_areas' => $this->whenLoaded('learningAreas'),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

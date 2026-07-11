@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Core\Security\File;
 
-
 /**
  * Security validation report.
  *
@@ -21,7 +20,7 @@ final class FileSecurityReport
      */
     private array $issues = [];
 
-        /**
+    /**
      * Validator execution results.
      *
      * @var array<string,bool>
@@ -46,7 +45,7 @@ final class FileSecurityReport
         $this->startedAt = microtime(true);
     }
 
-        /**
+    /**
      * Record validator result.
      */
     public function addValidatorResult(
@@ -75,7 +74,8 @@ final class FileSecurityReport
         $this->issues[] = $issue;
 
     }
-        /**
+
+    /**
      * Validator results.
      *
      * @return array<string,bool>
@@ -214,9 +214,7 @@ final class FileSecurityReport
 
             'issues' => array_map(
 
-                static fn (SecurityIssue $issue) =>
-
-                    $issue->toArray(),
+                static fn (SecurityIssue $issue) => $issue->toArray(),
 
                 $this->issues
 

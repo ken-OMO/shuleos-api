@@ -14,8 +14,7 @@ final readonly class ArchiveTeacherAction
      */
     public function __construct(
         private TeacherService $teachers
-    ) {
-    }
+    ) {}
 
     /**
      * Archive a teacher.

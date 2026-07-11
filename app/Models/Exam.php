@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Exam extends Model
+class Exam extends TenantModel
 {
     protected $table = 'exams';
 
@@ -40,7 +38,7 @@ class Exam extends Model
         'created_by',
 
         'created_at',
-        'is_deleted','deleted_at','deleted_by',
+        'is_deleted', 'deleted_at', 'deleted_by',
 
     ];
 
@@ -53,7 +51,7 @@ class Exam extends Model
         'active' => 'boolean',
 
         'created_at' => 'datetime',
-        'is_deleted'=>'boolean','deleted_at'=>'datetime',
+        'is_deleted' => 'boolean', 'deleted_at' => 'datetime',
 
     ];
 
@@ -166,5 +164,9 @@ class Exam extends Model
 
         );
     }
-    public function scopeCurrent($query){return $query->where('is_deleted',false);}
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
+    }
 }

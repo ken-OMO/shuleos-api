@@ -33,7 +33,7 @@ return new class extends Migration
 
                 'grade_id',
 
-                'stream_id'
+                'stream_id',
 
             ]);
 

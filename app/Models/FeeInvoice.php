@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class FeeInvoice extends Model
+class FeeInvoice extends TenantModel
 {
     use HasFactory;
 
@@ -48,91 +47,92 @@ class FeeInvoice extends Model
         'notes',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function learner()
-{
-    return $this->belongsTo(
+    public function learner()
+    {
+        return $this->belongsTo(
 
-        Learner::class,
+            Learner::class,
 
-        'learner_id'
+            'learner_id'
 
-    );
-}
+        );
+    }
 
-public function academicYear()
-{
-    return $this->belongsTo(
+    public function academicYear()
+    {
+        return $this->belongsTo(
 
-        AcademicYear::class,
+            AcademicYear::class,
 
-        'academic_year_id'
+            'academic_year_id'
 
-    );
-}
+        );
+    }
 
-public function term()
-{
-    return $this->belongsTo(
+    public function term()
+    {
+        return $this->belongsTo(
 
-        Term::class,
+            Term::class,
 
-        'term_id'
+            'term_id'
 
-    );
-}
+        );
+    }
 
-public function grade()
-{
-    return $this->belongsTo(
+    public function grade()
+    {
+        return $this->belongsTo(
 
-        Grade::class,
+            Grade::class,
 
-        'grade_id'
+            'grade_id'
 
-    );
-}
+        );
+    }
 
-public function stream()
-{
-    return $this->belongsTo(
+    public function stream()
+    {
+        return $this->belongsTo(
 
-        Stream::class,
+            Stream::class,
 
-        'stream_id'
+            'stream_id'
 
-    );
-}
+        );
+    }
 
-public function feeStructure()
-{
-    return $this->belongsTo(
+    public function feeStructure()
+    {
+        return $this->belongsTo(
 
-        FeeStructure::class,
+            FeeStructure::class,
 
-        'fee_structure_id'
+            'fee_structure_id'
 
-    );
-}
+        );
+    }
 
-public function payments()
-{
-    return $this->hasMany(
+    public function payments()
+    {
+        return $this->hasMany(
 
-        Payment::class,
+            Payment::class,
 
-        'invoice_id'
+            'invoice_id'
 
-    );
-}
+        );
+    }
 }

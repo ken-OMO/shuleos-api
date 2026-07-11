@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\FeeStructure;
 use App\Http\Resources\FeeStructureResource;
+use App\Models\FeeStructure;
 use Illuminate\Http\Request;
 
 class FeeStructureController extends Controller
@@ -14,8 +14,7 @@ class FeeStructureController extends Controller
         return FeeStructureResource::collection(
 
             FeeStructure::orderBy('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

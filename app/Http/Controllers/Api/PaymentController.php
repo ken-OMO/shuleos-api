@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Payment;
 use App\Http\Resources\PaymentResource;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 
 class PaymentController extends Controller
@@ -14,8 +14,7 @@ class PaymentController extends Controller
         return PaymentResource::collection(
 
             Payment::orderByDesc('payment_date')
-
-            ->get()
+                ->get()
 
         );
     }

@@ -60,9 +60,9 @@ final class FileQuarantine
 
         $quarantineId = bin2hex(random_bytes(32));
         $temporaryPath = $this->directory
-            . DIRECTORY_SEPARATOR
-            . $quarantineId
-            . '.pending';
+            .DIRECTORY_SEPARATOR
+            .$quarantineId
+            .'.pending';
 
         $finalPath = $this->path($quarantineId);
 
@@ -110,7 +110,7 @@ final class FileQuarantine
             }
 
             throw new RuntimeException(
-                'File quarantine failed: ' . $exception->getMessage(),
+                'File quarantine failed: '.$exception->getMessage(),
                 previous: $exception
             );
         }
@@ -216,9 +216,9 @@ final class FileQuarantine
         }
 
         return $this->directory
-            . DIRECTORY_SEPARATOR
-            . $quarantineId
-            . '.quarantine';
+            .DIRECTORY_SEPARATOR
+            .$quarantineId
+            .'.quarantine';
     }
 
     /**

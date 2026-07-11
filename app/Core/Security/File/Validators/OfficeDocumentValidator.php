@@ -76,20 +76,20 @@ final class OfficeDocumentValidator extends AbstractFileValidator
     }
 
     /**
- * Determine whether this validator supports
- * the supplied policy.
- */
-public function supports(
-    FilePolicy $policy
-): bool {
-    foreach (self::SUPPORTED_EXTENSIONS as $extension) {
-        if ($policy->allowsExtension($extension)) {
-            return true;
+     * Determine whether this validator supports
+     * the supplied policy.
+     */
+    public function supports(
+        FilePolicy $policy
+    ): bool {
+        foreach (self::SUPPORTED_EXTENSIONS as $extension) {
+            if ($policy->allowsExtension($extension)) {
+                return true;
+            }
         }
-    }
 
-    return false;
-}
+        return false;
+    }
 
     /**
      * Verify the internal Office document structure.
@@ -112,7 +112,7 @@ public function supports(
             );
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         $openResult = $zip->open($path);
 
@@ -124,8 +124,7 @@ public function supports(
 
         try {
             foreach (
-                $this->requiredEntries($extension)
-                as $requiredEntry
+                $this->requiredEntries($extension) as $requiredEntry
             ) {
                 if ($zip->locateName($requiredEntry) === false) {
                     throw new RuntimeException(

@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class AcademicWeek extends Model
+class AcademicWeek extends TenantModel
 {
     protected $table = 'academic_weeks';
 
@@ -62,11 +60,12 @@ class AcademicWeek extends Model
             'term_id'
         );
     }
-public function schemeLessons()
-{
-    return $this->hasMany(
-        SchemeLesson::class,
-        'week_id'
-    );
-}
+
+    public function schemeLessons()
+    {
+        return $this->hasMany(
+            SchemeLesson::class,
+            'week_id'
+        );
+    }
 }
