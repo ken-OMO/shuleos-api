@@ -14,6 +14,9 @@ class LessonPlanResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'school_id' => $this->school_id,
+            'teacher_assignment_id' => $this->teacher_assignment_id,
+            'scheme_lesson_id' => $this->scheme_lesson_id,
 
             'lesson_date' => $this->lesson_date,
 

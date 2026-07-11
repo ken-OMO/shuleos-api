@@ -33,6 +33,7 @@ class LessonPlan extends Model
         'is_deleted',
 
 'deleted_at',
+        'deleted_by',
 
     ];
 
@@ -45,6 +46,7 @@ class LessonPlan extends Model
 'deleted_at' => 'datetime',
 
     ];
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 
     public function assignment()
     {
