@@ -29,12 +29,17 @@ class SchemeLesson extends Model
         'resources',
         'assessment_method',
         'created_at',
+        'is_deleted',
+        'deleted_at',
+        'deleted_by',
 
     ];
 
     protected $casts = [
 
         'created_at' => 'datetime',
+        'is_deleted' => 'boolean',
+        'deleted_at' => 'datetime',
 
     ];
 
@@ -60,5 +65,10 @@ class SchemeLesson extends Model
             LessonPlan::class,
             'scheme_lesson_id'
         );
+    }
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
     }
 }

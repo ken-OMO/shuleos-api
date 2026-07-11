@@ -15,6 +15,9 @@ class SchemeLessonResource extends JsonResource
 
             'id' => $this->id,
 
+            'scheme_id' => $this->scheme_id,
+            'week_id' => $this->week_id,
+
             'lesson_number' => $this->lesson_number,
 
             'strand' => $this->strand,
