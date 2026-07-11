@@ -27,6 +27,7 @@ class AssessmentType extends Model
         'active',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -35,6 +36,7 @@ class AssessmentType extends Model
         'active' => 'boolean',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -59,4 +61,5 @@ class AssessmentType extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }

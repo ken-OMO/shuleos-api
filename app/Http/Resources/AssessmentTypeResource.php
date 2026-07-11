@@ -14,6 +14,8 @@ class AssessmentTypeResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'school_id' => $this->school_id,
+            'exams_count' => $this->whenCounted('exams'),
 
             'assessment_type_name'
                 => $this->assessment_type_name,
