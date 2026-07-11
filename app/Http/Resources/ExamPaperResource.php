@@ -12,6 +12,7 @@ class ExamPaperResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'exam_learning_area_id' => $this->exam_learning_area_id,
 
             'paper_name'
                 => $this->paper_name,

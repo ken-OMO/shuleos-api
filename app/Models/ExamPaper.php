@@ -29,6 +29,7 @@ class ExamPaper extends Model
         'max_marks',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -39,6 +40,7 @@ class ExamPaper extends Model
         'max_marks' => 'integer',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -63,4 +65,5 @@ class ExamPaper extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }
