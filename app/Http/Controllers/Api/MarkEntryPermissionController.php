@@ -2,110 +2,136 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\MarkEntryPermission;
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\MarkEntryPermissionResource;
+use App\Models\MarkEntryPermission;
+use App\Services\Assessment\MarkEntryPermissionService;
+use Illuminate\Http\Request;
 
-class MarkEntryPermissionController extends Controller
+class MarkEntryPermissionController extends BaseCrudController
 {
-    public function index()
+    private const MODULE = 'Mark Entry Permissions';
+
+    public function __construct(private readonly MarkEntryPermissionService $service) {}
+
+    public function index(Request $request)
     {
-        return MarkEntryPermissionResource::collection(
+        $validated = $request->validate([
+            'exam_id' => 'sometimes|uuid',
+            'role_name' => 'sometimes|string|max:255',
+            'active' => 'sometimes|boolean',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
 
-            MarkEntryPermission::with([
+        $query = MarkEntryPermission::with('exam')
+            ->current()
+            ->whereHas('exam', fn ($exam) => $exam
+                ->where('school_id', $this->schoolId($request))
+                ->where('is_deleted', false));
 
-                'exam',
+        foreach (['exam_id', 'role_name', 'active'] as $filter) {
+            $query->when(
+                array_key_exists($filter, $validated),
+                fn ($builder) => $builder->where($filter, $validated[$filter])
+            );
+        }
 
-            ])->paginate(20)
-
+        return $this->success(
+            MarkEntryPermissionResource::collection(
+                $query->orderByDesc('created_at')->paginate($validated['per_page'] ?? 20)
+            ),
+            'Mark entry permissions retrieved successfully.'
         );
     }
 
-    public function show($id)
+    public function show(Request $request, string $id)
     {
-        return new MarkEntryPermissionResource(
+        $permission = $this->tenantQuery($request)->with('exam')->find($id);
 
-            MarkEntryPermission::with([
-
-                'exam',
-
-            ])->findOrFail($id)
-
-        );
+        return $permission
+            ? $this->success(new MarkEntryPermissionResource($permission), 'Mark entry permission retrieved successfully.')
+            : $this->notFound('Mark entry permission not found.');
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-
-            'id' => 'required|uuid',
-
-            'exam_id' => 'required|uuid',
-
-            'role_name'
-                => 'required|string|max:255',
-
-            'active'
-                => 'boolean',
-
+            'school_id' => 'sometimes|uuid|exists:schools,id',
+            'exam_id' => 'required|uuid|exists:exams,id',
+            'role_name' => 'required|string|max:255',
+            'active' => 'sometimes|boolean',
+            'opens_at' => 'nullable|date',
+            'closes_at' => 'nullable|date|after:opens_at',
         ]);
 
-        $validated['created_at'] = now();
+        $permission = $this->service->create(
+            $validated,
+            $this->schoolId($request, $validated)
+        );
 
-        return new MarkEntryPermissionResource(
+        $this->audit($request, self::MODULE, 'Create', $permission, null, $permission->toArray(), 'Created mark entry permission.');
 
-            MarkEntryPermission::create(
-
-                $validated
-
-            )
-
+        return $this->created(
+            new MarkEntryPermissionResource($permission->load('exam')),
+            'Mark entry permission created successfully.'
         );
     }
 
-    public function update(
-        Request $request,
-        $id
-    )
+    public function update(Request $request, string $id)
     {
-        $permission = MarkEntryPermission::findOrFail($id);
+        $permission = $this->tenantQuery($request)->find($id);
+
+        if (!$permission) {
+            return $this->notFound('Mark entry permission not found.');
+        }
 
         $validated = $request->validate([
-
-            'role_name'
-                => 'sometimes|string|max:255',
-
-            'active'
-                => 'sometimes|boolean',
-
+            'active' => 'sometimes|boolean',
+            'opens_at' => 'nullable|date',
+            'closes_at' => 'nullable|date|after:opens_at',
         ]);
 
-        $permission->update(
+        $permission->update($validated);
 
-            $validated
-
-        );
-
-        return new MarkEntryPermissionResource(
-
-            $permission
-
+        return $this->success(
+            new MarkEntryPermissionResource($permission->refresh()->load('exam')),
+            'Mark entry permission updated successfully.'
         );
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, string $id)
     {
-        MarkEntryPermission::findOrFail($id)
+        $permission = $this->tenantQuery($request)->find($id);
 
-            ->delete();
+        if (!$permission) {
+            return $this->notFound('Mark entry permission not found.');
+        }
 
-        return response()->json([
-
-            'message'
-
-            => 'Mark entry permission deleted successfully'
-
+        $permission->update([
+            'active' => false,
+            'is_deleted' => true,
+            'deleted_at' => now(),
+            'deleted_by' => auth()->id(),
         ]);
+
+        return $this->success(null, 'Mark entry permission revoked successfully.');
+    }
+
+    private function tenantQuery(Request $request)
+    {
+        return MarkEntryPermission::current()->whereHas('exam', fn ($exam) => $exam
+            ->where('school_id', $this->schoolId($request))
+            ->where('is_deleted', false));
+    }
+
+    private function schoolId(Request $request, array $validated = []): string
+    {
+        $schoolId = $request->attributes->get('tenant_school_id')
+            ?? $validated['school_id']
+            ?? $request->input('school_id');
+
+        abort_if(!$schoolId, 403, 'School context not found.');
+
+        return (string) $schoolId;
     }
 }

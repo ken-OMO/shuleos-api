@@ -15,11 +15,19 @@ class MarkEntryPermissionResource extends JsonResource
 
             'id' => $this->id,
 
+            'exam_id' => $this->exam_id,
+
             'role_name'
                 => $this->role_name,
 
             'active'
                 => $this->active,
+
+            'opens_at' => $this->opens_at,
+
+            'closes_at' => $this->closes_at,
+
+            'is_open' => $this->isOpen(),
 
             'exam'
                 => $this->whenLoaded(
