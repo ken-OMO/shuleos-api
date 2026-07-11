@@ -5,473 +5,72 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\CurriculumCoverageResource;
 use App\Models\CurriculumCoverage;
+use App\Services\Teaching\CurriculumCoverageService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class CurriculumCoverageController extends BaseCrudController
 {
-    /**
-     * Module name used in audit logs.
-     */
     private const MODULE = 'Curriculum Coverage';
+    private const RELATIONS = ['teacherAssignment', 'scheme', 'schemeLesson', 'recordOfWork'];
 
-    /**
-     * Relationships loaded with curriculum coverage responses.
-     */
-    private const RELATIONS = [
+    public function __construct(private readonly CurriculumCoverageService $service) {}
 
-        'teacherAssignment',
-
-        'scheme',
-
-        'schemeLesson',
-
-        'recordOfWork',
-
-    ];
-
-    /**
-     * Display a listing of curriculum coverage records.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $coverage = CurriculumCoverage::with(
-
-            self::RELATIONS
-
-        )
-        ->where('is_deleted', false)
-        ->orderByDesc('date_completed')
-        ->paginate(20);
-
-        return $this->success(
-
-            CurriculumCoverageResource::collection(
-
-                $coverage
-
-            ),
-
-            'Curriculum coverage records retrieved successfully.'
-
-        );
-    }
-
-    /**
-     * Display the specified curriculum coverage record.
-     */
-    public function show(string $id)
-    {
-        $coverage = CurriculumCoverage::with(
-
-            self::RELATIONS
-
-        )
-        ->where('is_deleted', false)
-        ->find($id);
-
-        if ($this->modelNotFound($coverage)) {
-
-            return $this->notFound(
-
-                'Curriculum coverage record not found.'
-
-            );
-
+        $v = $request->validate([
+            'teacher_assignment_id' => 'sometimes|uuid', 'scheme_id' => 'sometimes|uuid',
+            'completed' => 'sometimes|boolean', 'week_number' => 'sometimes|integer|min:1',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+        ]);
+        $q = CurriculumCoverage::with(self::RELATIONS)->current()->where('school_id', $this->school($request));
+        foreach (['teacher_assignment_id', 'scheme_id', 'completed', 'week_number'] as $filter) {
+            $q->when(array_key_exists($filter, $v), fn ($x) => $x->where($filter, $v[$filter]));
         }
-
-        return $this->success(
-
-            new CurriculumCoverageResource(
-
-                $coverage
-
-            ),
-
-            'Curriculum coverage record retrieved successfully.'
-
-        );
+        return $this->success(CurriculumCoverageResource::collection($q->orderByDesc('date_completed')->paginate($v['per_page'] ?? 20)), 'Curriculum coverage records retrieved successfully.');
     }
-        /**
-     * Store a newly created curriculum coverage record.
-     */
+
+    public function show(Request $request, string $id)
+    {
+        $coverage = $this->query($request)->with(self::RELATIONS)->find($id);
+        return $coverage ? $this->success(new CurriculumCoverageResource($coverage), 'Curriculum coverage record retrieved successfully.') : $this->notFound('Curriculum coverage record not found.');
+    }
+
     public function store(Request $request)
     {
-        $validated = $request->validate([
-
-            'school_id' => 'required|exists:schools,id',
-
-            'teacher_assignment_id' => 'required|exists:teacher_assignments,id',
-
-            'scheme_id' => 'required|exists:schemes_of_work,id',
-
-            'scheme_lesson_id' => 'required|exists:scheme_lessons,id',
-
-            'record_of_work_id' => 'required|exists:records_of_work,id',
-
-            'date_completed' => 'required|date',
-
-            'strand' => 'required|string|max:255',
-
-            'sub_strand' => 'required|string|max:255',
-
-            'week_number' => 'required|integer|min:1',
-
-        ]);
-
-        if (
-
-            CurriculumCoverage::where(
-
-                'record_of_work_id',
-
-                $validated['record_of_work_id']
-
-            )
-
-            ->where('is_deleted', false)
-
-            ->exists()
-
-        ) {
-
-            return $this->badRequest(
-
-                'Curriculum coverage already exists for this record of work.'
-
-            );
-
-        }
-
-        $this->beginTransaction();
-
-        try {
-
-            $coverage = CurriculumCoverage::create([
-
-                'id' => (string) Str::uuid(),
-
-                'school_id' => $validated['school_id'],
-
-                'teacher_assignment_id' => $validated['teacher_assignment_id'],
-
-                'scheme_id' => $validated['scheme_id'],
-
-                'scheme_lesson_id' => $validated['scheme_lesson_id'],
-
-                'record_of_work_id' => $validated['record_of_work_id'],
-
-                'date_completed' => $validated['date_completed'],
-
-                'strand' => $validated['strand'],
-
-                'sub_strand' => $validated['sub_strand'],
-
-                'week_number' => $validated['week_number'],
-
-                'completed' => true,
-
-                'is_deleted' => false,
-
-                'created_at' => now(),
-
-            ]);
-
-            /*
-             |--------------------------------------------------------------------------
-             | Future Automation Hook
-             |--------------------------------------------------------------------------
-             |
-             | Later this module can automatically:
-             |
-             | - Update Teacher Progress Dashboard
-             | - Update HOD Dashboard
-             | - Update Principal Dashboard
-             | - Generate CBC Coverage Reports
-             | - Generate End-Term Coverage Analysis
-             |
-             */
-
-            $this->audit(
-
-                request: $request,
-
-                module: self::MODULE,
-
-                action: 'Create',
-
-                model: $coverage,
-
-                oldValues: null,
-
-                newValues: $coverage->toArray(),
-
-                description: 'Created curriculum coverage record.'
-
-            );
-
-            $this->commit();
-
-            $this->loadRelations(
-
-                $coverage,
-
-                self::RELATIONS
-
-            );
-
-            return $this->created(
-
-                new CurriculumCoverageResource(
-
-                    $coverage
-
-                ),
-
-                'Curriculum coverage created successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to create curriculum coverage.',
-
-                [
-
-                    'record_of_work_id' => $request->record_of_work_id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to create curriculum coverage.'
-
-            );
-
-        }
+        $v = $request->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'record_of_work_id' => 'required|uuid|exists:records_of_work,id']);
+        $coverage = DB::transaction(function () use ($request, $v) {
+            $coverage = $this->service->create($v['record_of_work_id'], $this->school($request, $v));
+            $this->audit($request, self::MODULE, 'Create', $coverage, null, $coverage->toArray(), 'Derived curriculum coverage from record of work.');
+            return $coverage;
+        });
+        return $this->created(new CurriculumCoverageResource($coverage->load(self::RELATIONS)), 'Curriculum coverage created successfully.');
     }
 
-    /**
-     * Update the specified curriculum coverage record.
-     */
     public function update(Request $request, string $id)
     {
-        $coverage = CurriculumCoverage::find($id);
-
-        if ($this->modelNotFound($coverage)) {
-
-            return $this->notFound(
-
-                'Curriculum coverage record not found.'
-
-            );
-
-        }
-
-        if ($this->isDeleted($coverage)) {
-
-            return $this->badRequest(
-
-                'Curriculum coverage record has been deleted.'
-
-            );
-
-        }
-
-        $validated = $request->validate([
-
-            'date_completed' => 'sometimes|date',
-
-            'strand' => 'sometimes|string|max:255',
-
-            'sub_strand' => 'sometimes|string|max:255',
-
-            'week_number' => 'sometimes|integer|min:1',
-
-            'completed' => 'sometimes|boolean',
-
-        ]);
-
-        $this->beginTransaction();
-
-        try {
-
-            $oldValues = $coverage->toArray();
-
-            $coverage->update(
-
-                $validated
-
-            );
-
-            $this->audit(
-
-                request: $request,
-
-                module: self::MODULE,
-
-                action: 'Update',
-
-                model: $coverage,
-
-                oldValues: $oldValues,
-
-                newValues: $coverage->fresh()->toArray(),
-
-                description: 'Updated curriculum coverage record.'
-
-            );
-
-            $this->commit();
-
-            $this->loadRelations(
-
-                $coverage,
-
-                self::RELATIONS
-
-            );
-
-            return $this->success(
-
-                new CurriculumCoverageResource(
-
-                    $coverage
-
-                ),
-
-                'Curriculum coverage updated successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to update curriculum coverage.',
-
-                [
-
-                    'curriculum_coverage_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to update curriculum coverage.'
-
-            );
-
-        }
+        $coverage = $this->query($request)->find($id);
+        if (!$coverage) return $this->notFound('Curriculum coverage record not found.');
+        $v = $request->validate(['completed' => 'required|boolean']);
+        $old = $coverage->toArray();
+        $coverage->update($v);
+        $this->audit($request, self::MODULE, 'Update', $coverage, $old, $coverage->fresh()->toArray(), 'Updated curriculum completion state.');
+        return $this->success(new CurriculumCoverageResource($coverage->refresh()->load(self::RELATIONS)), 'Curriculum coverage updated successfully.');
     }
 
-    /**
-     * Soft delete the specified curriculum coverage record.
-     */
     public function destroy(Request $request, string $id)
     {
-        $coverage = CurriculumCoverage::find($id);
+        $coverage = $this->query($request)->find($id);
+        if (!$coverage) return $this->notFound('Curriculum coverage record not found.');
+        $coverage->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        return $this->success(null, 'Curriculum coverage deleted successfully.');
+    }
 
-        if ($this->modelNotFound($coverage)) {
-
-            return $this->notFound(
-
-                'Curriculum coverage record not found.'
-
-            );
-
-        }
-
-        if ($this->isDeleted($coverage)) {
-
-            return $this->badRequest(
-
-                'Curriculum coverage record has already been deleted.'
-
-            );
-
-        }
-
-        $this->beginTransaction();
-
-        try {
-
-            $oldValues = $coverage->toArray();
-
-            $coverage->update([
-
-                'is_deleted' => true,
-
-                'deleted_at' => now(),
-
-            ]);
-
-            $this->audit(
-
-                request: $request,
-
-                module: self::MODULE,
-
-                action: 'Delete',
-
-                model: $coverage,
-
-                oldValues: $oldValues,
-
-                newValues: $coverage->fresh()->toArray(),
-
-                description: 'Soft deleted curriculum coverage record.'
-
-            );
-
-            $this->commit();
-
-            return $this->success(
-
-                null,
-
-                'Curriculum coverage deleted successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to delete curriculum coverage.',
-
-                [
-
-                    'curriculum_coverage_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to delete curriculum coverage.'
-
-            );
-
-        }
+    private function query(Request $request) { return CurriculumCoverage::current()->where('school_id', $this->school($request)); }
+    private function school(Request $request, array $v = []): string
+    {
+        $id = $request->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $request->input('school_id');
+        abort_if(!$id, 403, 'School context not found.');
+        return (string) $id;
     }
 }

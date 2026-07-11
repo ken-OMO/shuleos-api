@@ -14,6 +14,11 @@ class CurriculumCoverageResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'school_id' => $this->school_id,
+            'teacher_assignment_id' => $this->teacher_assignment_id,
+            'scheme_id' => $this->scheme_id,
+            'scheme_lesson_id' => $this->scheme_lesson_id,
+            'record_of_work_id' => $this->record_of_work_id,
 
             'date_completed'
                 => $this->date_completed,

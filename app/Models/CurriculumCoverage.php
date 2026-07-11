@@ -30,6 +30,9 @@ class CurriculumCoverage extends Model
         'week_number',
         'completed',
         'created_at',
+        'is_deleted',
+        'deleted_at',
+        'deleted_by',
 
     ];
 
@@ -38,6 +41,8 @@ class CurriculumCoverage extends Model
         'date_completed' => 'date',
         'completed' => 'boolean',
         'created_at' => 'datetime',
+        'is_deleted' => 'boolean',
+        'deleted_at' => 'datetime',
 
     ];
 
@@ -71,5 +76,10 @@ class CurriculumCoverage extends Model
             TeacherAssignment::class,
             'teacher_assignment_id'
         );
+    }
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
     }
 }
