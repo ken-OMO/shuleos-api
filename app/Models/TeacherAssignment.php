@@ -40,6 +40,12 @@ class TeacherAssignment extends Model
 
         'active',
 
+        'is_deleted',
+
+        'deleted_at',
+
+        'deleted_by',
+
         'created_at',
 
     ];
@@ -50,7 +56,11 @@ class TeacherAssignment extends Model
 
         'active' => 'boolean',
 
+        'is_deleted' => 'boolean',
+
         'created_at' => 'datetime',
+
+        'deleted_at' => 'datetime',
 
     ];
 
@@ -116,5 +126,10 @@ class TeacherAssignment extends Model
             LessonPlan::class,
             'teacher_assignment_id'
         );
+    }
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
     }
 }

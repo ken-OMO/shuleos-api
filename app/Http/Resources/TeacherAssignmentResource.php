@@ -15,6 +15,20 @@ class TeacherAssignmentResource extends JsonResource
 
             'id' => $this->id,
 
+            'school_id' => $this->school_id,
+
+            'teacher_id' => $this->teacher_id,
+
+            'learning_area_id' => $this->learning_area_id,
+
+            'grade_id' => $this->grade_id,
+
+            'stream_id' => $this->stream_id,
+
+            'academic_year_id' => $this->academic_year_id,
+
+            'term_id' => $this->term_id,
+
             'lessons_per_week'
                 => $this->lessons_per_week,
 
@@ -57,12 +71,6 @@ class TeacherAssignmentResource extends JsonResource
             'term' => $this->whenLoaded(
 
                 'term'
-
-            ),
-
-            'lesson_plans' => $this->whenLoaded(
-
-                'lessonPlans'
 
             ),
 
