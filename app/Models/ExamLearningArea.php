@@ -29,6 +29,7 @@ class ExamLearningArea extends Model
         'total_marks',
 
         'created_at',
+        'is_deleted','deleted_at','deleted_by',
 
     ];
 
@@ -39,6 +40,7 @@ class ExamLearningArea extends Model
         'total_marks' => 'integer',
 
         'created_at' => 'datetime',
+        'is_deleted'=>'boolean','deleted_at'=>'datetime',
 
     ];
 
@@ -74,4 +76,5 @@ class ExamLearningArea extends Model
 
         );
     }
+    public function scopeCurrent($query){return $query->where('is_deleted',false);}
 }
