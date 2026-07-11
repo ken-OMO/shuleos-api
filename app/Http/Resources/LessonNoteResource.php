@@ -14,6 +14,8 @@ class LessonNoteResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'school_id' => $this->school_id,
+            'lesson_plan_id' => $this->lesson_plan_id,
 
             'note_content'
                 => $this->note_content,
