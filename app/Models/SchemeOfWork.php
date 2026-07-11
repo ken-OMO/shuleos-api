@@ -28,6 +28,9 @@ class SchemeOfWork extends Model
         'active',
         'created_by',
         'created_at',
+        'is_deleted',
+        'deleted_at',
+        'deleted_by',
 
     ];
 
@@ -35,6 +38,8 @@ class SchemeOfWork extends Model
 
         'active' => 'boolean',
         'created_at' => 'datetime',
+        'is_deleted' => 'boolean',
+        'deleted_at' => 'datetime',
 
     ];
 
@@ -84,5 +89,15 @@ class SchemeOfWork extends Model
             SchemeLesson::class,
             'scheme_id'
         );
+    }
+
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
     }
 }
