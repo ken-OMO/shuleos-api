@@ -14,6 +14,8 @@ class RecordOfWorkResource extends JsonResource
         return [
 
             'id' => $this->id,
+            'school_id' => $this->school_id,
+            'lesson_plan_id' => $this->lesson_plan_id,
 
             'date_taught'
                 => $this->date_taught,
