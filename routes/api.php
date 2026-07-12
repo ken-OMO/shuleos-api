@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
+use App\Http\Controllers\Api\LearnerPortalAdminController;
+use App\Http\Controllers\Api\LearnerPortalController;
 use App\Http\Controllers\Api\LearningAreaAllocationController;
 use App\Http\Controllers\Api\LearningAreaController;
 use App\Http\Controllers\Api\LearningAreaResultController;
@@ -292,6 +294,9 @@ Route::prefix('learners')
 
         Route::get('/', [LearnerController::class, 'index']);
 
+        Route::post('/{learner}/portal-account', [LearnerPortalAdminController::class, 'create']);
+        Route::patch('/{learner}/portal-account/status', [LearnerPortalAdminController::class, 'status']);
+        Route::post('/{learner}/portal-account/reset-password', [LearnerPortalAdminController::class, 'reset']);
         Route::get('/{id}', [LearnerController::class, 'show']);
 
         Route::post('/', [LearnerController::class, 'store']);
@@ -301,6 +306,23 @@ Route::prefix('learners')
         Route::delete('/{id}', [LearnerController::class, 'destroy']);
 
     });
+
+Route::prefix('learner')->middleware($secure)->group(function () {
+    Route::get('/me', [LearnerPortalController::class, 'me']);
+    Route::get('/dashboard', [LearnerPortalController::class, 'dashboard']);
+    Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences']);
+    Route::patch('/dashboard-preferences', [LearnerPortalController::class, 'updatePreferences']);
+    Route::get('/timetable', [LearnerPortalController::class, 'timetable']);
+    Route::get('/attendance', [LearnerPortalController::class, 'attendance']);
+    Route::get('/results', [LearnerPortalController::class, 'results']);
+    Route::get('/report-cards', [LearnerPortalController::class, 'reportCards']);
+    Route::get('/report-cards/{reportCard}/pdf', [LearnerPortalController::class, 'pdf']);
+    Route::get('/report-cards/{reportCard}', [LearnerPortalController::class, 'reportCard']);
+    Route::get('/fees', [LearnerPortalController::class, 'fees']);
+    Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
+    Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
+    Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
+});
 
 /*
 |--------------------------------------------------------------------------
