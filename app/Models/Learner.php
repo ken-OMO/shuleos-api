@@ -43,6 +43,7 @@ class Learner extends TenantModel
         'assessment_no',
 
         'active',
+        'user_id', 'portal_enabled', 'portal_activated_at',
 
     ];
 
@@ -53,6 +54,7 @@ class Learner extends TenantModel
         'admission_date' => 'date',
 
         'active' => 'boolean',
+        'portal_enabled' => 'boolean', 'portal_activated_at' => 'datetime',
 
         'is_deleted' => 'boolean',
 
@@ -76,6 +78,21 @@ class Learner extends TenantModel
             'school_id'
 
         );
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function dashboardPreference()
+    {
+        return $this->hasOne(LearnerDashboardPreference::class);
+    }
+
+    public function scopePortalActive($q)
+    {
+        return $q->where('active', true)->where('portal_enabled', true)->where('is_deleted', false);
     }
 
     /**

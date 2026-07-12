@@ -12,6 +12,7 @@ return [
     'terms' => 'manage_academics',
     'academic-weeks' => 'manage_academics',
     'learners' => 'manage_learners',
+    'learner' => 'access_learner_portal',
     'guardians' => 'manage_learners',
     'learning-areas' => 'manage_learning_areas',
     'learning-area-allocations' => 'manage_learning_areas',
