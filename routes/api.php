@@ -48,6 +48,8 @@ use App\Http\Controllers\Api\SchemeLessonController;
 use App\Http\Controllers\Api\SchemeOfWorkController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\StreamController;
+use App\Http\Controllers\Api\StudentElectionAdminController;
+use App\Http\Controllers\Api\StudentElectionLearnerController;
 use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
@@ -64,6 +66,7 @@ use App\Http\Controllers\Api\TimetableProfileController;
 use App\Http\Controllers\Api\TimetablePublicationController;
 use App\Http\Controllers\Api\TimetableSubstitutionController;
 use App\Http\Controllers\Api\UserController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -308,6 +311,12 @@ Route::prefix('learners')
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
+    Route::get('/elections', [StudentElectionLearnerController::class, 'index']);
+    Route::get('/elections/{election}', [StudentElectionLearnerController::class, 'show']);
+    Route::get('/elections/{election}/positions/{position}/candidates', [StudentElectionLearnerController::class, 'candidates']);
+    Route::post('/elections/{election}/positions/{position}/vote', [StudentElectionLearnerController::class, 'vote']);
+    Route::get('/elections/{election}/results', [StudentElectionLearnerController::class, 'results']);
+    Route::get('/student-leaders', [StudentElectionLearnerController::class, 'leaders']);
     Route::get('/me', [LearnerPortalController::class, 'me']);
     Route::get('/dashboard', [LearnerPortalController::class, 'dashboard']);
     Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences']);
@@ -322,6 +331,28 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
     Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
     Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
+});
+
+Route::prefix('student-elections')->middleware($secure)->group(function () {
+    Route::get('/', [StudentElectionAdminController::class, 'index']);
+    Route::post('/', [StudentElectionAdminController::class, 'create']);
+    Route::get('/{election}', [StudentElectionAdminController::class, 'show']);
+    Route::post('/{election}/positions', [StudentElectionAdminController::class, 'attach']);
+    Route::post('/{election}/generate-voters', [StudentElectionAdminController::class, 'voters']);
+    foreach (['nominations_open' => 'open-nominations', 'nominations_closed' => 'close-nominations', 'voting_open' => 'open-voting', 'voting_closed' => 'close-voting', 'cancelled' => 'cancel'] as $status => $path) {
+        Route::post('/{election}/'.$path, fn (Request $r, string $election) => app(StudentElectionAdminController::class)->transition($r, $election, $status));
+    }Route::post('/{election}/tally', [StudentElectionAdminController::class, 'tally']);
+    Route::post('/{election}/publish', [StudentElectionAdminController::class, 'publish']);
+    Route::get('/{election}/results', [StudentElectionAdminController::class, 'results']);
+});
+Route::prefix('student-leadership-positions')->middleware($secure)->group(function () {
+    Route::get('/', [StudentElectionAdminController::class, 'positions']);
+    Route::post('/', [StudentElectionAdminController::class, 'createPosition']);
+});
+Route::prefix('student-election-candidates')->middleware($secure)->group(function () {
+    Route::patch('/{candidate}/approve', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'approved'));
+    Route::patch('/{candidate}/reject', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'rejected'));
+    Route::patch('/{candidate}/disqualify', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'disqualified'));
 });
 
 /*
