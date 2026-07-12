@@ -49,6 +49,7 @@ use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\TimetableConflictController;
 use App\Http\Controllers\Api\TimetableConstraintController;
@@ -191,6 +192,25 @@ Route::prefix('teachers')
         Route::delete('/{id}', [TeacherController::class, 'destroy']);
 
     });
+
+Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/me', [TeacherPortalController::class, 'me']);
+    Route::get('/dashboard', [TeacherPortalController::class, 'dashboard']);
+    Route::get('/classes', [TeacherPortalController::class, 'classes']);
+    Route::get('/learners', [TeacherPortalController::class, 'learners']);
+    Route::get('/timetable', [TeacherPortalController::class, 'timetable']);
+    Route::get('/lesson-plans', [TeacherPortalController::class, 'lessonPlans']);
+    Route::get('/lesson-notes', [TeacherPortalController::class, 'lessonNotes']);
+    Route::get('/records-of-work', [TeacherPortalController::class, 'records']);
+    Route::get('/curriculum-coverage', [TeacherPortalController::class, 'coverage']);
+    Route::get('/assessments', [TeacherPortalController::class, 'assessments']);
+    Route::get('/attendance', [TeacherPortalController::class, 'attendance']);
+    Route::get('/notifications', [TeacherPortalController::class, 'notifications']);
+    Route::get('/announcements', [TeacherPortalController::class, 'announcements']);
+    Route::get('/analytics', [TeacherPortalController::class, 'analytics']);
+    Route::get('/dashboard-preferences', [TeacherPortalController::class, 'preferences']);
+    Route::patch('/dashboard-preferences', [TeacherPortalController::class, 'updatePreferences']);
+});
 
 /*
 |--------------------------------------------------------------------------

@@ -4,6 +4,7 @@ return [
     'schools' => 'manage_users',
     'users' => 'manage_users',
     'teachers' => 'manage_users',
+    'teacher' => 'access_teacher_portal',
     'grades' => 'manage_academics',
     'streams' => 'manage_academics',
     'academic-years' => 'manage_academics',
