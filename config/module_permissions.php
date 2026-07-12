@@ -26,6 +26,7 @@ return [
     'exam-learning-areas' => 'create_exam',
     'exam-papers' => 'create_exam',
     'exam-results' => 'enter_exam_marks',
+    'learning-area-results' => 'approve_exam_results',
     'mark-entry-permissions' => 'approve_exam_results',
     'merit-lists' => 'approve_exam_results',
     'report-cards' => 'generate_report_cards',
