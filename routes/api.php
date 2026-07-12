@@ -608,14 +608,10 @@ Route::prefix('report-cards')
     ->group(function () {
 
         Route::get('/', [ReportCardController::class, 'index']);
-
+        Route::post('/generate', [ReportCardController::class, 'generate']);
+        Route::post('/publish', [ReportCardController::class, 'publish']);
+        Route::patch('/{id}/comments', [ReportCardController::class, 'updateComments']);
         Route::get('/{id}', [ReportCardController::class, 'show']);
-
-        Route::post('/', [ReportCardController::class, 'store']);
-
-        Route::put('/{id}', [ReportCardController::class, 'update']);
-
-        Route::delete('/{id}', [ReportCardController::class, 'destroy']);
 
     });
 
