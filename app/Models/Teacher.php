@@ -108,6 +108,16 @@ class Teacher extends TenantModel
         );
     }
 
+    public function dashboardPreference()
+    {
+        return $this->hasOne(TeacherDashboardPreference::class);
+    }
+
+    public function scopeCurrent($q)
+    {
+        return $q->where('active', true)->where('is_deleted', false);
+    }
+
     /**
      * Lesson Plans
      */
