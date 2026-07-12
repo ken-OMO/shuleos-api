@@ -595,51 +595,12 @@ Route::prefix('mark-entry-permissions')
     });
 
 Route::prefix('merit-lists')
-
     ->middleware($secure)
-
     ->group(function () {
-
-        Route::get('/', [
-
-            MeritListController::class,
-
-            'index',
-
-        ]);
-
-        Route::get('/{id}', [
-
-            MeritListController::class,
-
-            'show',
-
-        ]);
-
-        Route::post('/', [
-
-            MeritListController::class,
-
-            'store',
-
-        ]);
-
-        Route::put('/{id}', [
-
-            MeritListController::class,
-
-            'update',
-
-        ]);
-
-        Route::delete('/{id}', [
-
-            MeritListController::class,
-
-            'destroy',
-
-        ]);
-
+        Route::get('/', [MeritListController::class, 'index']);
+        Route::post('/generate', [MeritListController::class, 'generate']);
+        Route::post('/publish', [MeritListController::class, 'publish']);
+        Route::get('/{id}', [MeritListController::class, 'show']);
     });
 
 Route::prefix('report-cards')
