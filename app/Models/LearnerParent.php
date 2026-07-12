@@ -14,7 +14,7 @@ class LearnerParent extends Model
 
     protected $keyType = 'string';
 
-    public $timestamps = false;
+    public $timestamps = true;
 
     protected $fillable = [
 
@@ -29,6 +29,7 @@ class LearnerParent extends Model
         'active',
 
         'created_at',
+        'relationship', 'receives_sms', 'receives_email', 'receives_report_cards', 'portal_enabled', 'emergency_contact', 'can_pick_learner', 'linked_by', 'linked_at', 'is_deleted', 'deleted_at', 'deleted_by',
 
     ];
 
@@ -39,6 +40,7 @@ class LearnerParent extends Model
         'active' => 'boolean',
 
         'created_at' => 'datetime',
+        'receives_sms' => 'boolean', 'receives_email' => 'boolean', 'receives_report_cards' => 'boolean', 'portal_enabled' => 'boolean', 'emergency_contact' => 'boolean', 'can_pick_learner' => 'boolean', 'linked_at' => 'datetime', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime',
 
     ];
 
@@ -68,5 +70,20 @@ class LearnerParent extends Model
             'parent_id'
 
         );
+    }
+
+    public function linkedBy()
+    {
+        return $this->belongsTo(User::class, 'linked_by');
+    }
+
+    public function deletedBy()
+    {
+        return $this->belongsTo(User::class, 'deleted_by');
+    }
+
+    public function scopeCurrent($q)
+    {
+        return $q->where('active', true)->where('portal_enabled', true)->where('is_deleted', false);
     }
 }

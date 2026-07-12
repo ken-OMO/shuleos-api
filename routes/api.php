@@ -29,6 +29,8 @@ use App\Http\Controllers\Api\LessonNoteController;
 use App\Http\Controllers\Api\LessonPlanController;
 use App\Http\Controllers\Api\MarkEntryPermissionController;
 use App\Http\Controllers\Api\MeritListController;
+use App\Http\Controllers\Api\ParentPortalAdminController;
+use App\Http\Controllers\Api\ParentPortalController;
 use App\Http\Controllers\Api\PaymentAllocationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -617,6 +619,28 @@ Route::prefix('report-cards')
         Route::get('/{id}', [ReportCardController::class, 'show']);
 
     });
+
+Route::prefix('parent')->middleware($secure)->group(function () {
+    Route::get('/me', [ParentPortalController::class, 'me']);
+    Route::get('/learners', [ParentPortalController::class, 'learners']);
+    Route::get('/learners/{learner}/dashboard', [ParentPortalController::class, 'dashboard']);
+    Route::get('/learners/{learner}/report-cards', [ParentPortalController::class, 'reportCards']);
+    Route::get('/learners/{learner}/report-cards/{reportCard}/pdf', [ParentPortalController::class, 'reportCardPdf']);
+    Route::get('/learners/{learner}/report-cards/{reportCard}', [ParentPortalController::class, 'reportCard']);
+    Route::get('/learners/{learner}/attendance', [ParentPortalController::class, 'attendance']);
+    Route::get('/learners/{learner}/fees', [ParentPortalController::class, 'fees']);
+    Route::get('/announcements', [ParentPortalController::class, 'announcements']);
+    Route::get('/notifications', [ParentPortalController::class, 'notifications']);
+});
+Route::prefix('parent-access-policy')->middleware($secure)->group(function () {
+    Route::get('/', [ParentPortalAdminController::class, 'policy']);
+    Route::put('/', [ParentPortalAdminController::class, 'updatePolicy']);
+});
+Route::prefix('parent-access-overrides')->middleware($secure)->group(function () {
+    Route::get('/', [ParentPortalAdminController::class, 'overrides']);
+    Route::post('/', [ParentPortalAdminController::class, 'createOverride']);
+    Route::delete('/{id}', [ParentPortalAdminController::class, 'revokeOverride']);
+});
 
 /*
 |--------------------------------------------------------------------------

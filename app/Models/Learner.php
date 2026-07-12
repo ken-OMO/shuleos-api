@@ -124,6 +124,16 @@ class Learner extends TenantModel
         );
     }
 
+    public function parentLinks()
+    {
+        return $this->hasMany(LearnerParent::class, 'learner_id');
+    }
+
+    public function publishedReportCards()
+    {
+        return $this->hasMany(ReportCard::class)->current()->where('status', 'published');
+    }
+
     /***************
      * Finance
      ***************/

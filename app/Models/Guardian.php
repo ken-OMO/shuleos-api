@@ -93,6 +93,16 @@ class Guardian extends TenantModel
 
             'learner_id'
 
-        );
+        )->withPivot(['id', 'relationship', 'is_primary_contact', 'active', 'portal_enabled', 'receives_sms', 'receives_email', 'receives_report_cards', 'emergency_contact', 'can_pick_learner', 'linked_at', 'is_deleted']);
+    }
+
+    public function learnerLinks()
+    {
+        return $this->hasMany(LearnerParent::class, 'parent_id');
+    }
+
+    public function scopeCurrent($q)
+    {
+        return $q->where('active', true)->where('is_deleted', false);
     }
 }

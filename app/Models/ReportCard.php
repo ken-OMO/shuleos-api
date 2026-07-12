@@ -97,4 +97,9 @@ class ReportCard extends TenantModel
     {
         return $q->where('is_deleted', false);
     }
+
+    public function accessOverrides()
+    {
+        return $this->hasMany(ReportCardAccessOverride::class);
+    }
 }
