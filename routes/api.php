@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
 use App\Http\Controllers\Api\LearningAreaAllocationController;
 use App\Http\Controllers\Api\LearningAreaController;
+use App\Http\Controllers\Api\LearningAreaResultController;
 use App\Http\Controllers\Api\LessonNoteController;
 use App\Http\Controllers\Api\LessonPlanController;
 use App\Http\Controllers\Api\MarkEntryPermissionController;
@@ -567,6 +568,14 @@ Route::prefix('exam-results')
 
         Route::delete('/{id}', [ExamResultController::class, 'destroy']);
 
+    });
+
+Route::prefix('learning-area-results')
+    ->middleware($secure)
+    ->group(function () {
+        Route::get('/', [LearningAreaResultController::class, 'index']);
+        Route::post('/process', [LearningAreaResultController::class, 'process']);
+        Route::get('/{id}', [LearningAreaResultController::class, 'show']);
     });
 
 Route::prefix('mark-entry-permissions')
