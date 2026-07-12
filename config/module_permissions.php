@@ -19,6 +19,8 @@ return [
     'guardians' => 'manage_learners',
     'learning-areas' => 'manage_learning_areas',
     'learning-area-allocations' => 'manage_learning_areas',
+    'learning-resources' => 'review_learning_resources',
+    'learning-resource-categories' => 'manage_learning_resource_categories',
     'teacher-assignments' => 'manage_learning_areas',
     'schemes-of-work' => 'manage_schemes_of_work',
     'scheme-lessons' => 'manage_schemes_of_work',

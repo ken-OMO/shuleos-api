@@ -991,4 +991,14 @@ final class FilePolicyFactory
 
         );
     }
+
+    public static function learningResource(): FilePolicy
+    {
+        return self::createPolicy(
+            policyName: 'Learning Resource',
+            allowedExtensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'mp3', 'm4a', 'mp4', 'webm'],
+            allowedMimeTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'video/webm'],
+            maximumFileSize: 250 * self::MB
+        );
+    }
 }

@@ -28,6 +28,9 @@ use App\Http\Controllers\Api\LearnerPortalController;
 use App\Http\Controllers\Api\LearningAreaAllocationController;
 use App\Http\Controllers\Api\LearningAreaController;
 use App\Http\Controllers\Api\LearningAreaResultController;
+use App\Http\Controllers\Api\LearningResourceAdminController;
+use App\Http\Controllers\Api\LearningResourceLearnerController;
+use App\Http\Controllers\Api\LearningResourceTeacherController;
 use App\Http\Controllers\Api\LessonNoteController;
 use App\Http\Controllers\Api\LessonPlanController;
 use App\Http\Controllers\Api\MarkEntryPermissionController;
@@ -200,6 +203,9 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::post('/resources', [LearningResourceTeacherController::class, 'create']);
+    Route::post('/resources/upload', [LearningResourceTeacherController::class, 'upload']);
+    Route::post('/resources/{resource}/submit', [LearningResourceTeacherController::class, 'submit']);
     Route::get('/me', [TeacherPortalController::class, 'me']);
     Route::get('/dashboard', [TeacherPortalController::class, 'dashboard']);
     Route::get('/classes', [TeacherPortalController::class, 'classes']);
@@ -311,6 +317,12 @@ Route::prefix('learners')
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
+    Route::get('/resources', [LearningResourceLearnerController::class, 'index']);
+    Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show']);
+    Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download']);
+    Route::post('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'bookmark']);
+    Route::delete('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'unbookmark']);
+    Route::put('/resources/{resource}/rating', [LearningResourceLearnerController::class, 'rate']);
     Route::get('/elections', [StudentElectionLearnerController::class, 'index']);
     Route::get('/elections/{election}', [StudentElectionLearnerController::class, 'show']);
     Route::get('/elections/{election}/positions/{position}/candidates', [StudentElectionLearnerController::class, 'candidates']);
@@ -331,6 +343,14 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
     Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
     Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
+});
+
+Route::prefix('learning-resources')->middleware($secure)->group(function () {
+    Route::get('/analytics', [LearningResourceAdminController::class, 'analytics']);
+    Route::get('/', [LearningResourceAdminController::class, 'index']);
+    foreach (['approved' => 'approve', 'rejected' => 'reject', 'published' => 'publish', 'archived' => 'archive'] as $status => $path) {
+        Route::post('/{resource}/'.$path, fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, $status));
+    }
 });
 
 Route::prefix('student-elections')->middleware($secure)->group(function () {
