@@ -62,6 +62,11 @@ class School extends Model
 
     ];
 
+    public function settings()
+    {
+        return $this->hasOne(SchoolSettings::class, 'school_id');
+    }
+
     /**
      * Grades
      */
