@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\FeeStructureController;
 use App\Http\Controllers\Api\FinanceSettingController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\GuardianController;
+use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
@@ -210,6 +211,29 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/analytics', [TeacherPortalController::class, 'analytics']);
     Route::get('/dashboard-preferences', [TeacherPortalController::class, 'preferences']);
     Route::patch('/dashboard-preferences', [TeacherPortalController::class, 'updatePreferences']);
+});
+
+Route::prefix('leadership')->middleware($secure)->group(function () {
+    Route::get('/me', [LeadershipPortalController::class, 'me']);
+    Route::get('/dashboard', [LeadershipPortalController::class, 'dashboard']);
+    Route::get('/dashboard-preferences', [LeadershipPortalController::class, 'preferences']);
+    Route::patch('/dashboard-preferences', [LeadershipPortalController::class, 'updatePreferences']);
+    Route::get('/attendance', [LeadershipPortalController::class, 'attendance']);
+    Route::get('/curriculum-coverage', [LeadershipPortalController::class, 'curriculum']);
+    Route::get('/approvals', [LeadershipPortalController::class, 'approvals']);
+    Route::get('/approvals/{id}', [LeadershipPortalController::class, 'approval']);
+    Route::post('/approvals/{id}/approve', [LeadershipPortalController::class, 'approve']);
+    Route::post('/approvals/{id}/reject', [LeadershipPortalController::class, 'reject']);
+    Route::get('/lesson-plans', [LeadershipPortalController::class, 'lessonPlans']);
+    Route::get('/records-of-work', [LeadershipPortalController::class, 'records']);
+    Route::get('/teacher-workload', [LeadershipPortalController::class, 'workload']);
+    Route::get('/assessments', [LeadershipPortalController::class, 'assessments']);
+    Route::get('/report-cards', [LeadershipPortalController::class, 'reports']);
+    Route::get('/academic-performance', [LeadershipPortalController::class, 'academic']);
+    Route::get('/discipline', [LeadershipPortalController::class, 'discipline']);
+    Route::get('/finance', [LeadershipPortalController::class, 'finance']);
+    Route::get('/announcements', [LeadershipPortalController::class, 'announcements']);
+    Route::get('/notifications', [LeadershipPortalController::class, 'notifications']);
 });
 
 /*
