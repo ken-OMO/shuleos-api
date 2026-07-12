@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\PaymentPlanController;
 use App\Http\Controllers\Api\RecordOfWorkController;
 use App\Http\Controllers\Api\ReportCardController;
+use App\Http\Controllers\Api\ReportCardPdfController;
 use App\Http\Controllers\Api\RoomConstraintController;
 use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\RoomTypeController;
@@ -611,6 +612,8 @@ Route::prefix('report-cards')
         Route::post('/generate', [ReportCardController::class, 'generate']);
         Route::post('/publish', [ReportCardController::class, 'publish']);
         Route::patch('/{id}/comments', [ReportCardController::class, 'updateComments']);
+        Route::get('/{id}/pdf/download', [ReportCardPdfController::class, 'download']);
+        Route::get('/{id}/pdf', [ReportCardPdfController::class, 'stream']);
         Route::get('/{id}', [ReportCardController::class, 'show']);
 
     });
