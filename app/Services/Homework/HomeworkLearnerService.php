@@ -47,6 +47,9 @@ class HomeworkLearnerService
             }if ($attempt > 1 && ! $a->allow_resubmission) {
                 throw ValidationException::withMessages(['attempt' => 'Resubmission is not allowed.']);
             }
+            if ($attempt > 1 && ! in_array($r->submissions()->orderByDesc('attempt_number')->value('submission_status'), ['returned', 'resubmission_required'], true)) {
+                throw ValidationException::withMessages(['attempt' => 'A teacher must authorize the next attempt.']);
+            }
 
             return HomeworkSubmission::create($data + ['id' => (string) Str::uuid(), 'school_id' => $u->school_id, 'assignment_id' => $a->id, 'assignment_learner_id' => $r->id, 'learner_id' => $r->learner_id, 'attempt_number' => $attempt, 'submission_status' => 'draft']);
         });

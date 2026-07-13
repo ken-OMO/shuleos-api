@@ -8,6 +8,7 @@ use App\Http\Resources\HomeworkSubmissionResource;
 use App\Models\HomeworkSubmission;
 use App\Models\HomeworkSubmissionFile;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
@@ -54,5 +55,16 @@ class HomeworkTest extends TestCase
             $this->assertStringNotContainsString('exam-result', $route->uri());
             $this->assertStringNotContainsString('learning-area-result', $route->uri());
         }
+    }
+
+    public function test_phase_two_routes_and_commands_are_registered(): void
+    {
+        $uris = collect(Route::getRoutes()->getRoutes())->map(fn ($route) => $route->methods()[0].' '.$route->uri());
+        foreach (['GET api/teacher/homework/{assignment}/rubric', 'GET api/teacher/homework/{assignment}/submissions/{submission}/files/{file}/download', 'DELETE api/learner/homework/{assignment}/submission/files/{file}', 'POST api/homework/submissions/{submission}/moderate'] as $route) {
+            $this->assertContains($route, $uris);
+        }
+        $commands = Artisan::all();
+        $this->assertArrayHasKey('homework:publish-scheduled', $commands);
+        $this->assertArrayHasKey('homework:send-reminders', $commands);
     }
 }
