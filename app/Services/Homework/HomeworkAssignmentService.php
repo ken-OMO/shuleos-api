@@ -12,6 +12,8 @@ use Illuminate\Validation\ValidationException;
 
 class HomeworkAssignmentService
 {
+    public function __construct(private readonly HomeworkNotificationService $notifications) {}
+
     public function teacher(User $user)
     {
         return DB::table('teachers')->where('school_id', $user->school_id)->where('user_id', $user->id)->where('active', true)->where('is_deleted', false)->first() ?: throw new AuthorizationException('Active teacher profile required.');
@@ -91,6 +93,9 @@ class HomeworkAssignmentService
             $a->updated_by = $user->id;
             $a->save();
             $this->audit($a, $to, $user->id);
+            if ($to === 'published') {
+                $this->notifications->assignment($a, 'published');
+            }
 
             return $a;
         });

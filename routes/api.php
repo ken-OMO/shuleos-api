@@ -214,11 +214,18 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/homework/{assignment}', [HomeworkTeacherController::class, 'show']);
     Route::put('/homework/{assignment}', [HomeworkTeacherController::class, 'update']);
     Route::post('/homework/{assignment}/resources', [HomeworkTeacherController::class, 'resource']);
+    Route::get('/homework/{assignment}/rubric', [HomeworkTeacherController::class, 'rubric']);
+    Route::post('/homework/{assignment}/rubric', [HomeworkTeacherController::class, 'rubric']);
+    Route::put('/homework/{assignment}/rubric', [HomeworkTeacherController::class, 'rubric']);
     foreach (['scheduled' => 'schedule', 'published' => 'publish', 'closed' => 'close', 'cancelled' => 'cancel', 'archived' => 'archive'] as $status => $path) {
         Route::post('/homework/{assignment}/'.$path, fn (string $assignment) => app(HomeworkTeacherController::class)->transition($assignment, $status));
     }
     Route::get('/homework/{assignment}/learners', [HomeworkTeacherController::class, 'learners']);
     Route::get('/homework/{assignment}/submissions', [HomeworkTeacherController::class, 'submissions']);
+    Route::get('/homework/{assignment}/submissions/{submission}', [HomeworkTeacherController::class, 'submission']);
+    Route::get('/homework/{assignment}/submissions/{submission}/files/{file}/download', [HomeworkTeacherController::class, 'download']);
+    Route::post('/homework/{assignment}/submissions/{submission}/return', fn (Request $r, string $assignment, string $submission) => app(HomeworkTeacherController::class)->returnSubmission($r, $assignment, $submission));
+    Route::post('/homework/{assignment}/submissions/{submission}/request-resubmission', fn (Request $r, string $assignment, string $submission) => app(HomeworkTeacherController::class)->returnSubmission($r, $assignment, $submission, true));
     Route::put('/homework/{assignment}/submissions/{submission}/mark', [HomeworkTeacherController::class, 'mark']);
     Route::post('/homework/{assignment}/submissions/{submission}/release', [HomeworkTeacherController::class, 'release']);
     Route::get('/resources', [LearningResourceTeacherController::class, 'index']);
@@ -351,6 +358,9 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::post('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
     Route::put('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
     Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload']);
+    Route::get('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'submission']);
+    Route::get('/homework/{assignment}/submission/files/{file}/download', [HomeworkLearnerController::class, 'download']);
+    Route::delete('/homework/{assignment}/submission/files/{file}', [HomeworkLearnerController::class, 'deleteFile']);
     Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit']);
     Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback']);
     Route::get('/resources', [LearningResourceLearnerController::class, 'index']);
@@ -805,6 +815,8 @@ Route::prefix('parent')->middleware($secure)->group(function () {
 
 Route::prefix('homework')->middleware($secure)->group(function () {
     Route::get('/analytics', [HomeworkLeadershipController::class, 'analytics']);
+    Route::post('/submissions/{submission}/request-moderation', fn (Request $r, string $submission) => app(HomeworkLeadershipController::class)->moderation($r, $submission));
+    Route::post('/submissions/{submission}/moderate', fn (Request $r, string $submission) => app(HomeworkLeadershipController::class)->moderation($r, $submission, true));
     Route::get('/', [HomeworkLeadershipController::class, 'index']);
     Route::get('/{assignment}/completion', [HomeworkLeadershipController::class, 'completion']);
     Route::get('/{assignment}', [HomeworkLeadershipController::class, 'show']);

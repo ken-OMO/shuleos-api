@@ -59,4 +59,23 @@ class HomeworkLearnerController extends BaseApiController
 
         return $this->success($mark);
     }
+
+    public function submission(string $assignment)
+    {
+        $record = $this->s->record(auth()->user(), $assignment);
+
+        return $this->success(HomeworkSubmissionResource::collection($record->submissions()->with('files', 'mark')->orderByDesc('attempt_number')->get()));
+    }
+
+    public function download(string $assignment, string $file)
+    {
+        return $this->files->learnerDownload(auth()->user(), $assignment, $file);
+    }
+
+    public function deleteFile(string $assignment, string $file)
+    {
+        $this->files->delete(auth()->user(), $assignment, $file);
+
+        return $this->success(null);
+    }
 }

@@ -18,4 +18,9 @@ class HomeworkSubmissionMark extends TenantModel
     {
         return $this->belongsTo(HomeworkSubmission::class);
     }
+
+    public function rubricScores()
+    {
+        return $this->hasMany(HomeworkSubmissionRubricScore::class, 'submission_mark_id');
+    }
 }

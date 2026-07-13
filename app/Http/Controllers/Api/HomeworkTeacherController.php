@@ -7,11 +7,13 @@ use App\Http\Resources\HomeworkAssignmentResource;
 use App\Http\Resources\HomeworkSubmissionResource;
 use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkMarkingService;
+use App\Services\Homework\HomeworkRubricService;
+use App\Services\Homework\HomeworkSubmissionFileService;
 use Illuminate\Http\Request;
 
 class HomeworkTeacherController extends BaseApiController
 {
-    public function __construct(private HomeworkAssignmentService $s, private HomeworkMarkingService $m) {}
+    public function __construct(private HomeworkAssignmentService $s, private HomeworkMarkingService $m, private HomeworkRubricService $rubrics, private HomeworkSubmissionFileService $files) {}
 
     public function index()
     {
@@ -60,9 +62,37 @@ class HomeworkTeacherController extends BaseApiController
         return $this->success(HomeworkSubmissionResource::collection($a->submissions()->with('files', 'mark')->paginate(50)));
     }
 
+    public function submission(string $assignment, string $submission)
+    {
+        $a = $this->s->ownQuery(auth()->user())->whereKey($assignment)->firstOrFail();
+
+        return $this->success(new HomeworkSubmissionResource($a->submissions()->whereKey($submission)->with('files', 'mark')->firstOrFail()));
+    }
+
+    public function rubric(Request $r, string $assignment)
+    {
+        if ($r->isMethod('get')) {
+            return $this->success($this->rubrics->get(auth()->user(), $assignment));
+        }$data = $r->validate(['title' => 'required|string|max:255', 'description' => 'nullable|string', 'criteria' => 'required|array|min:1', 'criteria.*.criterion' => 'required|string|max:255', 'criteria.*.description' => 'nullable|string', 'criteria.*.maximum_points' => 'nullable|numeric|min:0', 'criteria.*.display_order' => 'sometimes|integer|min:0', 'criteria.*.levels' => 'sometimes|array', 'criteria.*.levels.*.level_name' => 'required|string|max:255', 'criteria.*.levels.*.description' => 'nullable|string', 'criteria.*.levels.*.points' => 'nullable|numeric|min:0', 'criteria.*.levels.*.competency_code' => 'nullable|string|max:50', 'criteria.*.levels.*.display_order' => 'sometimes|integer|min:0']);
+
+        return $this->success($this->rubrics->save(auth()->user(), $assignment, $data));
+    }
+
+    public function download(string $assignment, string $submission, string $file)
+    {
+        return $this->files->teacherDownload(auth()->user(), $assignment, $submission, $file, $this->s);
+    }
+
+    public function returnSubmission(Request $r, string $assignment, string $submission, bool $resubmit = false)
+    {
+        $d = $r->validate(['reason' => 'required|string|max:4000']);
+
+        return $this->success($this->m->returnSubmission(auth()->user(), $assignment, $submission, $d['reason'], $resubmit));
+    }
+
     public function mark(Request $r, string $assignment, string $submission)
     {
-        $d = $r->validate(['raw_score' => 'nullable|numeric|min:0', 'competency_level' => 'nullable|string|max:100', 'teacher_feedback' => 'nullable|string|max:10000', 'private_teacher_notes' => 'nullable|string|max:10000', 'status' => 'sometimes|in:draft,marked']);
+        $d = $r->validate(['raw_score' => 'nullable|numeric|min:0', 'competency_level' => 'nullable|string|max:100', 'teacher_feedback' => 'nullable|string|max:10000', 'private_teacher_notes' => 'nullable|string|max:10000', 'revision_reason' => 'nullable|string|max:4000', 'status' => 'sometimes|in:draft,marked', 'rubric_scores' => 'sometimes|array', 'rubric_scores.*.criterion_id' => 'required|uuid', 'rubric_scores.*.level_id' => 'nullable|uuid', 'rubric_scores.*.points_awarded' => 'nullable|numeric|min:0', 'rubric_scores.*.comment' => 'nullable|string|max:2000']);
 
         return $this->success($this->m->mark(auth()->user(), $assignment, $submission, $d));
     }
