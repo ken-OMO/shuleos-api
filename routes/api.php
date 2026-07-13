@@ -29,7 +29,9 @@ use App\Http\Controllers\Api\LearningAreaAllocationController;
 use App\Http\Controllers\Api\LearningAreaController;
 use App\Http\Controllers\Api\LearningAreaResultController;
 use App\Http\Controllers\Api\LearningResourceAdminController;
+use App\Http\Controllers\Api\LearningResourceCategoryController;
 use App\Http\Controllers\Api\LearningResourceLearnerController;
+use App\Http\Controllers\Api\LearningResourceParentController;
 use App\Http\Controllers\Api\LearningResourceTeacherController;
 use App\Http\Controllers\Api\LessonNoteController;
 use App\Http\Controllers\Api\LessonPlanController;
@@ -203,9 +205,19 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/resources', [LearningResourceTeacherController::class, 'index']);
+    Route::get('/resources/{resource}', [LearningResourceTeacherController::class, 'show']);
     Route::post('/resources', [LearningResourceTeacherController::class, 'create']);
     Route::post('/resources/upload', [LearningResourceTeacherController::class, 'upload']);
+    Route::put('/resources/{resource}', [LearningResourceTeacherController::class, 'update']);
     Route::post('/resources/{resource}/submit', [LearningResourceTeacherController::class, 'submit']);
+    Route::post('/resources/{resource}/archive', [LearningResourceTeacherController::class, 'archive']);
+    Route::get('/resources/{resource}/download', [LearningResourceTeacherController::class, 'download']);
+    Route::get('/resources/{resource}/versions', [LearningResourceTeacherController::class, 'versions']);
+    Route::get('/resources/{resource}/versions/{version}/download', [LearningResourceTeacherController::class, 'downloadVersion']);
+    Route::post('/resources/{resource}/versions/upload', [LearningResourceTeacherController::class, 'uploadVersion']);
+    Route::post('/resources/{resource}/versions/link', [LearningResourceTeacherController::class, 'linkVersion']);
+    Route::post('/resources/{resource}/versions/{version}/restore', [LearningResourceTeacherController::class, 'restore']);
     Route::get('/me', [TeacherPortalController::class, 'me']);
     Route::get('/dashboard', [TeacherPortalController::class, 'dashboard']);
     Route::get('/classes', [TeacherPortalController::class, 'classes']);
@@ -320,6 +332,7 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/resources', [LearningResourceLearnerController::class, 'index']);
     Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show']);
     Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download']);
+    Route::get('/resources/{resource}/open', [LearningResourceLearnerController::class, 'open']);
     Route::post('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'bookmark']);
     Route::delete('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'unbookmark']);
     Route::put('/resources/{resource}/rating', [LearningResourceLearnerController::class, 'rate']);
@@ -346,11 +359,21 @@ Route::prefix('learner')->middleware($secure)->group(function () {
 });
 
 Route::prefix('learning-resources')->middleware($secure)->group(function () {
-    Route::get('/analytics', [LearningResourceAdminController::class, 'analytics']);
+    Route::get('/analytics', [LearningResourceAdminController::class, 'analytics'])->middleware('permission:view_learning_resource_analytics');
     Route::get('/', [LearningResourceAdminController::class, 'index']);
-    foreach (['approved' => 'approve', 'rejected' => 'reject', 'published' => 'publish', 'archived' => 'archive'] as $status => $path) {
-        Route::post('/{resource}/'.$path, fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, $status));
-    }
+    Route::get('/{resource}', [LearningResourceAdminController::class, 'show']);
+    Route::get('/{resource}/versions', [LearningResourceAdminController::class, 'versions']);
+    Route::post('/{resource}/approve', fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, 'approved'))->middleware('permission:approve_learning_resources');
+    Route::post('/{resource}/reject', fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, 'rejected'))->middleware('permission:approve_learning_resources');
+    Route::post('/{resource}/publish', fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, 'published'))->middleware('permission:publish_learning_resources');
+    Route::post('/{resource}/archive', fn (Request $r, string $resource) => app(LearningResourceAdminController::class)->transition($r, $resource, 'archived'))->middleware('permission:archive_learning_resources');
+});
+
+Route::prefix('learning-resource-categories')->middleware(['jwt', 'tenant'])->group(function () {
+    Route::get('/', [LearningResourceCategoryController::class, 'index']);
+    Route::post('/', [LearningResourceCategoryController::class, 'store'])->middleware('permission:manage_learning_resource_categories');
+    Route::put('/{category}', [LearningResourceCategoryController::class, 'update'])->middleware('permission:manage_learning_resource_categories');
+    Route::delete('/{category}', [LearningResourceCategoryController::class, 'destroy'])->middleware('permission:manage_learning_resource_categories');
 });
 
 Route::prefix('student-elections')->middleware($secure)->group(function () {
@@ -738,6 +761,10 @@ Route::prefix('report-cards')
     });
 
 Route::prefix('parent')->middleware($secure)->group(function () {
+    Route::get('/learners/{learner}/resources', [LearningResourceParentController::class, 'index']);
+    Route::get('/learners/{learner}/resources/{resource}', [LearningResourceParentController::class, 'show']);
+    Route::get('/learners/{learner}/resources/{resource}/download', [LearningResourceParentController::class, 'download']);
+    Route::get('/learners/{learner}/resources/{resource}/open', [LearningResourceParentController::class, 'open']);
     Route::get('/me', [ParentPortalController::class, 'me']);
     Route::get('/learners', [ParentPortalController::class, 'learners']);
     Route::get('/learners/{learner}/dashboard', [ParentPortalController::class, 'dashboard']);

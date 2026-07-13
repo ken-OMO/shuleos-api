@@ -12,6 +12,11 @@ class LearningResourceCategory extends TenantModel
 
     protected $casts = ['active' => 'boolean', 'is_deleted' => 'boolean'];
 
+    public function resources()
+    {
+        return $this->hasMany(LearningResource::class, 'category_id');
+    }
+
     public function scopeCurrent($q)
     {
         return $q->where('active', true)->where('is_deleted', false);
