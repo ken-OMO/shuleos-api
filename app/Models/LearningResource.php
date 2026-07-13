@@ -10,7 +10,7 @@ class LearningResource extends TenantModel
 
     protected $keyType = 'string';
 
-    protected $casts = ['is_deleted' => 'boolean', 'published_at' => 'datetime'];
+    protected $casts = ['is_deleted' => 'boolean', 'approved_at' => 'datetime', 'published_at' => 'datetime', 'archived_at' => 'datetime'];
 
     public function versions()
     {
@@ -40,6 +40,21 @@ class LearningResource extends TenantModel
     public function stream()
     {
         return $this->belongsTo(Stream::class);
+    }
+
+    public function uploader()
+    {
+        return $this->belongsTo(User::class, 'uploaded_by');
+    }
+
+    public function ratings()
+    {
+        return $this->hasMany(LearningResourceRating::class, 'resource_id');
+    }
+
+    public function bookmarks()
+    {
+        return $this->hasMany(LearningResourceBookmark::class, 'resource_id');
     }
 
     public function scopeCurrent($q)
