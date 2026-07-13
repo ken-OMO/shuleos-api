@@ -19,6 +19,10 @@ use App\Http\Controllers\Api\FeeStructureController;
 use App\Http\Controllers\Api\FinanceSettingController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\GuardianController;
+use App\Http\Controllers\Api\HomeworkLeadershipController;
+use App\Http\Controllers\Api\HomeworkLearnerController;
+use App\Http\Controllers\Api\HomeworkParentController;
+use App\Http\Controllers\Api\HomeworkTeacherController;
 use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
@@ -205,6 +209,18 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/homework', [HomeworkTeacherController::class, 'index']);
+    Route::post('/homework', [HomeworkTeacherController::class, 'store']);
+    Route::get('/homework/{assignment}', [HomeworkTeacherController::class, 'show']);
+    Route::put('/homework/{assignment}', [HomeworkTeacherController::class, 'update']);
+    Route::post('/homework/{assignment}/resources', [HomeworkTeacherController::class, 'resource']);
+    foreach (['scheduled' => 'schedule', 'published' => 'publish', 'closed' => 'close', 'cancelled' => 'cancel', 'archived' => 'archive'] as $status => $path) {
+        Route::post('/homework/{assignment}/'.$path, fn (string $assignment) => app(HomeworkTeacherController::class)->transition($assignment, $status));
+    }
+    Route::get('/homework/{assignment}/learners', [HomeworkTeacherController::class, 'learners']);
+    Route::get('/homework/{assignment}/submissions', [HomeworkTeacherController::class, 'submissions']);
+    Route::put('/homework/{assignment}/submissions/{submission}/mark', [HomeworkTeacherController::class, 'mark']);
+    Route::post('/homework/{assignment}/submissions/{submission}/release', [HomeworkTeacherController::class, 'release']);
     Route::get('/resources', [LearningResourceTeacherController::class, 'index']);
     Route::get('/resources/{resource}', [LearningResourceTeacherController::class, 'show']);
     Route::post('/resources', [LearningResourceTeacherController::class, 'create']);
@@ -329,6 +345,14 @@ Route::prefix('learners')
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
+    Route::get('/homework', [HomeworkLearnerController::class, 'index']);
+    Route::get('/homework/{assignment}', [HomeworkLearnerController::class, 'show']);
+    Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view']);
+    Route::post('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
+    Route::put('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
+    Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload']);
+    Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit']);
+    Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback']);
     Route::get('/resources', [LearningResourceLearnerController::class, 'index']);
     Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show']);
     Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download']);
@@ -761,6 +785,8 @@ Route::prefix('report-cards')
     });
 
 Route::prefix('parent')->middleware($secure)->group(function () {
+    Route::get('/learners/{learner}/homework', [HomeworkParentController::class, 'index']);
+    Route::get('/learners/{learner}/homework/{assignment}', [HomeworkParentController::class, 'show']);
     Route::get('/learners/{learner}/resources', [LearningResourceParentController::class, 'index']);
     Route::get('/learners/{learner}/resources/{resource}', [LearningResourceParentController::class, 'show']);
     Route::get('/learners/{learner}/resources/{resource}/download', [LearningResourceParentController::class, 'download']);
@@ -775,6 +801,13 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/learners/{learner}/fees', [ParentPortalController::class, 'fees']);
     Route::get('/announcements', [ParentPortalController::class, 'announcements']);
     Route::get('/notifications', [ParentPortalController::class, 'notifications']);
+});
+
+Route::prefix('homework')->middleware($secure)->group(function () {
+    Route::get('/analytics', [HomeworkLeadershipController::class, 'analytics']);
+    Route::get('/', [HomeworkLeadershipController::class, 'index']);
+    Route::get('/{assignment}/completion', [HomeworkLeadershipController::class, 'completion']);
+    Route::get('/{assignment}', [HomeworkLeadershipController::class, 'show']);
 });
 Route::prefix('parent-access-policy')->middleware($secure)->group(function () {
     Route::get('/', [ParentPortalAdminController::class, 'policy']);
