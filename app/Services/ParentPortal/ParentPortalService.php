@@ -84,4 +84,11 @@ class ParentPortalService
 
         return ['learner' => $learner->load('grade', 'stream'), 'latest_report_card' => $cards->first(), 'fees' => $this->fees($u, $l), 'attendance' => $this->attendance($u, $l), 'unread_notifications' => DB::table('notifications')->where('school_id', $u->school_id)->where('user_id', $u->id)->where('is_read', false)->count(), 'announcements' => $this->announcements($u)->take(5)];
     }
+
+    public function timetable(User $user, string $learnerId, ?int $day = null)
+    {
+        $learner = $this->access->requireLinkedLearner($user, $learnerId);
+
+        return DB::table('timetable_entries as e')->join('timetables as t', 't.id', '=', 'e.timetable_id')->where('t.school_id', $user->school_id)->where('t.status', 'published')->where('t.active', true)->where('e.is_deleted', false)->where('e.grade_id', $learner->grade_id)->where('e.stream_id', $learner->stream_id)->when($day, fn ($query) => $query->where('e.day_of_week', $day))->orderBy('e.day_of_week')->orderBy('e.period_id')->get();
+    }
 }

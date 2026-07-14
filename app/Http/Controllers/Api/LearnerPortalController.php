@@ -51,6 +51,16 @@ class LearnerPortalController extends BaseApiController
         return $this->success($this->s->timetable($this->u(), $v['day'] ?? null));
     }
 
+    public function timetableToday()
+    {
+        return $this->success($this->s->timetable($this->u(), now()->dayOfWeekIso));
+    }
+
+    public function timetableWeek()
+    {
+        return $this->success($this->s->timetable($this->u()));
+    }
+
     public function attendance()
     {
         return $this->success($this->s->attendance($this->u()));

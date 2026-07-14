@@ -33,6 +33,16 @@ class ParentPortalController extends BaseApiController
         return $this->success($this->portal->dashboard($this->user(), $learner));
     }
 
+    public function timetable(string $learner)
+    {
+        return $this->success($this->portal->timetable($this->user(), $learner));
+    }
+
+    public function timetableToday(string $learner)
+    {
+        return $this->success($this->portal->timetable($this->user(), $learner, now()->dayOfWeekIso));
+    }
+
     public function reportCards(string $learner)
     {
         return $this->success($this->portal->reportCards($this->user(), $learner));

@@ -13,8 +13,6 @@ class TimetableResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'timetable_profile_id' => $this->timetable_profile_id,
 
             'academic_year_id' => $this->academic_year_id,
@@ -27,9 +25,13 @@ class TimetableResource extends JsonResource
 
             'active' => $this->active,
 
-            'created_by' => $this->created_by,
-
             'created_at' => $this->created_at,
+
+            'validated_at' => $this->validated_at,
+
+            'published_at' => $this->published_at,
+
+            'entries' => TimetableEntryResource::collection($this->whenLoaded('entries')),
 
         ];
     }

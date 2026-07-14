@@ -62,7 +62,7 @@ class LearnerPortalService
     {
         $l = $this->a->learner($u);
 
-        return DB::table('timetable_entries as e')->join('timetables as t', 't.id', '=', 'e.timetable_id')->where('t.school_id', $u->school_id)->where('e.grade_id', $l->grade_id)->where('e.stream_id', $l->stream_id)->when($day, fn ($q) => $q->where('e.day_of_week', $day))->orderBy('e.day_of_week')->orderBy('e.period_id')->get();
+        return DB::table('timetable_entries as e')->join('timetables as t', 't.id', '=', 'e.timetable_id')->where('t.school_id', $u->school_id)->where('t.status', 'published')->where('t.active', true)->where('e.is_deleted', false)->where('e.grade_id', $l->grade_id)->where('e.stream_id', $l->stream_id)->when($day, fn ($q) => $q->where('e.day_of_week', $day))->orderBy('e.day_of_week')->orderBy('e.period_id')->get();
     }
 
     public function attendance(User $u)

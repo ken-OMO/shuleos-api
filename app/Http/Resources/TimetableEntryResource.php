@@ -33,6 +33,12 @@ class TimetableEntryResource extends JsonResource
 
             'remarks' => $this->remarks,
 
+            'entry_status' => $this->entry_status,
+
+            'period' => $this->whenLoaded('period'),
+
+            'room' => $this->whenLoaded('room'),
+
             'created_at' => $this->created_at,
 
         ];
