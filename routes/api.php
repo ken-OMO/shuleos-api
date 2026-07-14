@@ -12,6 +12,10 @@ use App\Http\Controllers\Api\AttendanceSessionController;
 use App\Http\Controllers\Api\AttendanceStatusController;
 use App\Http\Controllers\Api\AttendanceTeacherController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BehaviourLeadershipController;
+use App\Http\Controllers\Api\BehaviourLearnerController;
+use App\Http\Controllers\Api\BehaviourParentController;
+use App\Http\Controllers\Api\BehaviourTeacherController;
 use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
@@ -213,6 +217,14 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/behaviour/categories', [BehaviourTeacherController::class, 'categories'])->middleware('permission:view_assigned_learner_behaviour');
+    Route::get('/behaviour/learners/{learner}', [BehaviourTeacherController::class, 'learner'])->middleware('permission:view_assigned_learner_behaviour');
+    Route::post('/behaviour/cases', [BehaviourTeacherController::class, 'store'])->middleware('permission:report_behaviour_cases');
+    Route::get('/behaviour/cases', [BehaviourTeacherController::class, 'cases'])->middleware('permission:view_assigned_learner_behaviour');
+    Route::get('/behaviour/cases/{case}', [BehaviourTeacherController::class, 'show'])->middleware('permission:view_assigned_learner_behaviour');
+    Route::post('/behaviour/cases/{case}/actions', [BehaviourTeacherController::class, 'action'])->middleware('permission:assign_basic_behaviour_actions');
+    Route::post('/behaviour/recognitions', [BehaviourTeacherController::class, 'recognize'])->middleware('permission:award_behaviour_recognition');
+    Route::get('/behaviour/recognitions', [BehaviourTeacherController::class, 'recognitions'])->middleware('permission:view_assigned_learner_behaviour');
     Route::get('/attendance/sessions', [AttendanceTeacherController::class, 'sessions']);
     Route::get('/attendance/registers', [AttendanceTeacherController::class, 'index']);
     Route::post('/attendance/registers', [AttendanceTeacherController::class, 'store']);
@@ -365,6 +377,9 @@ Route::prefix('learners')
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
+    Route::get('/behaviour', [BehaviourLearnerController::class, 'index'])->middleware('permission:view_own_behaviour');
+    Route::get('/behaviour/recognitions', [BehaviourLearnerController::class, 'recognitions'])->middleware('permission:view_own_recognitions');
+    Route::get('/behaviour/actions', [BehaviourLearnerController::class, 'actions'])->middleware('permission:view_own_behaviour');
     Route::get('/homework', [HomeworkLearnerController::class, 'index']);
     Route::get('/homework/{assignment}', [HomeworkLearnerController::class, 'show']);
     Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view']);
@@ -810,6 +825,9 @@ Route::prefix('report-cards')
     });
 
 Route::prefix('parent')->middleware($secure)->group(function () {
+    Route::get('/learners/{learner}/behaviour', [BehaviourParentController::class, 'index'])->middleware('permission:view_linked_learner_behaviour');
+    Route::get('/learners/{learner}/behaviour/recognitions', [BehaviourParentController::class, 'recognitions'])->middleware('permission:view_linked_learner_recognitions');
+    Route::get('/learners/{learner}/behaviour/actions', [BehaviourParentController::class, 'actions'])->middleware('permission:view_linked_learner_behaviour');
     Route::get('/learners/{learner}/homework', [HomeworkParentController::class, 'index']);
     Route::get('/learners/{learner}/homework/{assignment}', [HomeworkParentController::class, 'show']);
     Route::get('/learners/{learner}/resources', [LearningResourceParentController::class, 'index']);
@@ -855,6 +873,10 @@ Route::prefix('parent-access-overrides')->middleware($secure)->group(function ()
 */
 
 Route::prefix('attendance')->middleware($secure)->group(function () {
+    Route::get('/risk-flags', [BehaviourLeadershipController::class, 'risks'])->middleware('permission:view_attendance_risk_flags');
+    Route::post('/risk-flags/{flag}/acknowledge', fn (Request $request, string $flag) => app(BehaviourLeadershipController::class)->riskUpdate($request, $flag, 'acknowledged'))->middleware('permission:resolve_attendance_risk_flags');
+    Route::post('/risk-flags/{flag}/resolve', fn (Request $request, string $flag) => app(BehaviourLeadershipController::class)->riskUpdate($request, $flag, 'resolved'))->middleware('permission:resolve_attendance_risk_flags');
+    Route::post('/{register}/correct', [AttendanceLeadershipController::class, 'correct'])->middleware('permission:correct_finalized_attendance');
     Route::get('/analytics', [AttendanceLeadershipController::class, 'analytics']);
     Route::get('/absentees', [AttendanceLeadershipController::class, 'absentees']);
     Route::get('/late', [AttendanceLeadershipController::class, 'absentees']);
@@ -862,6 +884,21 @@ Route::prefix('attendance')->middleware($secure)->group(function () {
     Route::get('/chronic-absence', [AttendanceLeadershipController::class, 'absentees']);
     Route::get('/', [AttendanceLeadershipController::class, 'index']);
     Route::get('/{register}', [AttendanceLeadershipController::class, 'show']);
+});
+
+Route::prefix('behaviour')->middleware($secure)->group(function () {
+    Route::get('/', [BehaviourLeadershipController::class, 'index'])->middleware('permission:view_behaviour_analytics');
+    Route::get('/analytics', [BehaviourLeadershipController::class, 'analytics'])->middleware('permission:view_behaviour_analytics');
+    Route::get('/risk-indicators', [BehaviourLeadershipController::class, 'indicators'])->middleware('permission:view_behaviour_analytics');
+    Route::get('/cases', [BehaviourLeadershipController::class, 'cases'])->middleware('permission:review_behaviour_cases');
+    Route::get('/cases/{case}', [BehaviourLeadershipController::class, 'show'])->middleware('permission:review_behaviour_cases');
+    Route::post('/cases/{case}/review', fn (Request $request, string $case) => app(BehaviourLeadershipController::class)->transition($request, $case, 'under_review'))->middleware('permission:review_behaviour_cases');
+    Route::post('/cases/{case}/resolve', fn (Request $request, string $case) => app(BehaviourLeadershipController::class)->transition($request, $case, 'resolved'))->middleware('permission:resolve_behaviour_cases');
+    Route::post('/cases/{case}/close', fn (Request $request, string $case) => app(BehaviourLeadershipController::class)->transition($request, $case, 'closed'))->middleware('permission:resolve_behaviour_cases');
+    Route::post('/cases/{case}/reopen', fn (Request $request, string $case) => app(BehaviourLeadershipController::class)->transition($request, $case, 'reopened'))->middleware('permission:resolve_behaviour_cases');
+    Route::post('/cases/{case}/actions', [BehaviourLeadershipController::class, 'action'])->middleware('permission:assign_restricted_behaviour_actions');
+    Route::post('/recognitions/{recognition}/approve', [BehaviourLeadershipController::class, 'approve'])->middleware('permission:approve_behaviour_recognitions');
+    Route::post('/referrals', [BehaviourLeadershipController::class, 'referral'])->middleware('permission:manage_counselling_referrals');
 });
 
 Route::prefix('attendance-statuses')

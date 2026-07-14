@@ -2,6 +2,7 @@
 
 use App\Models\HomeworkAssignment;
 use App\Models\User;
+use App\Services\Attendance\AttendanceIntelligenceService;
 use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkNotificationService;
 use Illuminate\Foundation\Inspiring;
@@ -44,3 +45,7 @@ Artisan::command('homework:send-reminders', function (HomeworkNotificationServic
     });
     $this->info("Created {$count} homework reminders.");
 })->purpose('Create idempotent due and overdue homework notifications');
+
+Artisan::command('attendance:generate-risk-flags', function (AttendanceIntelligenceService $service) {
+    $this->info('Generated or refreshed '.$service->generate().' explainable attendance risk flags.');
+})->purpose('Generate idempotent attendance risk flags from finalized records');

@@ -44,6 +44,7 @@ return [
     'parent-access-overrides' => 'manage_report_card_access_overrides',
     'attendance-statuses' => 'manage_attendance',
     'attendance' => 'view_attendance_analytics',
+    'behaviour' => 'view_behaviour_analytics',
     'attendance-sessions' => 'manage_attendance',
     'learner-attendance' => 'manage_attendance',
     'attendance-alerts' => 'manage_attendance',

@@ -6,6 +6,7 @@ use App\Models\AttendanceRegister;
 use App\Models\LearnerAttendance;
 use App\Models\TeacherAssignment;
 use App\Models\User;
+use App\Services\LeadershipPortal\LeadershipPortalAccessService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -109,6 +110,51 @@ class AttendanceService
             abort_if($r->records()->whereNotNull('attendance_status_id')->exists(), 409, 'Marked draft register cannot be cancelled.');
             $r->update(['status' => 'cancelled']);
             $this->audit($r, $u, 'register_cancelled');
+        });
+    }
+
+    public function leadershipCorrect(User $u, string $id, array $marks, string $reason): AttendanceRegister
+    {
+        $scope = app(LeadershipPortalAccessService::class)->scope($u);
+        if (! $scope['whole_school']) {
+            throw new AuthorizationException('Attendance correction requires whole-school leadership scope.');
+        }
+
+        return DB::transaction(function () use ($u, $id, $marks, $reason) {
+            $register = AttendanceRegister::current()
+                ->where('school_id', $u->school_id)
+                ->whereKey($id)
+                ->whereIn('status', ['finalized', 'corrected'])
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            foreach ($marks as $mark) {
+                abort_unless($this->eligibleLearners($register)->where('id', $mark['learner_id'])->exists(), 422, 'Learner is outside the register roster.');
+                $row = $register->records()->where('learner_id', $mark['learner_id'])->lockForUpdate()->firstOrFail();
+                $status = $this->statuses->status($mark['attendance_status_id'] ?? $mark['status_code']);
+                if (strtoupper($status->status_code) === 'LATE' && empty($mark['late_minutes'])) {
+                    throw ValidationException::withMessages(['late_minutes' => 'Late minutes are required for LATE status.']);
+                }
+
+                $oldStatus = $row->attendance_status_id;
+                $oldRemarks = $row->remarks;
+                $row->update([
+                    'attendance_status_id' => $status->id,
+                    'remarks' => $mark['remarks'] ?? null,
+                    'is_late_minutes' => strtoupper($status->status_code) === 'LATE' ? $mark['late_minutes'] : null,
+                    'marked_at' => now(),
+                    'updated_by' => $u->id,
+                    'source' => 'admin_correction',
+                    'correction_reason' => $reason,
+                    'finalized' => true,
+                ]);
+                $this->audit($register, $u, 'leadership_correction', $row, $oldStatus, $status->id, $oldRemarks, $row->remarks, $reason);
+            }
+
+            $register->update(['status' => 'corrected', 'correction_reason' => $reason, 'corrected_by' => $u->id, 'corrected_at' => now()]);
+            $this->alerts->process($register);
+
+            return $register->fresh('records.attendanceStatus');
         });
     }
 
