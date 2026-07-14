@@ -62,6 +62,13 @@ class TimetableEntryService
     {
         $timetable = Timetable::whereKey($timetableId)->where('school_id', $user->school_id)->firstOrFail();
         abort_unless(in_array($timetable->status, ['draft', 'invalid'], true), 409);
-        TimetableEntry::whereKey($entryId)->where('timetable_id', $timetable->id)->where('school_id', $user->school_id)->firstOrFail()->delete();
+        $entry = TimetableEntry::whereKey($entryId)->where('timetable_id', $timetable->id)->where('school_id', $user->school_id)->firstOrFail();
+        abort_if($entry->is_locked, 409, 'Locked entries cannot be deleted.');
+        if ($entry->lesson_group_id) {
+            TimetableEntry::where('timetable_id', $timetable->id)->where('lesson_group_id', $entry->lesson_group_id)->where('is_locked', false)->get()->each->delete();
+
+            return;
+        }
+        $entry->delete();
     }
 }

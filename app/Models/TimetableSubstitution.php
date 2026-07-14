@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class TimetableSubstitution extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'timetable_entry_id',
 
@@ -24,7 +29,11 @@ class TimetableSubstitution extends TenantModel
 
         'approved_by',
 
+        'status', 'approved_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+
     ];
+
+    protected $casts = ['substitution_date' => 'date', 'approved_at' => 'datetime', 'cancelled_at' => 'datetime'];
 
     public function school()
     {

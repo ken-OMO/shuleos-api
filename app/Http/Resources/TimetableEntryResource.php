@@ -29,11 +29,17 @@ class TimetableEntryResource extends JsonResource
 
             'room_id' => $this->room_id,
 
-            'is_double_lesson' => $this->is_double_lesson,
-
             'remarks' => $this->remarks,
 
             'entry_status' => $this->entry_status,
+
+            'is_double_lesson' => (bool) $this->is_double_lesson,
+
+            'lesson_group_id' => $this->lesson_group_id,
+
+            'lesson_sequence' => $this->lesson_sequence,
+
+            'lesson_span' => $this->lesson_span,
 
             'period' => $this->whenLoaded('period'),
 

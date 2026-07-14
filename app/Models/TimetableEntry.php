@@ -43,9 +43,11 @@ class TimetableEntry extends TenantModel
 
         'entry_status', 'created_by', 'updated_by', 'is_deleted', 'deleted_at', 'deleted_by',
 
+        'lesson_group_id', 'lesson_sequence', 'lesson_span', 'is_locked', 'locked_by', 'locked_at', 'lock_reason', 'generation_run_id', 'generation_score',
+
     ];
 
-    protected $casts = ['is_double_lesson' => 'boolean', 'is_deleted' => 'boolean'];
+    protected $casts = ['is_double_lesson' => 'boolean', 'is_deleted' => 'boolean', 'is_locked' => 'boolean', 'locked_at' => 'datetime'];
 
     public function timetable()
     {

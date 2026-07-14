@@ -28,9 +28,11 @@ class Timetable extends TenantModel
 
         'version', 'approved_by', 'approved_at', 'published_by', 'published_at', 'archived_at', 'validation_summary', 'validated_at', 'is_deleted', 'deleted_at', 'deleted_by',
 
+        'parent_timetable_id', 'copied_from_timetable_id', 'revision_reason', 'effective_from', 'effective_to',
+
     ];
 
-    protected $casts = ['validation_summary' => 'array', 'approved_at' => 'datetime', 'published_at' => 'datetime', 'archived_at' => 'datetime', 'validated_at' => 'datetime', 'is_deleted' => 'boolean'];
+    protected $casts = ['validation_summary' => 'array', 'approved_at' => 'datetime', 'published_at' => 'datetime', 'archived_at' => 'datetime', 'validated_at' => 'datetime', 'is_deleted' => 'boolean', 'effective_from' => 'date', 'effective_to' => 'date'];
 
     public function entries()
     {

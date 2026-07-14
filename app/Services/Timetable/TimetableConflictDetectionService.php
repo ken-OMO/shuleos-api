@@ -25,6 +25,10 @@ class TimetableConflictDetectionService
                 $conflicts[] = $this->store($timetable, $scheduled > $assignment->lessons_per_week ? 'overallocated_assignment' : 'underallocated_assignment', $scheduled > $assignment->lessons_per_week ? 'error' : 'warning', "Assignment requires {$assignment->lessons_per_week} lessons and has {$scheduled}.", ['teacher_assignment_id' => $assignment->id, 'required' => $assignment->lessons_per_week, 'scheduled' => $scheduled]);
             }
         }
+        $brokenGroups = DB::table('timetable_entries')->where('timetable_id', $timetable->id)->where('school_id', $timetable->school_id)->where('is_deleted', false)->whereNotNull('lesson_group_id')->select('lesson_group_id', DB::raw('COUNT(*) total'), DB::raw('MIN(lesson_span) expected'))->groupBy('lesson_group_id')->havingRaw('COUNT(*) <> MIN(lesson_span)')->get();
+        foreach ($brokenGroups as $group) {
+            $conflicts[] = $this->store($timetable, 'broken_double_lesson', 'error', 'Double-lesson group is incomplete.', ['lesson_group_id' => $group->lesson_group_id, 'expected' => $group->expected, 'actual' => $group->total]);
+        }
 
         return $conflicts;
     }

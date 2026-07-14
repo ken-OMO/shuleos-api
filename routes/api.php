@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\SchemeLessonController;
 use App\Http\Controllers\Api\SchemeOfWorkController;
 use App\Http\Controllers\Api\SchoolController;
+use App\Http\Controllers\Api\SmartTimetableAutomationController;
 use App\Http\Controllers\Api\SmartTimetableController;
 use App\Http\Controllers\Api\StreamController;
 use App\Http\Controllers\Api\StudentElectionAdminController;
@@ -1067,6 +1068,17 @@ Route::prefix('timetables')
     ->group(function () {
         Route::get('/', [SmartTimetableController::class, 'index'])->middleware('permission:view_school_timetable');
         Route::post('/', [SmartTimetableController::class, 'store'])->middleware('permission:create_timetable');
+        Route::post('/{timetable}/generate', [SmartTimetableAutomationController::class, 'generate'])->middleware('permission:generate_timetable');
+        Route::post('/{timetable}/repair', fn (Request $request, string $timetable) => app(SmartTimetableAutomationController::class)->repair($request, $timetable, 'repair'))->middleware('permission:repair_timetable');
+        Route::post('/{timetable}/rebalance', fn (Request $request, string $timetable) => app(SmartTimetableAutomationController::class)->repair($request, $timetable, 'rebalance'))->middleware('permission:rebalance_timetable');
+        Route::post('/{timetable}/regenerate-unallocated', fn (Request $request, string $timetable) => app(SmartTimetableAutomationController::class)->repair($request, $timetable, 'regenerate_unallocated'))->middleware('permission:repair_timetable');
+        Route::post('/{timetable}/create-version', [SmartTimetableAutomationController::class, 'createVersion'])->middleware('permission:create_timetable_versions');
+        Route::post('/{timetable}/entries/{entry}/lock', fn (Request $request, string $timetable, string $entry) => app(SmartTimetableAutomationController::class)->lock($request, $timetable, $entry, true))->middleware('permission:lock_timetable_entries');
+        Route::post('/{timetable}/entries/{entry}/unlock', fn (Request $request, string $timetable, string $entry) => app(SmartTimetableAutomationController::class)->lock($request, $timetable, $entry, false))->middleware('permission:lock_timetable_entries');
+        Route::get('/{timetable}/generation-runs', [SmartTimetableAutomationController::class, 'runs'])->middleware('permission:view_timetable_generation_runs');
+        Route::get('/{timetable}/generation-runs/{run}', [SmartTimetableAutomationController::class, 'runs'])->middleware('permission:view_timetable_generation_runs');
+        Route::post('/{timetable}/unpublish', [SmartTimetableAutomationController::class, 'unpublish'])->middleware('permission:unpublish_timetable');
+        Route::post('/{timetable}/supersede', [SmartTimetableAutomationController::class, 'supersede'])->middleware('permission:supersede_timetable');
         Route::post('/{timetable}/validate', [SmartTimetableController::class, 'validateTimetable'])->middleware('permission:validate_timetable');
         Route::get('/{timetable}/conflicts', [SmartTimetableController::class, 'conflicts'])->middleware('permission:view_school_timetable');
         Route::get('/{timetable}/allocation-summary', [SmartTimetableController::class, 'conflicts'])->middleware('permission:view_timetable_analytics');
@@ -1082,6 +1094,12 @@ Route::prefix('timetables')
     });
 
 Route::prefix('timetable')->middleware($secure)->group(function () {
+    Route::get('/substitutions/suggestions', [SmartTimetableAutomationController::class, 'suggestions'])->middleware('permission:manage_timetable_substitutions');
+    Route::post('/substitutions', [SmartTimetableAutomationController::class, 'createSubstitution'])->middleware('permission:manage_timetable_substitutions');
+    Route::get('/substitutions', [SmartTimetableAutomationController::class, 'substitutions'])->middleware('permission:manage_timetable_substitutions');
+    Route::get('/substitutions/{substitution}', [SmartTimetableAutomationController::class, 'substitutions'])->middleware('permission:manage_timetable_substitutions');
+    Route::post('/substitutions/{substitution}/approve', fn (Request $request, string $substitution) => app(SmartTimetableAutomationController::class)->substitutionAction($request, $substitution, 'approve'))->middleware('permission:approve_timetable_substitutions');
+    Route::post('/substitutions/{substitution}/cancel', fn (Request $request, string $substitution) => app(SmartTimetableAutomationController::class)->substitutionAction($request, $substitution, 'cancel'))->middleware('permission:manage_timetable_substitutions');
     Route::get('/current-period', [SmartTimetableController::class, 'currentPeriod']);
     Route::get('/overview', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_school_timetable');
     Route::get('/analytics', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
@@ -1199,11 +1217,7 @@ Route::prefix('timetable-substitutions')
 
         Route::get('/{id}', [TimetableSubstitutionController::class, 'show']);
 
-        Route::post('/', [TimetableSubstitutionController::class, 'store']);
-
-        Route::put('/{id}', [TimetableSubstitutionController::class, 'update']);
-
-        Route::delete('/{id}', [TimetableSubstitutionController::class, 'destroy']);
+        // Phase 2 substitution writes use /timetable/substitutions and its approval workflow.
 
     });
 

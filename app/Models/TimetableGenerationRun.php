@@ -28,7 +28,11 @@ class TimetableGenerationRun extends TenantModel
 
         'completed_at',
 
+        'parameters', 'random_seed', 'required_lessons', 'scheduled_lessons', 'unscheduled_lessons', 'hard_conflicts', 'soft_warnings', 'score', 'diagnostics', 'failed_reason',
+
     ];
+
+    protected $casts = ['parameters' => 'array', 'diagnostics' => 'array', 'started_at' => 'datetime', 'completed_at' => 'datetime'];
 
     public function school()
     {
