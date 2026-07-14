@@ -64,6 +64,7 @@ use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\SchemeLessonController;
 use App\Http\Controllers\Api\SchemeOfWorkController;
 use App\Http\Controllers\Api\SchoolController;
+use App\Http\Controllers\Api\SmartTimetableController;
 use App\Http\Controllers\Api\StreamController;
 use App\Http\Controllers\Api\StudentElectionAdminController;
 use App\Http\Controllers\Api\StudentElectionLearnerController;
@@ -75,7 +76,6 @@ use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\TimetableConflictController;
 use App\Http\Controllers\Api\TimetableConstraintController;
-use App\Http\Controllers\Api\TimetableController;
 use App\Http\Controllers\Api\TimetableEntryController;
 use App\Http\Controllers\Api\TimetableGenerationRunController;
 use App\Http\Controllers\Api\TimetablePeriodController;
@@ -271,6 +271,10 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/classes', [TeacherPortalController::class, 'classes']);
     Route::get('/learners', [TeacherPortalController::class, 'learners']);
     Route::get('/timetable', [TeacherPortalController::class, 'timetable']);
+    Route::get('/timetable/today', [TeacherPortalController::class, 'timetableToday']);
+    Route::get('/timetable/week', [TeacherPortalController::class, 'timetableWeek']);
+    Route::get('/timetable/next', [TeacherPortalController::class, 'timetableNext']);
+    Route::get('/timetable/current-period', [SmartTimetableController::class, 'currentPeriod']);
     Route::get('/lesson-plans', [TeacherPortalController::class, 'lessonPlans']);
     Route::get('/lesson-notes', [TeacherPortalController::class, 'lessonNotes']);
     Route::get('/records-of-work', [TeacherPortalController::class, 'records']);
@@ -409,6 +413,9 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences']);
     Route::patch('/dashboard-preferences', [LearnerPortalController::class, 'updatePreferences']);
     Route::get('/timetable', [LearnerPortalController::class, 'timetable']);
+    Route::get('/timetable/today', [LearnerPortalController::class, 'timetableToday']);
+    Route::get('/timetable/week', [LearnerPortalController::class, 'timetableWeek']);
+    Route::get('/timetable/current-period', [SmartTimetableController::class, 'currentPeriod']);
     Route::get('/attendance', [AttendanceLearnerController::class, 'index']);
     Route::get('/attendance/summary', [AttendanceLearnerController::class, 'summary']);
     Route::get('/attendance/history', [AttendanceLearnerController::class, 'history']);
@@ -825,6 +832,8 @@ Route::prefix('report-cards')
     });
 
 Route::prefix('parent')->middleware($secure)->group(function () {
+    Route::get('/learners/{learner}/timetable', [ParentPortalController::class, 'timetable'])->middleware('permission:view_linked_learner_timetable');
+    Route::get('/learners/{learner}/timetable/today', [ParentPortalController::class, 'timetableToday'])->middleware('permission:view_linked_learner_timetable');
     Route::get('/learners/{learner}/behaviour', [BehaviourParentController::class, 'index'])->middleware('permission:view_linked_learner_behaviour');
     Route::get('/learners/{learner}/behaviour/recognitions', [BehaviourParentController::class, 'recognitions'])->middleware('permission:view_linked_learner_recognitions');
     Route::get('/learners/{learner}/behaviour/actions', [BehaviourParentController::class, 'actions'])->middleware('permission:view_linked_learner_behaviour');
@@ -1049,29 +1058,38 @@ Route::prefix('timetable-entries')
 
         Route::get('/{id}', [TimetableEntryController::class, 'show']);
 
-        Route::post('/', [TimetableEntryController::class, 'store']);
-
-        Route::put('/{id}', [TimetableEntryController::class, 'update']);
-
-        Route::delete('/{id}', [TimetableEntryController::class, 'destroy']);
+        // Writes must use /timetables/{timetable}/entries so assignment scope is derived safely.
 
     });
 
 Route::prefix('timetables')
     ->middleware($middleware)
     ->group(function () {
-
-        Route::get('/', [TimetableController::class, 'index']);
-
-        Route::get('/{id}', [TimetableController::class, 'show']);
-
-        Route::post('/', [TimetableController::class, 'store']);
-
-        Route::put('/{id}', [TimetableController::class, 'update']);
-
-        Route::delete('/{id}', [TimetableController::class, 'destroy']);
-
+        Route::get('/', [SmartTimetableController::class, 'index'])->middleware('permission:view_school_timetable');
+        Route::post('/', [SmartTimetableController::class, 'store'])->middleware('permission:create_timetable');
+        Route::post('/{timetable}/validate', [SmartTimetableController::class, 'validateTimetable'])->middleware('permission:validate_timetable');
+        Route::get('/{timetable}/conflicts', [SmartTimetableController::class, 'conflicts'])->middleware('permission:view_school_timetable');
+        Route::get('/{timetable}/allocation-summary', [SmartTimetableController::class, 'conflicts'])->middleware('permission:view_timetable_analytics');
+        Route::get('/{timetable}/grid', [SmartTimetableController::class, 'grid'])->middleware('permission:view_school_timetable');
+        Route::post('/{timetable}/entries', [SmartTimetableController::class, 'entry'])->middleware('permission:edit_timetable');
+        Route::put('/{timetable}/entries/{entry}', [SmartTimetableController::class, 'entry'])->middleware('permission:edit_timetable');
+        Route::delete('/{timetable}/entries/{entry}', [SmartTimetableController::class, 'deleteEntry'])->middleware('permission:edit_timetable');
+        Route::post('/{timetable}/approve', [SmartTimetableController::class, 'approve'])->middleware('permission:approve_timetable');
+        Route::post('/{timetable}/publish', [SmartTimetableController::class, 'publish'])->middleware('permission:publish_timetable');
+        Route::post('/{timetable}/archive', [SmartTimetableController::class, 'archive'])->middleware('permission:archive_timetable');
+        Route::get('/{timetable}', [SmartTimetableController::class, 'show'])->middleware('permission:view_school_timetable');
+        Route::put('/{timetable}', [SmartTimetableController::class, 'update'])->middleware('permission:edit_timetable');
     });
+
+Route::prefix('timetable')->middleware($secure)->group(function () {
+    Route::get('/current-period', [SmartTimetableController::class, 'currentPeriod']);
+    Route::get('/overview', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_school_timetable');
+    Route::get('/analytics', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
+    Route::get('/teacher-workload', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
+    Route::get('/room-utilization', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
+    Route::get('/unallocated', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
+    Route::get('/conflicts', [SmartTimetableController::class, 'analytics'])->middleware('permission:view_timetable_analytics');
+});
 
 Route::prefix('timetable-constraints')
     ->middleware($middleware)
@@ -1145,11 +1163,7 @@ Route::prefix('timetable-conflicts')
 
         Route::get('/{id}', [TimetableConflictController::class, 'show']);
 
-        Route::post('/', [TimetableConflictController::class, 'store']);
-
-        Route::put('/{id}', [TimetableConflictController::class, 'update']);
-
-        Route::delete('/{id}', [TimetableConflictController::class, 'destroy']);
+        // Conflicts are generated and resolved by timetable validation.
 
     });
 
@@ -1161,11 +1175,7 @@ Route::prefix('timetable-generation-runs')
 
         Route::get('/{id}', [TimetableGenerationRunController::class, 'show']);
 
-        Route::post('/', [TimetableGenerationRunController::class, 'store']);
-
-        Route::put('/{id}', [TimetableGenerationRunController::class, 'update']);
-
-        Route::delete('/{id}', [TimetableGenerationRunController::class, 'destroy']);
+        // Automatic generation belongs to Smart Timetable Phase 2.
 
     });
 
@@ -1177,11 +1187,7 @@ Route::prefix('timetable-publications')
 
         Route::get('/{id}', [TimetablePublicationController::class, 'show']);
 
-        Route::post('/', [TimetablePublicationController::class, 'store']);
-
-        Route::put('/{id}', [TimetablePublicationController::class, 'update']);
-
-        Route::delete('/{id}', [TimetablePublicationController::class, 'destroy']);
+        // Publication history is system-managed through the lifecycle service.
 
     });
 

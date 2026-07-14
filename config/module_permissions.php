@@ -54,6 +54,7 @@ return [
     'timetable-periods' => 'manage_timetable',
     'timetable-entries' => 'manage_timetable',
     'timetables' => 'manage_timetable',
+    'timetable' => 'view_school_timetable',
     'timetable-constraints' => 'manage_timetable',
     'teacher-constraints' => 'manage_timetable',
     'teacher-availability' => 'manage_timetable',

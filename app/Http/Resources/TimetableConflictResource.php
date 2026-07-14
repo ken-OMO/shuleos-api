@@ -13,8 +13,6 @@ class TimetableConflictResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'timetable_id' => $this->timetable_id,
 
             'conflict_type' => $this->conflict_type,

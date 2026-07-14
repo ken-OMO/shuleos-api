@@ -26,7 +26,16 @@ class Timetable extends TenantModel
 
         'created_by',
 
+        'version', 'approved_by', 'approved_at', 'published_by', 'published_at', 'archived_at', 'validation_summary', 'validated_at', 'is_deleted', 'deleted_at', 'deleted_by',
+
     ];
+
+    protected $casts = ['validation_summary' => 'array', 'approved_at' => 'datetime', 'published_at' => 'datetime', 'archived_at' => 'datetime', 'validated_at' => 'datetime', 'is_deleted' => 'boolean'];
+
+    public function entries()
+    {
+        return $this->hasMany(TimetableEntry::class);
+    }
 
     public function school()
     {

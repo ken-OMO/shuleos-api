@@ -43,6 +43,21 @@ class TeacherPortalController extends BaseApiController
         return $this->success($this->s->timetable($this->u(), $v['day'] ?? null));
     }
 
+    public function timetableToday()
+    {
+        return $this->success($this->s->timetable($this->u(), now()->dayOfWeekIso));
+    }
+
+    public function timetableWeek()
+    {
+        return $this->success($this->s->timetable($this->u()));
+    }
+
+    public function timetableNext()
+    {
+        return $this->success($this->s->timetable($this->u(), now()->dayOfWeekIso)->first());
+    }
+
     public function lessonPlans()
     {
         return $this->success($this->s->lessonPlans($this->u()));
