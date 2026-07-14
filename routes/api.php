@@ -5,8 +5,12 @@ use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AssessmentRegistrationController;
 use App\Http\Controllers\Api\AssessmentTypeController;
 use App\Http\Controllers\Api\AttendanceAlertController;
+use App\Http\Controllers\Api\AttendanceLeadershipController;
+use App\Http\Controllers\Api\AttendanceLearnerController;
+use App\Http\Controllers\Api\AttendanceParentController;
 use App\Http\Controllers\Api\AttendanceSessionController;
 use App\Http\Controllers\Api\AttendanceStatusController;
+use App\Http\Controllers\Api\AttendanceTeacherController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
@@ -209,6 +213,15 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/attendance/sessions', [AttendanceTeacherController::class, 'sessions']);
+    Route::get('/attendance/registers', [AttendanceTeacherController::class, 'index']);
+    Route::post('/attendance/registers', [AttendanceTeacherController::class, 'store']);
+    Route::get('/attendance/registers/{register}', [AttendanceTeacherController::class, 'show']);
+    Route::put('/attendance/registers/{register}/draft', [AttendanceTeacherController::class, 'draft']);
+    Route::post('/attendance/registers/{register}/finalize', [AttendanceTeacherController::class, 'finalize']);
+    Route::post('/attendance/registers/{register}/reopen', [AttendanceTeacherController::class, 'reopen']);
+    Route::post('/attendance/registers/{register}/correct', [AttendanceTeacherController::class, 'correct']);
+    Route::post('/attendance/registers/{register}/cancel', [AttendanceTeacherController::class, 'cancel']);
     Route::get('/homework', [HomeworkTeacherController::class, 'index']);
     Route::post('/homework', [HomeworkTeacherController::class, 'store']);
     Route::get('/homework/{assignment}', [HomeworkTeacherController::class, 'show']);
@@ -381,7 +394,9 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences']);
     Route::patch('/dashboard-preferences', [LearnerPortalController::class, 'updatePreferences']);
     Route::get('/timetable', [LearnerPortalController::class, 'timetable']);
-    Route::get('/attendance', [LearnerPortalController::class, 'attendance']);
+    Route::get('/attendance', [AttendanceLearnerController::class, 'index']);
+    Route::get('/attendance/summary', [AttendanceLearnerController::class, 'summary']);
+    Route::get('/attendance/history', [AttendanceLearnerController::class, 'history']);
     Route::get('/results', [LearnerPortalController::class, 'results']);
     Route::get('/report-cards', [LearnerPortalController::class, 'reportCards']);
     Route::get('/report-cards/{reportCard}/pdf', [LearnerPortalController::class, 'pdf']);
@@ -807,7 +822,9 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/learners/{learner}/report-cards', [ParentPortalController::class, 'reportCards']);
     Route::get('/learners/{learner}/report-cards/{reportCard}/pdf', [ParentPortalController::class, 'reportCardPdf']);
     Route::get('/learners/{learner}/report-cards/{reportCard}', [ParentPortalController::class, 'reportCard']);
-    Route::get('/learners/{learner}/attendance', [ParentPortalController::class, 'attendance']);
+    Route::get('/learners/{learner}/attendance', [AttendanceParentController::class, 'index']);
+    Route::get('/learners/{learner}/attendance/summary', [AttendanceParentController::class, 'summary']);
+    Route::get('/learners/{learner}/attendance/history', [AttendanceParentController::class, 'history']);
     Route::get('/learners/{learner}/fees', [ParentPortalController::class, 'fees']);
     Route::get('/announcements', [ParentPortalController::class, 'announcements']);
     Route::get('/notifications', [ParentPortalController::class, 'notifications']);
@@ -836,6 +853,16 @@ Route::prefix('parent-access-overrides')->middleware($secure)->group(function ()
 | Attendance Engine Routes
 |--------------------------------------------------------------------------
 */
+
+Route::prefix('attendance')->middleware($secure)->group(function () {
+    Route::get('/analytics', [AttendanceLeadershipController::class, 'analytics']);
+    Route::get('/absentees', [AttendanceLeadershipController::class, 'absentees']);
+    Route::get('/late', [AttendanceLeadershipController::class, 'absentees']);
+    Route::get('/register-completion', [AttendanceLeadershipController::class, 'completion']);
+    Route::get('/chronic-absence', [AttendanceLeadershipController::class, 'absentees']);
+    Route::get('/', [AttendanceLeadershipController::class, 'index']);
+    Route::get('/{register}', [AttendanceLeadershipController::class, 'show']);
+});
 
 Route::prefix('attendance-statuses')
     ->middleware($secure)
@@ -877,11 +904,7 @@ Route::prefix('learner-attendance')
 
         Route::get('/{id}', [LearnerAttendanceController::class, 'show']);
 
-        Route::post('/', [LearnerAttendanceController::class, 'store']);
-
-        Route::put('/{id}', [LearnerAttendanceController::class, 'update']);
-
-        Route::delete('/{id}', [LearnerAttendanceController::class, 'destroy']);
+        // Legacy direct writes are intentionally disabled; use attendance registers.
 
     });
 
@@ -893,11 +916,7 @@ Route::prefix('attendance-alerts')
 
         Route::get('/{id}', [AttendanceAlertController::class, 'show']);
 
-        Route::post('/', [AttendanceAlertController::class, 'store']);
-
-        Route::put('/{id}', [AttendanceAlertController::class, 'update']);
-
-        Route::delete('/{id}', [AttendanceAlertController::class, 'destroy']);
+        // Alerts are system-generated only after register finalization.
 
     });
 

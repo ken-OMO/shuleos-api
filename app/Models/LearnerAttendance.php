@@ -33,6 +33,7 @@ class LearnerAttendance extends TenantModel
         'remarks',
 
         'marked_by',
+        'attendance_register_id', 'marked_at', 'updated_by', 'correction_reason', 'is_late_minutes', 'source', 'finalized',
 
     ];
 
@@ -43,6 +44,7 @@ class LearnerAttendance extends TenantModel
         'created_at' => 'datetime',
 
         'updated_at' => 'datetime',
+        'marked_at' => 'datetime', 'finalized' => 'boolean',
 
     ];
 
@@ -132,5 +134,10 @@ class LearnerAttendance extends TenantModel
             'attendance_id'
 
         );
+    }
+
+    public function register()
+    {
+        return $this->belongsTo(AttendanceRegister::class, 'attendance_register_id');
     }
 }
