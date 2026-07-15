@@ -30,4 +30,14 @@ class FinancePortalController extends BaseApiController
     {
         return $this->success($this->finance->receipt(auth()->user(), $this->parentAccess->requireLinkedLearner(auth()->user(), $learner), $payment));
     }
+
+    public function learnerBenefits()
+    {
+        return $this->success($this->finance->ownBenefits(auth()->user()));
+    }
+
+    public function parentBenefits(string $learner)
+    {
+        return $this->success($this->finance->linkedBenefits(auth()->user(), $learner));
+    }
 }

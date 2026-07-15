@@ -55,7 +55,7 @@ class Payment extends TenantModel
 
         'posted_by',
 
-        'confirmed_at', 'confirmed_by',
+        'confirmed_at', 'confirmed_by', 'refunded_amount',
 
     ];
 

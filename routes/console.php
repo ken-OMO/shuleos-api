@@ -3,6 +3,8 @@
 use App\Models\HomeworkAssignment;
 use App\Models\User;
 use App\Services\Attendance\AttendanceIntelligenceService;
+use App\Services\Finance\FinanceArrearsService;
+use App\Services\Finance\FinanceNotificationService;
 use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkNotificationService;
 use Illuminate\Foundation\Inspiring;
@@ -49,3 +51,27 @@ Artisan::command('homework:send-reminders', function (HomeworkNotificationServic
 Artisan::command('attendance:generate-risk-flags', function (AttendanceIntelligenceService $service) {
     $this->info('Generated or refreshed '.$service->generate().' explainable attendance risk flags.');
 })->purpose('Generate idempotent attendance risk flags from finalized records');
+
+Artisan::command('finance:calculate-arrears {--academic-year=} {--term=} {--school=}', function (FinanceArrearsService $service) {
+    $terms = DB::table('terms')->when($this->option('term'), fn ($query, $term) => $query->where('id', $term))->when($this->option('academic-year'), fn ($query, $year) => $query->where('academic_year_id', $year))->when($this->option('school'), fn ($query, $school) => $query->where('school_id', $school))->get();
+    $count = 0;
+    foreach ($terms as $term) {
+        $actor = User::where('school_id', $term->school_id)->where('active', true)->where('is_deleted', false)->orderBy('created_at')->first();
+        if ($actor) {
+            $count += $service->calculate($actor, $term->academic_year_id, $term->id);
+        }
+    }
+    $this->info("Calculated or refreshed {$count} arrears snapshots.");
+})->purpose('Calculate idempotent learner arrears snapshots');
+
+Artisan::command('finance:send-reminders {--school=}', function (FinanceNotificationService $service) {
+    $count = 0;
+    $schools = DB::table('finance_settings')->where('finance_reminders_enabled', true)->when($this->option('school'), fn ($query, $school) => $query->where('school_id', $school))->pluck('school_id');
+    foreach ($schools as $schoolId) {
+        $actor = User::where('school_id', $schoolId)->where('active', true)->where('is_deleted', false)->orderBy('created_at')->first();
+        if ($actor) {
+            $count += $service->reminders($actor);
+        }
+    }
+    $this->info("Created {$count} finance reminders.");
+})->purpose('Create idempotent fee-plan due and overdue portal reminders');

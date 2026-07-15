@@ -25,6 +25,8 @@ class PaymentResource extends JsonResource
 
             'allocated_amount' => $this->allocated_amount,
 
+            'refunded_amount' => $this->refunded_amount,
+
             'payment_channel' => $this->payment_channel,
 
             'transaction_reference' => $this->transaction_reference,
