@@ -25,7 +25,7 @@ class PaymentAllocation extends TenantModel
 
         'created_by',
 
-        'status', 'ledger_entry_id', 'reversed_at', 'reversed_by', 'reversal_reason',
+        'status', 'ledger_entry_id', 'reversed_at', 'reversed_by', 'reversal_reason', 'refunded_amount',
 
     ];
 

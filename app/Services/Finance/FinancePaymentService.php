@@ -55,6 +55,7 @@ class FinancePaymentService
             abort_if($payment->reversed, 409, 'Reversed payment cannot be confirmed.');
             $payment->update(['payment_status' => 'confirmed', 'confirmed_by' => $user->id, 'confirmed_at' => now(), 'posted_by' => $user->id, 'updated_at' => now()]);
             $this->audit->record($user, 'payment_confirmed', 'payments', $payment->id);
+            app(FinanceNotificationService::class)->forLearner($user->school_id, $payment->learner_id, 'finance_payment_confirmed', 'finance:payment:'.$payment->id.':confirmed', 'Fee payment confirmed', 'Your fee payment has been confirmed.');
 
             return $payment;
         });
@@ -66,7 +67,7 @@ class FinancePaymentService
             $payment = Payment::whereKey($paymentId)->where('school_id', $user->school_id)->where('payment_status', 'confirmed')->where('reversed', false)->lockForUpdate()->firstOrFail();
             $invoice = FeeInvoice::whereKey($invoiceId)->where('school_id', $user->school_id)->where('learner_id', $payment->learner_id)->whereIn('status', ['posted', 'partially_paid'])->lockForUpdate()->firstOrFail();
             $available = $this->money->minor($payment->amount) - $this->money->minor($payment->allocated_amount);
-            $balance = $this->money->minor($invoice->total_amount) - $invoice->allocations()->where('status', 'active')->get()->sum(fn ($allocation) => $this->money->minor($allocation->allocated_amount));
+            $balance = $this->money->minor($invoice->total_amount) - $invoice->allocations()->where('status', 'active')->get()->sum(fn ($allocation) => $this->money->minor($allocation->allocated_amount) - $this->money->minor($allocation->refunded_amount ?? '0.00'));
             $amount = $this->money->minor($this->money->positive($requested));
             if ($amount > $available || $amount > $balance) {
                 throw ValidationException::withMessages(['amount' => 'Allocation exceeds available payment or invoice balance.']);
@@ -80,12 +81,13 @@ class FinancePaymentService
             $ledgerId = $this->ledger->post($user, $account, ['academic_year_id' => $invoice->academic_year_id, 'term_id' => $invoice->term_id, 'transaction_type' => 'payment_allocation', 'reference_type' => 'payment_allocation', 'reference_id' => $allocation->id, 'credit' => $this->money->decimal($amount), 'description' => 'Payment allocated to '.$invoice->invoice_number]);
             $allocation->update(['ledger_entry_id' => $ledgerId]);
             $newAllocated = $this->money->minor($payment->allocated_amount) + $amount;
-            $newPaid = $invoice->allocations()->where('status', 'active')->get()->sum(fn ($row) => $this->money->minor($row->allocated_amount));
+            $newPaid = $invoice->allocations()->where('status', 'active')->get()->sum(fn ($row) => $this->money->minor($row->allocated_amount) - $this->money->minor($row->refunded_amount ?? '0.00'));
             $newBalance = $this->money->minor($invoice->total_amount) - $newPaid;
             $payment->update(['allocated_amount' => $this->money->decimal($newAllocated), 'updated_at' => now()]);
             $invoice->update(['amount_paid' => $this->money->decimal($newPaid), 'balance' => $this->money->decimal($newBalance), 'status' => $newBalance === 0 ? 'paid' : 'partially_paid', 'updated_at' => now()]);
             $account->update(['last_payment_date' => $payment->payment_date]);
             $this->audit->record($user, 'payment_allocated', 'payment_allocations', $allocation->id, [], ['amount' => $allocation->allocated_amount]);
+            app(FinanceInstallmentService::class)->refreshForLearner($user, $payment->learner_id);
 
             return $allocation;
         });
@@ -116,14 +118,19 @@ class FinancePaymentService
             $account = LearnerFeeAccount::where('school_id', $user->school_id)->where('learner_id', $payment->learner_id)->firstOrFail();
             foreach ($payment->allocations()->where('status', 'active')->lockForUpdate()->get() as $allocation) {
                 $invoice = FeeInvoice::whereKey($allocation->invoice_id)->lockForUpdate()->firstOrFail();
-                $this->ledger->post($user, $account, ['academic_year_id' => $invoice->academic_year_id, 'term_id' => $invoice->term_id, 'transaction_type' => 'payment_reversal', 'reference_type' => 'payment_allocation', 'reference_id' => $allocation->id, 'posting_action' => 'reversal', 'debit' => $allocation->allocated_amount, 'reverses_ledger_id' => $allocation->ledger_entry_id, 'description' => 'Reversal of payment '.$payment->receipt_number]);
+                $netAllocation = $this->money->minor($allocation->allocated_amount) - $this->money->minor($allocation->refunded_amount ?? '0.00');
+                if ($netAllocation > 0) {
+                    $this->ledger->post($user, $account, ['academic_year_id' => $invoice->academic_year_id, 'term_id' => $invoice->term_id, 'transaction_type' => 'payment_reversal', 'reference_type' => 'payment_allocation', 'reference_id' => $allocation->id, 'posting_action' => 'reversal', 'debit' => $this->money->decimal($netAllocation), 'reverses_ledger_id' => $allocation->ledger_entry_id, 'description' => 'Reversal of payment '.$payment->receipt_number]);
+                }
                 $allocation->update(['status' => 'reversed', 'reversed_by' => $user->id, 'reversed_at' => now(), 'reversal_reason' => $reason]);
-                $paid = $invoice->allocations()->where('status', 'active')->get()->sum(fn ($row) => $this->money->minor($row->allocated_amount));
+                $paid = $invoice->allocations()->where('status', 'active')->get()->sum(fn ($row) => $this->money->minor($row->allocated_amount) - $this->money->minor($row->refunded_amount ?? '0.00'));
                 $balance = $this->money->minor($invoice->total_amount) - $paid;
                 $invoice->update(['amount_paid' => $this->money->decimal($paid), 'balance' => $this->money->decimal($balance), 'status' => $paid > 0 ? 'partially_paid' : 'posted']);
             }
             $payment->update(['reversed' => true, 'payment_status' => 'reversed', 'reversal_reason' => $reason, 'reversed_by' => $user->id, 'reversed_at' => now(), 'updated_at' => now()]);
+            app(FinanceInstallmentService::class)->refreshForLearner($user, $payment->learner_id);
             $this->audit->record($user, 'payment_reversed', 'payments', $payment->id);
+            app(FinanceNotificationService::class)->forLearner($user->school_id, $payment->learner_id, 'finance_payment_reversed', 'finance:payment:'.$payment->id.':reversed', 'Fee payment reversed', 'A fee payment was reversed. View your fee account for details.');
 
             return $payment;
         });

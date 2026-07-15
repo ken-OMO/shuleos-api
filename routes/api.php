@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\ExamResultController;
 use App\Http\Controllers\Api\FeeCategoryController;
 use App\Http\Controllers\Api\FeeInvoiceController;
 use App\Http\Controllers\Api\FeeStructureController;
+use App\Http\Controllers\Api\FinancePhaseTwoController;
 use App\Http\Controllers\Api\FinancePortalController;
 use App\Http\Controllers\Api\FinanceSettingController;
 use App\Http\Controllers\Api\FinanceWorkflowController;
@@ -432,6 +433,9 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/fees/payments', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
     Route::get('/fees/ledger', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
     Route::get('/fees/receipts/{payment}', [FinancePortalController::class, 'learnerReceipt'])->middleware('permission:view_own_fees');
+    foreach (['discounts', 'payment-plans', 'installments', 'refunds', 'arrears', 'statement', 'clearance'] as $benefit) {
+        Route::get('/fees/'.$benefit, [FinancePortalController::class, 'learnerBenefits'])->middleware('permission:view_own_fee_benefits');
+    }
     Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
     Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
     Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
@@ -866,6 +870,9 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/learners/{learner}/fees/payments', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
     Route::get('/learners/{learner}/fees/ledger', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
     Route::get('/learners/{learner}/fees/receipts/{payment}', [FinancePortalController::class, 'parentReceipt'])->middleware('permission:view_linked_learner_fees');
+    foreach (['discounts', 'payment-plans', 'installments', 'refunds', 'arrears', 'statement', 'clearance'] as $benefit) {
+        Route::get('/learners/{learner}/fees/'.$benefit, [FinancePortalController::class, 'parentBenefits'])->middleware('permission:view_linked_learner_fee_benefits');
+    }
     Route::get('/announcements', [ParentPortalController::class, 'announcements']);
     Route::get('/notifications', [ParentPortalController::class, 'notifications']);
 });
@@ -1240,6 +1247,58 @@ Route::prefix('timetable-substitutions')
 */
 
 Route::prefix('finance')->middleware($secure)->group(function () {
+    Route::get('/discounts', [FinancePhaseTwoController::class, 'discounts'])->middleware('permission:manage_fee_discounts');
+    Route::post('/discounts', [FinancePhaseTwoController::class, 'saveDiscount'])->middleware('permission:manage_fee_discounts');
+    Route::get('/discounts/{discount}', [FinancePhaseTwoController::class, 'discount'])->middleware('permission:manage_fee_discounts');
+    Route::put('/discounts/{discount}', [FinancePhaseTwoController::class, 'saveDiscount'])->middleware('permission:manage_fee_discounts');
+    Route::post('/discounts/{discount}/approve', fn (string $discount) => app(FinancePhaseTwoController::class)->discountTransition($discount, 'approved'))->middleware('permission:approve_fee_discounts');
+    Route::post('/discounts/{discount}/activate', fn (string $discount) => app(FinancePhaseTwoController::class)->discountTransition($discount, 'active'))->middleware('permission:approve_fee_discounts');
+    Route::post('/discounts/{discount}/archive', fn (string $discount) => app(FinancePhaseTwoController::class)->discountTransition($discount, 'archived'))->middleware('permission:manage_fee_discounts');
+    Route::get('/learner-discounts', [FinancePhaseTwoController::class, 'learnerDiscounts'])->middleware('permission:assign_learner_discounts');
+    Route::post('/learner-discounts', [FinancePhaseTwoController::class, 'assignDiscount'])->middleware('permission:assign_learner_discounts');
+    Route::get('/learner-discounts/{assignment}', [FinancePhaseTwoController::class, 'learnerDiscount'])->middleware('permission:assign_learner_discounts');
+    Route::post('/learner-discounts/{assignment}/approve', fn (Request $request, string $assignment) => app(FinancePhaseTwoController::class)->learnerDiscountAction($request, $assignment, 'approve'))->middleware('permission:approve_learner_discounts');
+    Route::post('/learner-discounts/{assignment}/cancel', fn (Request $request, string $assignment) => app(FinancePhaseTwoController::class)->learnerDiscountAction($request, $assignment, 'cancel'))->middleware('permission:assign_learner_discounts');
+    Route::post('/invoices/{invoice}/apply-discounts', [FinancePhaseTwoController::class, 'applyDiscounts'])->middleware('permission:apply_fee_discounts');
+    Route::get('/invoices/{invoice}/discounts', [FinancePhaseTwoController::class, 'invoiceDiscounts'])->middleware('permission:apply_fee_discounts');
+    Route::post('/invoices/{invoice}/discounts/{application}/reverse', [FinancePhaseTwoController::class, 'reverseDiscount'])->middleware('permission:reverse_fee_discounts');
+    Route::get('/payment-plans', [FinancePhaseTwoController::class, 'paymentPlans'])->middleware('permission:manage_payment_plans');
+    Route::post('/payment-plans', [FinancePhaseTwoController::class, 'savePaymentPlan'])->middleware('permission:manage_payment_plans');
+    Route::get('/payment-plans/{plan}', [FinancePhaseTwoController::class, 'paymentPlan'])->middleware('permission:manage_payment_plans');
+    Route::put('/payment-plans/{plan}', [FinancePhaseTwoController::class, 'savePaymentPlan'])->middleware('permission:manage_payment_plans');
+    Route::get('/payment-plans/{plan}/installments', [FinancePhaseTwoController::class, 'paymentPlan'])->middleware('permission:manage_payment_plans');
+    Route::post('/payment-plans/{plan}/approve', fn (Request $request, string $plan) => app(FinancePhaseTwoController::class)->paymentPlanAction($request, $plan, 'approve'))->middleware('permission:approve_payment_plans');
+    Route::post('/payment-plans/{plan}/activate', fn (Request $request, string $plan) => app(FinancePhaseTwoController::class)->paymentPlanAction($request, $plan, 'activate'))->middleware('permission:approve_payment_plans');
+    Route::post('/payment-plans/{plan}/cancel', fn (Request $request, string $plan) => app(FinancePhaseTwoController::class)->paymentPlanAction($request, $plan, 'cancel'))->middleware('permission:manage_payment_plans');
+    Route::post('/payment-plans/{plan}/reschedule', fn (Request $request, string $plan) => app(FinancePhaseTwoController::class)->paymentPlanAction($request, $plan, 'reschedule'))->middleware('permission:reschedule_payment_plans');
+    Route::get('/refunds', [FinancePhaseTwoController::class, 'refunds'])->middleware('permission:request_fee_refunds');
+    Route::post('/refunds', [FinancePhaseTwoController::class, 'requestRefund'])->middleware('permission:request_fee_refunds');
+    Route::get('/refunds/{refund}', [FinancePhaseTwoController::class, 'refund'])->middleware('permission:request_fee_refunds');
+    Route::post('/refunds/{refund}/approve', fn (Request $request, string $refund) => app(FinancePhaseTwoController::class)->refundAction($request, $refund, 'approve'))->middleware('permission:approve_fee_refunds');
+    Route::post('/refunds/{refund}/reject', fn (Request $request, string $refund) => app(FinancePhaseTwoController::class)->refundAction($request, $refund, 'reject'))->middleware('permission:approve_fee_refunds');
+    Route::post('/refunds/{refund}/process', fn (Request $request, string $refund) => app(FinancePhaseTwoController::class)->refundAction($request, $refund, 'process'))->middleware('permission:process_fee_refunds');
+    Route::post('/refunds/{refund}/cancel', fn (Request $request, string $refund) => app(FinancePhaseTwoController::class)->refundAction($request, $refund, 'cancel'))->middleware('permission:request_fee_refunds');
+    Route::get('/adjustments', [FinancePhaseTwoController::class, 'adjustments'])->middleware('permission:create_finance_adjustments');
+    Route::post('/adjustments', [FinancePhaseTwoController::class, 'createAdjustment'])->middleware('permission:create_finance_adjustments');
+    Route::get('/adjustments/{adjustment}', [FinancePhaseTwoController::class, 'adjustment'])->middleware('permission:create_finance_adjustments');
+    Route::post('/adjustments/{adjustment}/submit', fn (Request $request, string $adjustment) => app(FinancePhaseTwoController::class)->adjustmentAction($request, $adjustment, 'submit'))->middleware('permission:create_finance_adjustments');
+    Route::post('/adjustments/{adjustment}/approve', fn (Request $request, string $adjustment) => app(FinancePhaseTwoController::class)->adjustmentAction($request, $adjustment, 'approve'))->middleware('permission:approve_finance_adjustments');
+    Route::post('/adjustments/{adjustment}/reject', fn (Request $request, string $adjustment) => app(FinancePhaseTwoController::class)->adjustmentAction($request, $adjustment, 'reject'))->middleware('permission:approve_finance_adjustments');
+    Route::post('/adjustments/{adjustment}/post', fn (Request $request, string $adjustment) => app(FinancePhaseTwoController::class)->adjustmentAction($request, $adjustment, 'post'))->middleware('permission:post_finance_adjustments');
+    Route::post('/adjustments/{adjustment}/reverse', fn (Request $request, string $adjustment) => app(FinancePhaseTwoController::class)->adjustmentAction($request, $adjustment, 'reverse'))->middleware('permission:reverse_finance_adjustments');
+    Route::post('/arrears/calculate', [FinancePhaseTwoController::class, 'calculateArrears'])->middleware('permission:calculate_fee_arrears');
+    Route::get('/arrears', [FinancePhaseTwoController::class, 'arrears'])->middleware('permission:calculate_fee_arrears');
+    Route::get('/arrears/{arrear}', [FinancePhaseTwoController::class, 'arrear'])->middleware('permission:calculate_fee_arrears');
+    Route::post('/arrears/{arrear}/carry-forward', fn (Request $request, string $arrear) => app(FinancePhaseTwoController::class)->arrearAction($request, $arrear, 'carry-forward'))->middleware('permission:carry_forward_fee_arrears');
+    Route::post('/arrears/{arrear}/resolve', fn (Request $request, string $arrear) => app(FinancePhaseTwoController::class)->arrearAction($request, $arrear, 'resolve'))->middleware('permission:resolve_fee_arrears');
+    Route::get('/accounts/{account}/statement', [FinancePhaseTwoController::class, 'statement'])->middleware('permission:export_finance_reports');
+    Route::get('/learners/{learner}/clearance', [FinancePhaseTwoController::class, 'clearance'])->middleware('permission:view_fee_clearance');
+    Route::post('/learners/{learner}/clearance/override', [FinancePhaseTwoController::class, 'clearanceOverride'])->middleware('permission:override_fee_clearance');
+    Route::post('/learners/{learner}/clearance/revoke', [FinancePhaseTwoController::class, 'clearanceRevoke'])->middleware('permission:revoke_fee_clearance');
+    Route::get('/clearance-certificates/{certificate}', [FinancePhaseTwoController::class, 'certificate'])->middleware('permission:view_fee_clearance');
+    foreach (['discounts', 'payment-plans', 'refunds', 'arrears', 'clearance', 'aging', 'trends'] as $report) {
+        Route::get('/analytics/'.$report, [FinancePhaseTwoController::class, 'analytics'])->middleware('permission:view_advanced_finance_analytics');
+    }
     Route::get('/dashboard', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
     Route::get('/analytics', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
     Route::get('/collections', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');

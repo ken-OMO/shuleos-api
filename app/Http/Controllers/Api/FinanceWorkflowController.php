@@ -210,6 +210,6 @@ class FinanceWorkflowController extends BaseApiController
 
     public function updateSettings(Request $request)
     {
-        return $this->success(new FinanceSettingResource($this->settings->update(auth()->user(), $request->validate(['currency' => 'sometimes|string|size:3', 'allow_partial_payments' => 'sometimes|boolean', 'allow_overpayments' => 'sometimes|boolean', 'auto_generate_invoices' => 'sometimes|boolean', 'require_fee_clearance_for_results' => 'sometimes|boolean', 'require_fee_clearance_for_report_cards' => 'sometimes|boolean', 'require_fee_clearance_for_exams' => 'sometimes|boolean']))));
+        return $this->success(new FinanceSettingResource($this->settings->update(auth()->user(), $request->validate(['currency' => 'sometimes|string|size:3', 'allow_partial_payments' => 'sometimes|boolean', 'allow_overpayments' => 'sometimes|boolean', 'auto_generate_invoices' => 'sometimes|boolean', 'require_fee_clearance_for_results' => 'sometimes|boolean', 'require_fee_clearance_for_report_cards' => 'sometimes|boolean', 'require_fee_clearance_for_exams' => 'sometimes|boolean', 'clearance_threshold' => ['sometimes', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'reminder_due_soon_days' => 'sometimes|integer|min:0|max:90', 'finance_reminders_enabled' => 'sometimes|boolean']))));
     }
 }

@@ -65,13 +65,15 @@ class FinanceInvoiceService
                 return $invoice;
             }
             $itemMinor = $invoice->items()->get()->sum(fn ($item) => $this->money->minor($item->amount));
-            if ($itemMinor <= 0 || $itemMinor !== $this->money->minor($invoice->total_amount)) {
+            $discountMinor = DB::table('fee_discount_applications')->where('invoice_id', $invoice->id)->where('status', 'active')->get()->sum(fn ($application) => $this->money->minor($application->discount_amount));
+            if ($itemMinor <= 0 || $itemMinor - $discountMinor !== $this->money->minor($invoice->total_amount)) {
                 throw ValidationException::withMessages(['invoice' => 'Invoice item total does not reconcile.']);
             }
             $account = LearnerFeeAccount::whereKey($invoice->learner_fee_account_id)->where('school_id', $user->school_id)->firstOrFail();
             $this->ledger->post($user, $account, ['academic_year_id' => $invoice->academic_year_id, 'term_id' => $invoice->term_id, 'transaction_type' => 'invoice', 'reference_type' => 'fee_invoice', 'reference_id' => $invoice->id, 'debit' => $invoice->total_amount, 'description' => 'Posted invoice '.$invoice->invoice_number]);
             $invoice->update(['status' => 'posted', 'posted_by' => $user->id, 'posted_at' => now(), 'updated_at' => now()]);
             $this->audit->record($user, 'invoice_posted', 'fee_invoices', $invoice->id);
+            app(FinanceNotificationService::class)->forLearner($user->school_id, $invoice->learner_id, 'finance_invoice_posted', 'finance:invoice:'.$invoice->id.':posted', 'Fee invoice posted', 'A new fee invoice has been posted to your account.');
 
             return $invoice;
         });

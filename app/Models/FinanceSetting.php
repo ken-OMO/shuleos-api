@@ -31,6 +31,12 @@ class FinanceSetting extends TenantModel
 
         'require_fee_clearance_for_exams',
 
+        'clearance_threshold',
+
+        'reminder_due_soon_days',
+
+        'finance_reminders_enabled',
+
         'active',
 
     ];
