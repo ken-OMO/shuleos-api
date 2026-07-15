@@ -13,15 +13,15 @@ class PaymentAllocationResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'payment_id' => $this->payment_id,
 
             'invoice_id' => $this->invoice_id,
 
             'allocated_amount' => $this->allocated_amount,
 
-            'created_by' => $this->created_by,
+            'status' => $this->status,
+
+            'reversed_at' => $this->reversed_at,
 
             'created_at' => $this->created_at,
 

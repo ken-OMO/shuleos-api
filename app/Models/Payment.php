@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Payment extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'learner_id',
 
@@ -49,6 +54,8 @@ class Payment extends TenantModel
         'remarks',
 
         'posted_by',
+
+        'confirmed_at', 'confirmed_by',
 
     ];
 

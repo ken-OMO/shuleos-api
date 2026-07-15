@@ -13,8 +13,6 @@ class LearnerFeeAccountResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'learner_id' => $this->learner_id,
 
             'account_number' => $this->account_number,

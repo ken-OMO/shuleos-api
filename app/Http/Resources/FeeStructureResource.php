@@ -13,8 +13,6 @@ class FeeStructureResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'academic_year_id' => $this->academic_year_id,
 
             'term_id' => $this->term_id,
@@ -34,6 +32,8 @@ class FeeStructureResource extends JsonResource
             'notes' => $this->notes,
 
             'active' => $this->active,
+
+            'status' => $this->status,
 
             'created_at' => $this->created_at,
 

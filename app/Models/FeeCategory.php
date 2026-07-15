@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class FeeCategory extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'category_name',
 
@@ -19,6 +24,8 @@ class FeeCategory extends TenantModel
         'is_system',
 
         'active',
+
+        'is_deleted', 'deleted_at', 'deleted_by',
 
     ];
 

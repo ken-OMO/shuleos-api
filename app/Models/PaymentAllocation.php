@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class PaymentAllocation extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'payment_id',
 
@@ -19,6 +24,8 @@ class PaymentAllocation extends TenantModel
         'allocated_amount',
 
         'created_by',
+
+        'status', 'ledger_entry_id', 'reversed_at', 'reversed_by', 'reversal_reason',
 
     ];
 

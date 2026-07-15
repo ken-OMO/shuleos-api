@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class FeeInvoice extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'learner_id',
 
@@ -46,7 +51,19 @@ class FeeInvoice extends TenantModel
 
         'notes',
 
+        'learner_fee_account_id', 'posted_by', 'cancelled_by', 'cancellation_reason',
+
     ];
+
+    public function items()
+    {
+        return $this->hasMany(FeeInvoiceItem::class, 'invoice_id');
+    }
+
+    public function allocations()
+    {
+        return $this->hasMany(PaymentAllocation::class, 'invoice_id');
+    }
 
     public function school()
     {
