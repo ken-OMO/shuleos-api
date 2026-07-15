@@ -13,8 +13,6 @@ class FinanceSettingResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'currency' => $this->currency,
 
             'allow_partial_payments' => $this->allow_partial_payments,
@@ -32,6 +30,8 @@ class FinanceSettingResource extends JsonResource
             'active' => $this->active,
 
             'created_at' => $this->created_at,
+
+            'updated_at' => $this->updated_at,
 
         ];
     }

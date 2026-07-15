@@ -24,7 +24,9 @@ use App\Http\Controllers\Api\ExamResultController;
 use App\Http\Controllers\Api\FeeCategoryController;
 use App\Http\Controllers\Api\FeeInvoiceController;
 use App\Http\Controllers\Api\FeeStructureController;
+use App\Http\Controllers\Api\FinancePortalController;
 use App\Http\Controllers\Api\FinanceSettingController;
+use App\Http\Controllers\Api\FinanceWorkflowController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\GuardianController;
 use App\Http\Controllers\Api\HomeworkLeadershipController;
@@ -424,7 +426,12 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/report-cards', [LearnerPortalController::class, 'reportCards']);
     Route::get('/report-cards/{reportCard}/pdf', [LearnerPortalController::class, 'pdf']);
     Route::get('/report-cards/{reportCard}', [LearnerPortalController::class, 'reportCard']);
-    Route::get('/fees', [LearnerPortalController::class, 'fees']);
+    Route::get('/fees', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
+    Route::get('/fees/summary', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
+    Route::get('/fees/invoices', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
+    Route::get('/fees/payments', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
+    Route::get('/fees/ledger', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
+    Route::get('/fees/receipts/{payment}', [FinancePortalController::class, 'learnerReceipt'])->middleware('permission:view_own_fees');
     Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
     Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
     Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
@@ -853,7 +860,12 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/learners/{learner}/attendance', [AttendanceParentController::class, 'index']);
     Route::get('/learners/{learner}/attendance/summary', [AttendanceParentController::class, 'summary']);
     Route::get('/learners/{learner}/attendance/history', [AttendanceParentController::class, 'history']);
-    Route::get('/learners/{learner}/fees', [ParentPortalController::class, 'fees']);
+    Route::get('/learners/{learner}/fees', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
+    Route::get('/learners/{learner}/fees/summary', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
+    Route::get('/learners/{learner}/fees/invoices', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
+    Route::get('/learners/{learner}/fees/payments', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
+    Route::get('/learners/{learner}/fees/ledger', [FinancePortalController::class, 'parent'])->middleware('permission:view_linked_learner_fees');
+    Route::get('/learners/{learner}/fees/receipts/{payment}', [FinancePortalController::class, 'parentReceipt'])->middleware('permission:view_linked_learner_fees');
     Route::get('/announcements', [ParentPortalController::class, 'announcements']);
     Route::get('/notifications', [ParentPortalController::class, 'notifications']);
 });
@@ -1227,6 +1239,53 @@ Route::prefix('timetable-substitutions')
 |--------------------------------------------------------------------------
 */
 
+Route::prefix('finance')->middleware($secure)->group(function () {
+    Route::get('/dashboard', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/analytics', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/collections', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/outstanding', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/invoice-summary', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/payment-summary', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:view_finance_analytics');
+    Route::get('/ledger-integrity', [FinanceWorkflowController::class, 'analytics'])->middleware('permission:reconcile_fee_ledger');
+    Route::get('/settings', [FinanceWorkflowController::class, 'settings'])->middleware('permission:manage_finance_settings');
+    Route::put('/settings', [FinanceWorkflowController::class, 'updateSettings'])->middleware('permission:manage_finance_settings');
+    Route::get('/fee-categories', [FinanceWorkflowController::class, 'categories'])->middleware('permission:manage_fee_categories');
+    Route::post('/fee-categories', [FinanceWorkflowController::class, 'saveCategory'])->middleware('permission:manage_fee_categories');
+    Route::get('/fee-categories/{category}', [FinanceWorkflowController::class, 'category'])->middleware('permission:manage_fee_categories');
+    Route::put('/fee-categories/{category}', [FinanceWorkflowController::class, 'saveCategory'])->middleware('permission:manage_fee_categories');
+    Route::delete('/fee-categories/{category}', [FinanceWorkflowController::class, 'deactivateCategory'])->middleware('permission:manage_fee_categories');
+    Route::get('/fee-structures', [FinanceWorkflowController::class, 'structures'])->middleware('permission:manage_fee_structures');
+    Route::post('/fee-structures', [FinanceWorkflowController::class, 'saveStructure'])->middleware('permission:manage_fee_structures');
+    Route::get('/fee-structures/{structure}', [FinanceWorkflowController::class, 'structure'])->middleware('permission:manage_fee_structures');
+    Route::put('/fee-structures/{structure}', [FinanceWorkflowController::class, 'saveStructure'])->middleware('permission:manage_fee_structures');
+    Route::post('/fee-structures/{structure}/approve', fn (string $structure) => app(FinanceWorkflowController::class)->structureTransition($structure, 'approved'))->middleware('permission:approve_fee_structures');
+    Route::post('/fee-structures/{structure}/activate', fn (string $structure) => app(FinanceWorkflowController::class)->structureTransition($structure, 'active'))->middleware('permission:approve_fee_structures');
+    Route::post('/fee-structures/{structure}/archive', fn (string $structure) => app(FinanceWorkflowController::class)->structureTransition($structure, 'archived'))->middleware('permission:manage_fee_structures');
+    Route::get('/accounts', [FinanceWorkflowController::class, 'accounts'])->middleware('permission:provision_fee_accounts');
+    Route::post('/accounts/provision', [FinanceWorkflowController::class, 'accountProvision'])->middleware('permission:provision_fee_accounts');
+    Route::post('/accounts/provision-bulk', [FinanceWorkflowController::class, 'accountProvisionBulk'])->middleware('permission:provision_fee_accounts');
+    Route::get('/accounts/{account}/ledger', [FinanceWorkflowController::class, 'ledger'])->middleware('permission:reconcile_fee_ledger');
+    Route::post('/accounts/{account}/recalculate', [FinanceWorkflowController::class, 'recalculate'])->middleware('permission:reconcile_fee_ledger');
+    Route::get('/accounts/{account}', [FinanceWorkflowController::class, 'account'])->middleware('permission:provision_fee_accounts');
+    Route::post('/invoices/generate', [FinanceWorkflowController::class, 'generateInvoice'])->middleware('permission:generate_fee_invoices');
+    Route::post('/invoices/generate-bulk', [FinanceWorkflowController::class, 'generateInvoicesBulk'])->middleware('permission:generate_fee_invoices');
+    Route::get('/invoices', [FinanceWorkflowController::class, 'invoices'])->middleware('permission:generate_fee_invoices');
+    Route::post('/invoices/{invoice}/post', [FinanceWorkflowController::class, 'postInvoice'])->middleware('permission:post_fee_invoices');
+    Route::post('/invoices/{invoice}/cancel', [FinanceWorkflowController::class, 'cancelInvoice'])->middleware('permission:cancel_fee_invoices');
+    Route::get('/invoices/{invoice}', [FinanceWorkflowController::class, 'invoice'])->middleware('permission:generate_fee_invoices');
+    Route::get('/payments', [FinanceWorkflowController::class, 'payments'])->middleware('permission:record_fee_payments');
+    Route::get('/payment-methods', [FinanceWorkflowController::class, 'paymentMethods'])->middleware('permission:record_fee_payments');
+    Route::post('/payments', [FinanceWorkflowController::class, 'recordPayment'])->middleware('permission:record_fee_payments');
+    Route::post('/payments/{payment}/confirm', [FinanceWorkflowController::class, 'confirmPayment'])->middleware('permission:confirm_fee_payments');
+    Route::post('/payments/{payment}/reverse', [FinanceWorkflowController::class, 'reversePayment'])->middleware('permission:reverse_fee_payments');
+    Route::post('/payments/{payment}/allocate', [FinanceWorkflowController::class, 'allocate'])->middleware('permission:allocate_fee_payments');
+    Route::post('/payments/{payment}/auto-allocate', [FinanceWorkflowController::class, 'autoAllocate'])->middleware('permission:allocate_fee_payments');
+    Route::get('/payments/{payment}/allocations', [FinanceWorkflowController::class, 'allocations'])->middleware('permission:allocate_fee_payments');
+    Route::get('/payments/{payment}/receipt', [FinanceWorkflowController::class, 'receipt'])->middleware('permission:view_finance_receipts');
+    Route::get('/payments/{payment}', [FinanceWorkflowController::class, 'payment'])->middleware('permission:record_fee_payments');
+    Route::get('/receipts/{receipt}', [FinanceWorkflowController::class, 'receiptNumber'])->middleware('permission:view_finance_receipts');
+});
+
 Route::middleware($secure)->group(function () {
 
     Route::apiResource(
@@ -1235,7 +1294,7 @@ Route::middleware($secure)->group(function () {
 
         FeeCategoryController::class
 
-    );
+    )->only(['index', 'show']);
 
     Route::apiResource(
 
@@ -1243,7 +1302,7 @@ Route::middleware($secure)->group(function () {
 
         PaymentPlanController::class
 
-    );
+    )->only(['index', 'show']);
 
     Route::apiResource(
 
@@ -1251,7 +1310,7 @@ Route::middleware($secure)->group(function () {
 
         PaymentMethodController::class
 
-    );
+    )->only(['index', 'show']);
 
     Route::apiResource(
 
@@ -1259,35 +1318,35 @@ Route::middleware($secure)->group(function () {
 
         FinanceSettingController::class
 
-    );
+    )->only(['index', 'show']);
     Route::apiResource(
 
         'fee-structures',
 
         FeeStructureController::class
 
-    );
+    )->only(['index', 'show']);
     Route::apiResource(
 
         'fee-invoices',
 
         FeeInvoiceController::class
 
-    );
+    )->only(['index', 'show']);
     Route::apiResource(
 
         'payments',
 
         PaymentController::class
 
-    );
+    )->only(['index', 'show']);
     Route::apiResource(
 
         'payment-allocations',
 
         PaymentAllocationController::class
 
-    );
+    )->only(['index', 'show']);
 
     Route::apiResource(
 
@@ -1295,6 +1354,6 @@ Route::middleware($secure)->group(function () {
 
         LearnerFeeAccountController::class
 
-    );
+    )->only(['index', 'show']);
 
 });

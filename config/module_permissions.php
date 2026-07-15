@@ -64,6 +64,7 @@ return [
     'timetable-publications' => 'manage_timetable',
     'timetable-substitutions' => 'manage_timetable',
     'fee-categories' => 'manage_finance',
+    'finance' => 'view_finance_analytics',
     'payment-plans' => 'manage_finance',
     'payment-methods' => 'manage_finance',
     'finance-settings' => 'manage_finance',

@@ -2,15 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class FeeStructure extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'academic_year_id',
 
@@ -31,6 +36,8 @@ class FeeStructure extends TenantModel
         'notes',
 
         'active',
+
+        'status', 'revision', 'approved_by', 'approved_at', 'activated_at', 'archived_at', 'created_by', 'is_deleted',
 
     ];
 
