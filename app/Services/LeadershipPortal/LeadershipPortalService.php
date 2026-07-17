@@ -4,8 +4,10 @@ namespace App\Services\LeadershipPortal;
 
 use App\Models\LeadershipDashboardPreference;
 use App\Models\User;
+use App\Services\Communication\CommunicationNotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -13,7 +15,7 @@ class LeadershipPortalService
 {
     private const PREF = ['show_attendance', 'show_teacher_attendance', 'show_curriculum_coverage', 'show_pending_approvals', 'show_lesson_plans', 'show_records_of_work', 'show_exams', 'show_report_cards', 'show_academic_performance', 'show_discipline', 'show_finance', 'show_announcements', 'show_notifications', 'show_teacher_workload', 'show_learner_enrolment'];
 
-    public function __construct(private readonly LeadershipPortalAccessService $a) {}
+    public function __construct(private readonly LeadershipPortalAccessService $a, private readonly CommunicationNotificationService $communications) {}
 
     public function profile(User $u)
     {
@@ -213,6 +215,10 @@ class LeadershipPortalService
 
     public function announcements(User $u)
     {
+        if (Schema::hasTable('communications') && Schema::hasTable('communication_recipient_snapshots')) {
+            return $this->communications->portalAnnouncements($u);
+        }
+
         return DB::table('broadcasts')->where('school_id', $u->school_id)->whereRaw('LOWER(status)=?', ['sent'])->whereNotNull('sent_at')->latest('sent_at')->limit(20)->get();
     }
 

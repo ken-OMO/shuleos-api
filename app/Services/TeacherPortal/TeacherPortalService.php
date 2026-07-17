@@ -8,12 +8,14 @@ use App\Models\LessonPlan;
 use App\Models\RecordOfWork;
 use App\Models\TeacherDashboardPreference;
 use App\Models\User;
+use App\Services\Communication\CommunicationNotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class TeacherPortalService
 {
-    public function __construct(private readonly TeacherPortalAccessService $a) {}
+    public function __construct(private readonly TeacherPortalAccessService $a, private readonly CommunicationNotificationService $communications) {}
 
     private function ids(User $u)
     {
@@ -89,6 +91,10 @@ class TeacherPortalService
 
     public function announcements(User $u)
     {
+        if (Schema::hasTable('communications') && Schema::hasTable('communication_recipient_snapshots')) {
+            return $this->communications->portalAnnouncements($u);
+        }
+
         return DB::table('broadcasts')->where('school_id', $u->school_id)->whereRaw('LOWER(status)=?', ['sent'])->whereNotNull('sent_at')->where(fn ($q) => $q->whereNull('target_group')->orWhereRaw('LOWER(target_group) IN (?,?)', ['teacher', 'teachers']))->latest('sent_at')->get();
     }
 

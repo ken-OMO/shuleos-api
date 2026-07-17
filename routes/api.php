@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\BehaviourLeadershipController;
 use App\Http\Controllers\Api\BehaviourLearnerController;
 use App\Http\Controllers\Api\BehaviourParentController;
 use App\Http\Controllers\Api\BehaviourTeacherController;
+use App\Http\Controllers\Api\CommunicationController;
 use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
@@ -105,6 +106,61 @@ $secure = [
     'module.permission',
 
 ];
+
+Route::prefix('communications')->middleware($secure)->group(function () {
+    Route::post('/preview', [CommunicationController::class, 'previewDefinition'])->middleware('permission:preview_communication_recipients');
+    Route::get('/', [CommunicationController::class, 'index'])->middleware('permission:view_communication_history');
+    Route::post('/', [CommunicationController::class, 'store'])->middleware('permission:create_communications');
+    Route::get('/analytics', [CommunicationController::class, 'analytics'])->middleware('permission:view_communication_analytics');
+    Route::get('/{communication}', [CommunicationController::class, 'show'])->middleware('permission:view_communication_history');
+    Route::put('/{communication}', [CommunicationController::class, 'update'])->middleware('permission:edit_own_communication_drafts');
+    Route::post('/{communication}/preview', [CommunicationController::class, 'preview'])->middleware('permission:preview_communication_recipients');
+    Route::post('/{communication}/submit', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'submit'))->middleware('permission:create_communications');
+    Route::post('/{communication}/approve', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'approve'))->middleware('permission:approve_communications');
+    Route::post('/{communication}/reject', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'reject'))->middleware('permission:approve_communications');
+    Route::post('/{communication}/send', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'send'))->middleware('permission:create_communications');
+    Route::post('/{communication}/schedule', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'schedule'))->middleware('permission:schedule_communications');
+    Route::post('/{communication}/cancel', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'cancel'))->middleware('permission:cancel_communications');
+    Route::get('/{communication}/deliveries', [CommunicationController::class, 'deliveries'])->middleware('permission:view_communication_history');
+    Route::get('/{communication}/audit', [CommunicationController::class, 'audit'])->middleware('permission:view_communication_history');
+});
+
+Route::prefix('communication-templates')->middleware($secure)->group(function () {
+    Route::get('/', [CommunicationController::class, 'templates'])->middleware('permission:manage_communication_templates');
+    Route::post('/', [CommunicationController::class, 'saveTemplate'])->middleware('permission:manage_communication_templates');
+    Route::get('/{template}', [CommunicationController::class, 'template'])->middleware('permission:manage_communication_templates');
+    Route::put('/{template}', [CommunicationController::class, 'saveTemplate'])->middleware('permission:manage_communication_templates');
+    Route::post('/{template}/preview', [CommunicationController::class, 'previewTemplate'])->middleware('permission:manage_communication_templates');
+    Route::post('/{template}/archive', [CommunicationController::class, 'archiveTemplate'])->middleware('permission:manage_communication_templates');
+});
+
+Route::prefix('communication-policies')->middleware($secure)->group(function () {
+    Route::get('/', [CommunicationController::class, 'policies'])->middleware('permission:manage_communication_policies');
+    Route::put('/{category}', [CommunicationController::class, 'updatePolicy'])->middleware('permission:manage_communication_policies');
+});
+
+Route::prefix('notifications')->middleware($secure)->group(function () {
+    Route::get('/', [CommunicationController::class, 'notifications'])->middleware('permission:view_own_notifications');
+    Route::get('/unread-count', [CommunicationController::class, 'unreadCount'])->middleware('permission:view_own_notifications');
+    foreach (['read', 'unread', 'archive', 'dismiss'] as $state) {
+        Route::post('/{notification}/'.$state, fn (string $notification) => app(CommunicationController::class)->notificationState($notification, $state === 'archive' ? 'archived' : ($state === 'dismiss' ? 'dismissed' : $state)))->middleware('permission:view_own_notifications');
+    }
+});
+
+Route::prefix('announcements')->middleware($secure)->group(function () {
+    Route::get('/', [CommunicationController::class, 'manageAnnouncements'])->middleware('permission:create_communications');
+    Route::post('/', [CommunicationController::class, 'storeAnnouncement'])->middleware('permission:create_communications');
+    Route::get('/current', [CommunicationController::class, 'announcements'])->middleware('permission:view_own_notifications');
+    Route::get('/{announcement}', [CommunicationController::class, 'show'])->middleware('permission:view_communication_history');
+    Route::put('/{announcement}', [CommunicationController::class, 'updateAnnouncement'])->middleware('permission:edit_own_communication_drafts');
+    Route::post('/{announcement}/submit', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'submit'))->middleware('permission:create_communications');
+    Route::post('/{announcement}/approve', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'approve'))->middleware('permission:approve_communications');
+    Route::post('/{announcement}/publish', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'publish'))->middleware('permission:create_communications');
+    Route::post('/{announcement}/schedule', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'schedule'))->middleware('permission:schedule_communications');
+    Route::post('/{announcement}/cancel', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'cancel'))->middleware('permission:cancel_communications');
+    Route::post('/{announcement}/archive', fn (Request $request, string $announcement) => app(CommunicationController::class)->action($request, $announcement, 'archive'))->middleware('permission:cancel_communications');
+    Route::post('/{announcement}/read', [CommunicationController::class, 'announcementRead'])->middleware('permission:view_own_notifications');
+});
 
 Route::prefix('academic-years')->middleware($secure)->group(function () {
     Route::get('/', [AcademicYearController::class, 'index']);

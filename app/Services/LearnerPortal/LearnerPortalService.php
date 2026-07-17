@@ -6,13 +6,15 @@ use App\Models\LearnerDashboardPreference;
 use App\Models\ReportCard;
 use App\Models\SchoolSettings;
 use App\Models\User;
+use App\Services\Communication\CommunicationNotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class LearnerPortalService
 {
-    public function __construct(private readonly LearnerPortalAccessService $a) {}
+    public function __construct(private readonly LearnerPortalAccessService $a, private readonly CommunicationNotificationService $communications) {}
 
     public function profile(User $u)
     {
@@ -126,6 +128,10 @@ class LearnerPortalService
 
     public function announcements(User $u)
     {
+        if (Schema::hasTable('communications') && Schema::hasTable('communication_recipient_snapshots')) {
+            return $this->communications->portalAnnouncements($u);
+        }
+
         return DB::table('broadcasts')->where('school_id', $u->school_id)->whereRaw('LOWER(status)=?', ['sent'])->whereNotNull('sent_at')->where(fn ($q) => $q->whereNull('target_group')->orWhereRaw('LOWER(target_group) IN (?,?)', ['learner', 'learners']))->latest('sent_at')->get();
     }
 

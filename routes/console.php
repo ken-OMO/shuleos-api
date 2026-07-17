@@ -3,6 +3,7 @@
 use App\Models\HomeworkAssignment;
 use App\Models\User;
 use App\Services\Attendance\AttendanceIntelligenceService;
+use App\Services\Communication\CommunicationService;
 use App\Services\Finance\FinanceArrearsService;
 use App\Services\Finance\FinanceNotificationService;
 use App\Services\Homework\HomeworkAssignmentService;
@@ -10,6 +11,7 @@ use App\Services\Homework\HomeworkNotificationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -75,3 +77,63 @@ Artisan::command('finance:send-reminders {--school=}', function (FinanceNotifica
     }
     $this->info("Created {$count} finance reminders.");
 })->purpose('Create idempotent fee-plan due and overdue portal reminders');
+
+Artisan::command('communications:dispatch-scheduled', function (CommunicationService $service) {
+    $sent = 0;
+    DB::table('communications')
+        ->where('status', 'scheduled')
+        ->whereNotNull('scheduled_for')
+        ->where('scheduled_for', '<=', now())
+        ->orderBy('scheduled_for')
+        ->pluck('id')
+        ->each(function (string $id) use ($service, &$sent) {
+            try {
+                $communication = DB::table('communications')->where('id', $id)->where('status', 'scheduled')->first();
+                if (! $communication) {
+                    return;
+                }
+                $sender = User::whereKey($communication->sender_user_id)
+                    ->where('school_id', $communication->school_id)
+                    ->where('active', true)
+                    ->where('is_deleted', false)
+                    ->first();
+                if ($sender) {
+                    $service->send($sender, $id);
+                    $sent++;
+                }
+            } catch (Throwable $exception) {
+                report($exception);
+            }
+        });
+    $this->info("Dispatched {$sent} scheduled communications.");
+})->purpose('Dispatch due approved communications idempotently');
+
+Artisan::command('communications:cleanup', function () {
+    $draftCutoff = now()->subDays(config('communication.draft_retention_days', 30));
+    $expiredDrafts = DB::table('communications')->whereIn('status', ['draft', 'rejected'])->where('updated_at', '<', $draftCutoff)->pluck('id');
+    $expiredAnnouncements = DB::table('communications')->where('communication_type', 'announcement')->where('status', 'sent')->whereNotNull('expires_at')->where('expires_at', '<=', now())->pluck('id');
+    $ids = $expiredDrafts->merge($expiredAnnouncements)->unique();
+
+    foreach ($ids as $id) {
+        $communication = DB::table('communications')->where('id', $id)->first();
+        if (! $communication) {
+            continue;
+        }
+        DB::transaction(function () use ($communication) {
+            DB::table('communications')->where('id', $communication->id)->where('status', $communication->status)->update(['status' => 'expired', 'updated_at' => now()]);
+            DB::table('communication_audit_logs')->insert([
+                'id' => (string) Str::uuid(),
+                'school_id' => $communication->school_id,
+                'communication_id' => $communication->id,
+                'actor_user_id' => null,
+                'action' => 'retention_expired',
+                'entity_type' => 'communication',
+                'entity_id' => $communication->id,
+                'metadata' => json_encode(['previous_status' => $communication->status]),
+                'created_at' => now(),
+            ]);
+        });
+    }
+
+    $this->info('Expired '.$ids->count().' communications without deleting audit or delivery history.');
+})->purpose('Apply non-destructive communication retention rules');

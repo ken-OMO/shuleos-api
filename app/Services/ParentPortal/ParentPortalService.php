@@ -5,11 +5,13 @@ namespace App\Services\ParentPortal;
 use App\Models\ReportCard;
 use App\Models\SchoolSettings;
 use App\Models\User;
+use App\Services\Communication\CommunicationNotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class ParentPortalService
 {
-    public function __construct(private readonly ParentPortalAccessService $access, private readonly ParentReportCardAccessService $cards) {}
+    public function __construct(private readonly ParentPortalAccessService $access, private readonly ParentReportCardAccessService $cards, private readonly CommunicationNotificationService $communications) {}
 
     public function profile(User $u)
     {
@@ -67,6 +69,10 @@ class ParentPortalService
         $s = SchoolSettings::where('school_id', $u->school_id)->first();
         if ($s && ! $s->parent_portal_show_announcements) {
             return [];
+        }
+
+        if (Schema::hasTable('communications') && Schema::hasTable('communication_recipient_snapshots')) {
+            return $this->communications->portalAnnouncements($u);
         }
 
         return DB::table('broadcasts')->where('school_id', $u->school_id)->whereRaw('LOWER(status) = ?', ['sent'])->whereNotNull('sent_at')->where(fn ($q) => $q->whereNull('target_group')->orWhereRaw('LOWER(target_group) IN (?,?)', ['parent', 'parents']))->latest('sent_at')->limit(20)->get();
