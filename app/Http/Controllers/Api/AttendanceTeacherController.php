@@ -41,6 +41,20 @@ class AttendanceTeacherController extends BaseApiController
         return $this->success(new AttendanceRegisterResource($this->s->save(auth()->user(), $register, $d['marks'])));
     }
 
+    public function updateRecord(Request $request, string $register, string $record)
+    {
+        $owned = $this->s->ownQuery(auth()->user())->whereKey($register)->firstOrFail();
+        $attendance = $owned->records()->whereKey($record)->firstOrFail();
+        $data = $request->validate([
+            'attendance_status_id' => 'nullable|uuid',
+            'status_code' => 'nullable|string|max:30',
+            'remarks' => 'nullable|string|max:2000',
+            'late_minutes' => 'nullable|integer|min:1',
+        ]);
+
+        return $this->success(new AttendanceRegisterResource($this->s->save(auth()->user(), $register, [$data + ['learner_id' => $attendance->learner_id]])));
+    }
+
     public function finalize(string $register)
     {
         return $this->success(new AttendanceRegisterResource($this->s->finalize(auth()->user(), $register)));

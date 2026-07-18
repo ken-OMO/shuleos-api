@@ -44,6 +44,8 @@ class Teacher extends TenantModel
 
         'is_deleted',
 
+        'professional_summary',
+
         'deleted_at',
 
         'deleted_by',
