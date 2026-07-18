@@ -4,44 +4,168 @@ namespace App\Services\LeadershipPortal;
 
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class LeadershipPortalAccessService
 {
-    private const ROLES = ['Principal', 'Deputy Principal', 'HOD', 'Senior Teacher', 'School Admin', 'Finance Officer'];
+    private const LEADERSHIP_ROLES = [
+        'principal', 'deputy_principal', 'headteacher', 'deputy_headteacher', 'director',
+        'school_owner', 'hod', 'school_admin', 'finance_officer', 'finance_manager',
+        'examination_officer', 'discipline_lead', 'timetable_manager', 'senior_teacher',
+    ];
 
-    public function scope(User $u): array
+    private const WHOLE_SCHOOL_ROLES = [
+        'principal', 'deputy_principal', 'headteacher', 'deputy_headteacher', 'school_admin',
+    ];
+
+    private const EXECUTIVE_ROLES = ['director', 'school_owner'];
+
+    public function scope(User $user): array
     {
-        abort_unless($u->active && $u->school_id, 403, 'Active school tenant required.');
-        $role = $u->role?->role_name;
-        if ($role === 'Platform Owner') {
+        abort_unless($user->active && ! $user->is_deleted && $user->school_id, 403, 'Active school tenant required.');
+        $roleName = $user->role?->role_name;
+        $role = $this->normalizeRole($roleName);
+        if ($role === 'platform_owner') {
             throw new AuthorizationException('Platform Owner must use platform administration scope.');
-        }if (! in_array($role, self::ROLES, true)) {
+        }
+        if (! in_array($role, self::LEADERSHIP_ROLES, true)) {
             throw new AuthorizationException('School leadership role required.');
-        }$areas = [];
+        }
+
+        $learningAreas = [];
         $teachers = [];
-        if ($role === 'HOD') {
-            $teacher = DB::table('teachers')->where('user_id', $u->id)->where('school_id', $u->school_id)->where('active', true)->where('is_deleted', false)->first();
+        if ($role === 'hod') {
+            $teacher = DB::table('teachers')
+                ->where('user_id', $user->id)
+                ->where('school_id', $user->school_id)
+                ->where('active', true)
+                ->where('is_deleted', false)
+                ->first();
             if (! $teacher) {
                 throw new AuthorizationException('Active HOD teacher profile required.');
-            }$areas = DB::table('hod_assignments')->where('school_id', $u->school_id)->where('teacher_id', $teacher->id)->where('active', true)->pluck('learning_area_id')->all();
-            if (! $areas) {
+            }
+            $learningAreas = DB::table('hod_assignments')
+                ->where('school_id', $user->school_id)
+                ->where('teacher_id', $teacher->id)
+                ->where('active', true)
+                ->pluck('learning_area_id')
+                ->unique()
+                ->values()
+                ->all();
+            if ($learningAreas === []) {
                 throw new AuthorizationException('No active HOD assignment exists.');
-            }$teachers = DB::table('teacher_assignments')->where('school_id', $u->school_id)->whereIn('learning_area_id', $areas)->where('active', true)->where('is_deleted', false)->pluck('teacher_id')->unique()->all();
+            }
+            $teachers = DB::table('teacher_assignments')
+                ->where('school_id', $user->school_id)
+                ->whereIn('learning_area_id', $learningAreas)
+                ->where('active', true)
+                ->where('is_deleted', false)
+                ->pluck('teacher_id')
+                ->unique()
+                ->values()
+                ->all();
         }
 
-        return ['school_id' => $u->school_id, 'role' => $role, 'whole_school' => in_array($role, ['Principal', 'Deputy Principal', 'School Admin', 'Finance Officer'], true), 'learning_area_ids' => $areas, 'teacher_ids' => $teachers, 'finance' => $this->has($u, 'view_school_finance_summary'), 'attendance' => $this->has($u, 'view_school_attendance_summary'), 'curriculum' => $this->has($u, 'view_school_curriculum_summary'), 'workload' => $this->has($u, 'view_teacher_workload'), 'discipline' => $this->has($u, 'view_school_discipline_summary'), 'academic' => $this->has($u, 'view_school_academic_summary'), 'approvals' => $this->has($u, 'view_leadership_approvals'), 'manage_approvals' => $this->has($u, 'manage_leadership_approvals')];
+        $wholeSchool = in_array($role, self::WHOLE_SCHOOL_ROLES, true)
+            && ($this->has($user, 'view_principal_dashboard') || $this->has($user, 'view_deputy_dashboard') || $this->hasAny($user, ['view_leadership_dashboard', 'access_school_leadership_portal']));
+
+        return [
+            'school_id' => $user->school_id,
+            'role' => $roleName,
+            'role_key' => $role,
+            'whole_school' => $wholeSchool,
+            'executive_summary_only' => in_array($role, self::EXECUTIVE_ROLES, true),
+            'learning_area_ids' => $learningAreas,
+            'teacher_ids' => $teachers,
+            'finance' => $this->hasAny($user, ['view_finance_oversight', 'view_school_finance_summary']),
+            'attendance' => $this->hasAny($user, ['view_attendance_intelligence', 'view_school_attendance_summary']),
+            'curriculum' => $this->hasAny($user, ['view_hod_department_analytics', 'view_school_curriculum_summary']),
+            'workload' => $this->has($user, 'view_teacher_workload'),
+            'discipline' => $this->hasAny($user, ['view_behaviour_oversight', 'view_school_discipline_summary']),
+            'academic' => $this->hasAny($user, ['view_academic_insights', 'view_school_academic_summary']),
+            'approvals' => $this->hasAny($user, ['review_cross_module_approvals', 'view_leadership_approvals']),
+            'manage_approvals' => $this->hasAny($user, ['review_cross_module_approvals', 'manage_leadership_approvals']),
+        ];
     }
 
-    public function has(User $u, string $p): bool
+    public function has(User $user, string $permission): bool
     {
-        return DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', $u->role_id)->where('permissions.permission_name', $p)->exists();
+        return DB::table('role_permissions')
+            ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+            ->where('role_permissions.role_id', $user->role_id)
+            ->where('permissions.permission_name', $permission)
+            ->exists();
     }
 
-    public function require(User $u, string $p): void
+    public function hasAny(User $user, array $permissions): bool
     {
-        if (! $this->has($u, $p)) {
+        foreach ($permissions as $permission) {
+            if ($this->has($user, $permission)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function require(User $user, string $permission): void
+    {
+        $this->scope($user);
+        if (! $this->has($user, $permission)) {
             throw new AuthorizationException('Permission denied.');
         }
+    }
+
+    public function assertWholeSchool(User $user): array
+    {
+        $scope = $this->scope($user);
+        if (! $scope['whole_school']) {
+            throw new AuthorizationException('Whole-school leadership scope required.');
+        }
+
+        return $scope;
+    }
+
+    public function applyTeacherScope(Builder $query, User $user, string $column = 'teacher_id'): Builder
+    {
+        $scope = $this->scope($user);
+        if ($scope['role_key'] === 'hod') {
+            $query->whereIn($column, $scope['teacher_ids']);
+        }
+
+        return $query;
+    }
+
+    public function assertTeacher(User $user, string $teacherId): void
+    {
+        $scope = $this->scope($user);
+        $exists = DB::table('teachers')
+            ->whereKey($teacherId)
+            ->where('school_id', $scope['school_id'])
+            ->where('active', true)
+            ->where('is_deleted', false)
+            ->exists();
+        if (! $exists || ($scope['role_key'] === 'hod' && ! in_array($teacherId, $scope['teacher_ids'], true))) {
+            throw new AuthorizationException('Teacher is outside leadership scope.');
+        }
+    }
+
+    public function assertLearningArea(User $user, string $learningAreaId): void
+    {
+        $scope = $this->scope($user);
+        $exists = DB::table('learning_areas')->whereKey($learningAreaId)->exists();
+        if ($exists && Schema::hasColumn('learning_areas', 'school_id')) {
+            $exists = DB::table('learning_areas')->whereKey($learningAreaId)->where('school_id', $scope['school_id'])->exists();
+        }
+        if (! $exists || ($scope['role_key'] === 'hod' && ! in_array($learningAreaId, $scope['learning_area_ids'], true))) {
+            throw new AuthorizationException('Learning area is outside leadership scope.');
+        }
+    }
+
+    private function normalizeRole(?string $role): string
+    {
+        return str_replace([' ', '-'], '_', strtolower(trim((string) $role)));
     }
 }
