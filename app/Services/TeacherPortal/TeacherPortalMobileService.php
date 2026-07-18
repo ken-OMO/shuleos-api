@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Communication\CommunicationNotificationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TeacherPortalMobileService
 {
@@ -111,8 +112,20 @@ class TeacherPortalMobileService
     public function analytics(User $user): array
     {
         $base = $this->portal->analytics($user);
+        $teacher = $this->access->teacher($user);
+        $workflow = Schema::hasTable('teacher_workflows') ? DB::table('teacher_workflows')->where('school_id', $user->school_id)->where('teacher_id', $teacher->id) : null;
+        $batches = Schema::hasTable('mark_entry_batches') ? DB::table('mark_entry_batches')->where('school_id', $user->school_id)->where('teacher_id', $teacher->id) : null;
+        $phaseTwo = [
+            'workflows_submitted' => $workflow ? (clone $workflow)->whereIn('state', ['submitted', 'under_review'])->count() : 0,
+            'workflows_approved' => $workflow ? (clone $workflow)->where('state', 'approved')->count() : 0,
+            'workflows_changes_requested' => $workflow ? (clone $workflow)->where('state', 'changes_requested')->count() : 0,
+            'mark_batches_draft' => $batches ? (clone $batches)->where('status', 'draft')->count() : 0,
+            'mark_batches_submitted' => $batches ? (clone $batches)->where('status', 'submitted')->count() : 0,
+            'mark_batches_changes_requested' => $batches ? (clone $batches)->where('status', 'changes_requested')->count() : 0,
+            'unresolved_sync_conflicts' => Schema::hasTable('teacher_sync_conflicts') ? DB::table('teacher_sync_conflicts')->where('school_id', $user->school_id)->where('user_id', $user->id)->where('status', 'open')->count() : 0,
+        ];
 
-        return $base + ['assignment_count' => $this->access->assignments($user)->count(), 'weekly_teaching_load' => (int) $this->access->assignments($user)->sum('lessons_per_week'), 'unread_notifications' => $this->notifications->unreadCount($user)];
+        return $base + ['assignment_count' => $this->access->assignments($user)->count(), 'weekly_teaching_load' => (int) $this->access->assignments($user)->sum('lessons_per_week'), 'unread_notifications' => $this->notifications->unreadCount($user)] + $phaseTwo;
     }
 
     public function dashboard(User $user): array

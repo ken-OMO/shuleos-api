@@ -4,10 +4,13 @@ namespace App\Providers;
 
 use App\Contracts\Communication\EmailProviderInterface;
 use App\Contracts\Communication\SmsProviderInterface;
+use App\Contracts\TeacherPortal\PushProviderInterface;
 use App\Services\Communication\Providers\AfricasTalkingSmsProvider;
 use App\Services\Communication\Providers\FakeSmsProvider;
 use App\Services\Communication\Providers\LogEmailProvider;
 use App\Services\Communication\Providers\ResendEmailProvider;
+use App\Services\TeacherPortal\Providers\FirebasePushProvider;
+use App\Services\TeacherPortal\Providers\LogPushProvider;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -31,6 +34,11 @@ class AppServiceProvider extends ServiceProvider
                 'fake' => new FakeSmsProvider,
                 default => throw new RuntimeException('Unsupported communication SMS provider.'),
             };
+        });
+        $this->app->bind(PushProviderInterface::class, fn () => match (config('teacher_portal_phase_two.push_provider')) {
+            'log' => new LogPushProvider,
+            'firebase' => new FirebasePushProvider,
+            default => throw new RuntimeException('Unsupported teacher push provider.'),
         });
     }
 

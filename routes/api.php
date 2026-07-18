@@ -78,6 +78,7 @@ use App\Http\Controllers\Api\TeacherConstraintController;
 use App\Http\Controllers\Api\TeacherController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
+use App\Http\Controllers\Api\TeacherPortalPhaseTwoController;
 use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\TimetableConflictController;
 use App\Http\Controllers\Api\TimetableConstraintController;
@@ -305,6 +306,7 @@ Route::prefix('teachers')
     });
 
 Route::prefix('teacher')->middleware($secure)->group(function () {
+    Route::get('/tasks', [TeacherPortalPhaseTwoController::class, 'tasks'])->middleware('permission:access_teacher_portal');
     Route::get('/behaviour/categories', [BehaviourTeacherController::class, 'categories'])->middleware('permission:view_assigned_learner_behaviour');
     Route::get('/behaviour/learners/{learner}', [BehaviourTeacherController::class, 'learner'])->middleware('permission:view_assigned_learner_behaviour');
     Route::post('/behaviour/cases', [BehaviourTeacherController::class, 'store'])->middleware('permission:report_behaviour_cases');
@@ -392,23 +394,31 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::put('/schemes/{scheme}/lessons/{lesson}', fn (Request $request, string $scheme, string $lesson) => app(SchemeLessonController::class)->update($request, $lesson))->middleware(['permission:manage_own_scheme_lessons', TeacherAcademicScope::class]);
     Route::get('/schemes/{scheme}', [TeacherPortalMobileController::class, 'schemes'])->middleware(['permission:view_own_schemes', TeacherAcademicScope::class]);
     Route::put('/schemes/{scheme}', [SchemeOfWorkController::class, 'update'])->middleware(['permission:manage_own_scheme_drafts', TeacherAcademicScope::class]);
+    Route::post('/schemes/{scheme}/submit', fn (string $scheme) => app(TeacherPortalPhaseTwoController::class)->submit('scheme_of_work', $scheme))->middleware(['permission:submit_own_schemes', TeacherAcademicScope::class]);
+    Route::post('/schemes/{scheme}/withdraw', fn (string $scheme) => app(TeacherPortalPhaseTwoController::class)->withdraw('scheme_of_work', $scheme))->middleware(['permission:withdraw_own_scheme_submission', TeacherAcademicScope::class]);
+    Route::get('/schemes/{scheme}/workflow-history', fn (string $scheme) => app(TeacherPortalPhaseTwoController::class)->history('scheme_of_work', $scheme))->middleware(['permission:view_own_workflow_history', TeacherAcademicScope::class]);
     Route::get('/lesson-plans/{lessonPlan}', [TeacherPortalMobileController::class, 'lessonPlans'])->middleware(['permission:view_own_lesson_plans', TeacherAcademicScope::class]);
     Route::get('/lesson-plans', [TeacherPortalMobileController::class, 'lessonPlans'])->middleware('permission:view_own_lesson_plans');
     Route::post('/lesson-plans', [LessonPlanController::class, 'store'])->middleware(['permission:manage_own_lesson_plan_drafts', TeacherAcademicScope::class]);
     Route::put('/lesson-plans/{lessonPlan}', [LessonPlanController::class, 'update'])->middleware(['permission:manage_own_lesson_plan_drafts', TeacherAcademicScope::class]);
-    Route::post('/lesson-plans/{lessonPlan}/submit', function (Request $request, string $lessonPlan) {
-        $request->merge(['status' => 'submitted']);
-
-        return app(LessonPlanController::class)->update($request, $lessonPlan);
-    })->middleware(['permission:manage_own_lesson_plan_drafts', TeacherAcademicScope::class]);
+    Route::post('/lesson-plans/{lessonPlan}/submit', fn (string $lessonPlan) => app(TeacherPortalPhaseTwoController::class)->submit('lesson_plan', $lessonPlan))->middleware(['permission:submit_own_lesson_plans', TeacherAcademicScope::class]);
+    Route::post('/lesson-plans/{lessonPlan}/withdraw', fn (string $lessonPlan) => app(TeacherPortalPhaseTwoController::class)->withdraw('lesson_plan', $lessonPlan))->middleware(['permission:withdraw_own_lesson_plan_submission', TeacherAcademicScope::class]);
+    Route::get('/lesson-plans/{lessonPlan}/workflow-history', fn (string $lessonPlan) => app(TeacherPortalPhaseTwoController::class)->history('lesson_plan', $lessonPlan))->middleware(['permission:view_own_workflow_history', TeacherAcademicScope::class]);
     Route::get('/lesson-notes/{lessonNote}', [TeacherPortalMobileController::class, 'lessonNotes'])->middleware(['permission:view_own_lesson_notes', TeacherAcademicScope::class]);
     Route::get('/lesson-notes', [TeacherPortalMobileController::class, 'lessonNotes'])->middleware('permission:view_own_lesson_notes');
     Route::post('/lesson-notes', [LessonNoteController::class, 'store'])->middleware(['permission:manage_own_lesson_note_drafts', TeacherAcademicScope::class]);
     Route::put('/lesson-notes/{lessonNote}', [LessonNoteController::class, 'update'])->middleware(['permission:manage_own_lesson_note_drafts', TeacherAcademicScope::class]);
+    Route::post('/lesson-notes/{lessonNote}/submit', fn (string $lessonNote) => app(TeacherPortalPhaseTwoController::class)->submit('lesson_note', $lessonNote))->middleware(['permission:submit_own_lesson_notes', TeacherAcademicScope::class]);
+    Route::post('/lesson-notes/{lessonNote}/withdraw', fn (string $lessonNote) => app(TeacherPortalPhaseTwoController::class)->withdraw('lesson_note', $lessonNote))->middleware(['permission:withdraw_own_lesson_note_submission', TeacherAcademicScope::class]);
+    Route::get('/lesson-notes/{lessonNote}/workflow-history', fn (string $lessonNote) => app(TeacherPortalPhaseTwoController::class)->history('lesson_note', $lessonNote))->middleware(['permission:view_own_workflow_history', TeacherAcademicScope::class]);
+    Route::get('/records-of-work/compliance', fn () => app(TeacherPortalPhaseTwoController::class)->compliance())->middleware('permission:view_own_records_of_work');
     Route::get('/records-of-work/{record}', [TeacherPortalMobileController::class, 'records'])->middleware(['permission:view_own_records_of_work', TeacherAcademicScope::class]);
     Route::get('/records-of-work', [TeacherPortalMobileController::class, 'records'])->middleware('permission:view_own_records_of_work');
     Route::post('/records-of-work', [RecordOfWorkController::class, 'store'])->middleware(['permission:manage_own_records_of_work', TeacherAcademicScope::class]);
     Route::put('/records-of-work/{record}', [RecordOfWorkController::class, 'update'])->middleware(['permission:manage_own_records_of_work', TeacherAcademicScope::class]);
+    Route::post('/records-of-work/{record}/submit', fn (string $record) => app(TeacherPortalPhaseTwoController::class)->submit('record_of_work', $record))->middleware(['permission:submit_own_records_of_work', TeacherAcademicScope::class]);
+    Route::post('/records-of-work/{record}/withdraw', fn (string $record) => app(TeacherPortalPhaseTwoController::class)->withdraw('record_of_work', $record))->middleware(['permission:withdraw_own_record_of_work_submission', TeacherAcademicScope::class]);
+    Route::get('/records-of-work/{record}/workflow-history', fn (string $record) => app(TeacherPortalPhaseTwoController::class)->history('record_of_work', $record))->middleware(['permission:view_own_workflow_history', TeacherAcademicScope::class]);
     Route::get('/curriculum-coverage/{coverage}', [TeacherPortalMobileController::class, 'coverage'])->middleware(['permission:view_own_curriculum_coverage', TeacherAcademicScope::class]);
     Route::get('/curriculum-coverage', [TeacherPortalMobileController::class, 'coverage'])->middleware('permission:view_own_curriculum_coverage');
     Route::post('/curriculum-coverage/recalculate', [CurriculumCoverageController::class, 'store'])->middleware(['permission:view_own_curriculum_coverage', TeacherAcademicScope::class]);
@@ -417,9 +427,44 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/assessments/{exam}/papers/{paper}/learners', [TeacherPortalMobileController::class, 'paperLearners'])->middleware('permission:view_assigned_assessments');
     Route::get('/assessments/{exam}/papers', [TeacherPortalMobileController::class, 'assessmentPapers'])->middleware('permission:view_assigned_assessments');
     Route::get('/marks-entry/tasks', [TeacherPortalMobileController::class, 'assessments'])->middleware('permission:enter_authorized_marks');
+    Route::get('/marks-entry/batches', [TeacherPortalPhaseTwoController::class, 'batches'])->middleware('permission:submit_mark_entry_batches');
+    Route::get('/marks-entry/batches/{batch}', [TeacherPortalPhaseTwoController::class, 'batches'])->middleware('permission:submit_mark_entry_batches');
+    Route::post('/marks-entry/batches/{batch}/submit', [TeacherPortalPhaseTwoController::class, 'submitBatch'])->middleware('permission:submit_mark_entry_batches');
+    Route::post('/marks-entry/batches/{batch}/resubmit', [TeacherPortalPhaseTwoController::class, 'submitBatch'])->middleware('permission:submit_mark_entry_batches');
+    Route::post('/marks-entry/batches/{batch}/correction-request', [TeacherPortalPhaseTwoController::class, 'correction'])->middleware('permission:request_mark_corrections');
+    Route::get('/marks-entry/correction-requests', [TeacherPortalPhaseTwoController::class, 'correctionRequests'])->middleware('permission:request_mark_corrections');
+    Route::post('/marks-entry/correction-requests/{correction}/approve', fn (Request $request, string $correction) => app(TeacherPortalPhaseTwoController::class)->decideCorrection($request, $correction, 'approved'))->middleware('permission:approve_mark_corrections');
+    Route::post('/marks-entry/correction-requests/{correction}/reject', fn (Request $request, string $correction) => app(TeacherPortalPhaseTwoController::class)->decideCorrection($request, $correction, 'rejected'))->middleware('permission:approve_mark_corrections');
     Route::get('/marks-entry/{paper}', [TeacherPortalMobileController::class, 'marksEntry'])->middleware('permission:enter_authorized_marks');
-    Route::post('/marks-entry/{paper}', [TeacherPortalMobileController::class, 'enterMarks'])->middleware('permission:enter_authorized_marks');
+    Route::post('/marks-entry/{paper}', [TeacherPortalPhaseTwoController::class, 'saveMarks'])->middleware('permission:enter_authorized_marks');
     Route::post('/marks-entry/{paper}/submit', [TeacherPortalMobileController::class, 'submitMarks'])->middleware('permission:submit_authorized_marks');
+    Route::get('/moderation/marks', [TeacherPortalPhaseTwoController::class, 'moderation'])->middleware('permission:moderate_mark_entry_batches');
+    Route::get('/moderation/marks/{batch}', [TeacherPortalPhaseTwoController::class, 'moderation'])->middleware('permission:moderate_mark_entry_batches');
+    foreach (['approved' => 'approve', 'changes_requested' => 'request-changes', 'rejected' => 'reject', 'locked' => 'lock'] as $state => $path) {
+        Route::post('/moderation/marks/{batch}/'.$path, fn (Request $request, string $batch) => app(TeacherPortalPhaseTwoController::class)->moderate($request, $batch, $state))->middleware($state === 'locked' ? 'permission:lock_moderated_mark_batches' : 'permission:moderate_mark_entry_batches');
+    }
+    Route::get('/hod/dashboard', [TeacherPortalPhaseTwoController::class, 'hodDashboard'])->middleware('permission:review_department_teaching_work');
+    Route::get('/hod/review-queue/{workflow}', [TeacherPortalPhaseTwoController::class, 'reviewQueue'])->middleware('permission:review_department_teaching_work');
+    Route::get('/hod/review-queue', [TeacherPortalPhaseTwoController::class, 'reviewQueue'])->middleware('permission:review_department_teaching_work');
+    foreach (['approved' => ['approve', 'approve_department_teaching_work'], 'changes_requested' => ['request-changes', 'request_department_work_changes'], 'rejected' => ['reject', 'reject_department_teaching_work']] as $state => [$path, $permission]) {
+        Route::post('/hod/review-queue/{workflow}/'.$path, fn (Request $request, string $workflow) => app(TeacherPortalPhaseTwoController::class)->review($request, $workflow, $state))->middleware('permission:'.$permission);
+    }
+    Route::get('/hod/teachers', [TeacherPortalPhaseTwoController::class, 'hodTeachers'])->middleware('permission:view_department_compliance');
+    Route::get('/hod/compliance', fn () => app(TeacherPortalPhaseTwoController::class)->compliance(true))->middleware('permission:view_department_compliance');
+    Route::get('/hod/curriculum-coverage', [TeacherPortalPhaseTwoController::class, 'hodCoverage'])->middleware('permission:view_department_compliance');
+    Route::get('/hod/analytics', fn () => app(TeacherPortalPhaseTwoController::class)->compliance(true))->middleware('permission:view_hod_analytics');
+    Route::post('/sync/push', [TeacherPortalPhaseTwoController::class, 'syncPush'])->middleware('permission:use_teacher_offline_sync');
+    Route::get('/sync/pull', [TeacherPortalPhaseTwoController::class, 'syncPull'])->middleware('permission:use_teacher_offline_sync');
+    Route::get('/sync/status', [TeacherPortalPhaseTwoController::class, 'syncStatus'])->middleware('permission:use_teacher_offline_sync');
+    Route::get('/sync/conflicts', [TeacherPortalPhaseTwoController::class, 'syncConflicts'])->middleware('permission:use_teacher_offline_sync');
+    Route::post('/sync/conflicts/{conflict}/resolve', [TeacherPortalPhaseTwoController::class, 'resolveConflict'])->middleware('permission:resolve_own_sync_conflicts');
+    Route::post('/uploads', [TeacherPortalPhaseTwoController::class, 'upload'])->middleware('permission:upload_teacher_portal_files');
+    Route::get('/uploads/{attachment}/download', [TeacherPortalPhaseTwoController::class, 'download'])->middleware('permission:download_teacher_portal_files');
+    Route::get('/uploads/{attachment}', [TeacherPortalPhaseTwoController::class, 'attachment'])->middleware('permission:download_teacher_portal_files');
+    Route::delete('/uploads/{attachment}', [TeacherPortalPhaseTwoController::class, 'archiveAttachment'])->middleware('permission:upload_teacher_portal_files');
+    Route::get('/push/deliveries', [TeacherPortalPhaseTwoController::class, 'pushDeliveries'])->middleware('permission:view_own_push_delivery_status');
+    Route::post('/devices/{device}/push-token', [TeacherPortalPhaseTwoController::class, 'rotatePushToken'])->middleware('permission:manage_own_push_devices');
+    Route::delete('/devices/{device}/push-token', [TeacherPortalPhaseTwoController::class, 'removePushToken'])->middleware('permission:manage_own_push_devices');
     Route::get('/class-teacher/dashboard', [TeacherPortalMobileController::class, 'classTeacherDashboard'])->middleware('permission:use_class_teacher_tools');
     Route::get('/class-teacher/attendance-summary', [TeacherPortalMobileController::class, 'analytics'])->middleware('permission:use_class_teacher_tools');
     Route::get('/class-teacher/communications', [TeacherPortalMobileController::class, 'communications'])->middleware('permission:use_class_teacher_tools');
