@@ -5,17 +5,20 @@ namespace App\Services\Communication;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class CommunicationRecipientResolverService
 {
     private const TARGETS = ['entire_school', 'all_teachers', 'all_learners', 'all_parents', 'role', 'grade', 'stream', 'class_teacher_stream', 'subject_teacher_assignment', 'explicit_user', 'linked_parents_of_learners', 'finance_balance_group', 'absent_today_group'];
 
+    public function __construct(private KenyanPhoneNormalizer $phones, private ContactHealthService $contacts) {}
+
     public function resolve(User $sender, iterable $targets): array
     {
         $resolved = collect();
         $rawCount = 0;
-        $excluded = ['inactive' => 0, 'missing_email' => 0, 'invalid_email' => 0];
+        $excluded = ['inactive' => 0, 'missing_email' => 0, 'invalid_email' => 0, 'suppressed_email' => 0, 'invalid_phone' => 0, 'opted_out' => 0];
         foreach ($targets as $target) {
             $type = is_array($target) ? $target['target_type'] : $target->target_type;
             $options = is_array($target) ? ($target['options'] ?? []) : ($target->options ?? []);
@@ -28,7 +31,8 @@ class CommunicationRecipientResolverService
             $resolved = $resolved->concat($users);
         }
         $duplicates = $rawCount - $resolved->pluck('user_id')->unique()->count();
-        $recipients = $resolved->unique('user_id')->values()->map(function ($recipient) use (&$excluded) {
+        $phaseTwo = Schema::hasTable('communication_preferences') && Schema::hasTable('communication_contact_health');
+        $recipients = $resolved->unique('user_id')->values()->map(function ($recipient) use (&$excluded, $sender, $phaseTwo) {
             $email = trim((string) ($recipient->email ?? ''));
             $valid = $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
             if ($email === '') {
@@ -37,11 +41,23 @@ class CommunicationRecipientResolverService
                 $excluded['invalid_email']++;
             }
             $recipient->email_valid = $valid;
+            $preference = $phaseTwo ? DB::table('communication_preferences')->where('school_id', $sender->school_id)->where('user_id', $recipient->user_id)->first() : null;
+            $recipient->email_suppressed = $phaseTwo && $valid && ($this->contacts->suppressed($sender->school_id, $recipient->user_id, 'email', $email) || ($preference && ! $preference->email_enabled));
+            if ($recipient->email_suppressed) {
+                $excluded['suppressed_email']++;
+                $recipient->email_valid = false;
+            }
+            $recipient->sms_eligible = $phaseTwo && $this->phones->valid($recipient->phone ?? null) && (! $preference || $preference->sms_enabled) && ! $this->contacts->suppressed($sender->school_id, $recipient->user_id, 'sms', (string) ($recipient->phone ?? ''));
+            if (! $this->phones->valid($recipient->phone ?? null)) {
+                $excluded['invalid_phone']++;
+            } elseif ($preference && ! $preference->sms_enabled) {
+                $excluded['opted_out']++;
+            }
 
             return $recipient;
         });
 
-        return ['recipients' => $recipients, 'unique_users' => $recipients->count(), 'duplicates_removed' => $duplicates, 'excluded' => $excluded, 'counts' => $recipients->countBy('audience_type'), 'in_app_eligible' => $recipients->count(), 'email_eligible' => $recipients->where('email_valid', true)->count()];
+        return ['recipients' => $recipients, 'unique_users' => $recipients->count(), 'duplicates_removed' => $duplicates, 'excluded' => $excluded, 'counts' => $recipients->countBy('audience_type'), 'in_app_eligible' => $recipients->count(), 'email_eligible' => $recipients->where('email_valid', true)->count(), 'sms_eligible' => $recipients->where('sms_eligible', true)->count()];
     }
 
     public function hasPermission(User $user, string $permission): bool
@@ -69,12 +85,12 @@ class CommunicationRecipientResolverService
 
     private function users(User $sender): Collection
     {
-        return DB::table('users as user')->leftJoin('roles as role', 'role.id', '=', 'user.role_id')->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', DB::raw("LOWER(COALESCE(role.role_name, 'staff')) AS audience_type"), 'user.first_name', 'user.last_name')->get();
+        return DB::table('users as user')->leftJoin('roles as role', 'role.id', '=', 'user.role_id')->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', 'user.phone', DB::raw("LOWER(COALESCE(role.role_name, 'staff')) AS audience_type"), 'user.first_name', 'user.last_name')->get();
     }
 
     private function profileUsers(User $sender, string $table, string $audience): Collection
     {
-        return DB::table($table.' as profile')->join('users as user', 'user.id', '=', 'profile.user_id')->where('profile.school_id', $sender->school_id)->where('profile.active', true)->where('profile.is_deleted', false)->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', DB::raw("'{$audience}' AS audience_type"), 'user.first_name', 'user.last_name')->get();
+        return DB::table($table.' as profile')->join('users as user', 'user.id', '=', 'profile.user_id')->where('profile.school_id', $sender->school_id)->where('profile.active', true)->where('profile.is_deleted', false)->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', 'user.phone', DB::raw("'{$audience}' AS audience_type"), 'user.first_name', 'user.last_name')->get();
     }
 
     private function role(User $sender, array $options): Collection
@@ -138,12 +154,12 @@ class CommunicationRecipientResolverService
 
     private function learnerUsers(User $sender, Collection $learners): Collection
     {
-        return DB::table('users')->where('school_id', $sender->school_id)->whereIn('id', $learners->pluck('user_id')->filter())->where('active', true)->where('is_deleted', false)->select('id as user_id', 'email', DB::raw("'learner' AS audience_type"), 'first_name', 'last_name')->get();
+        return DB::table('users')->where('school_id', $sender->school_id)->whereIn('id', $learners->pluck('user_id')->filter())->where('active', true)->where('is_deleted', false)->select('id as user_id', 'email', 'phone', DB::raw("'learner' AS audience_type"), 'first_name', 'last_name')->get();
     }
 
     private function parentsForLearners(User $sender, iterable $learnerIds): Collection
     {
-        return DB::table('learner_parents as link')->join('parents as parent', 'parent.id', '=', 'link.parent_id')->join('users as user', 'user.id', '=', 'parent.user_id')->whereIn('link.learner_id', collect($learnerIds))->where('link.active', true)->where('link.portal_enabled', true)->where('link.is_deleted', false)->where('parent.school_id', $sender->school_id)->where('parent.active', true)->where('parent.is_deleted', false)->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', DB::raw("'parent' AS audience_type"), 'user.first_name', 'user.last_name')->get();
+        return DB::table('learner_parents as link')->join('parents as parent', 'parent.id', '=', 'link.parent_id')->join('users as user', 'user.id', '=', 'parent.user_id')->whereIn('link.learner_id', collect($learnerIds))->where('link.active', true)->where('link.portal_enabled', true)->where('link.is_deleted', false)->where('parent.school_id', $sender->school_id)->where('parent.active', true)->where('parent.is_deleted', false)->where('user.school_id', $sender->school_id)->where('user.active', true)->where('user.is_deleted', false)->select('user.id as user_id', 'user.email', 'user.phone', DB::raw("'parent' AS audience_type"), 'user.first_name', 'user.last_name')->get();
     }
 
     private function validatedLearnerIds(User $sender, array $ids): Collection

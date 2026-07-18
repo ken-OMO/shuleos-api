@@ -131,7 +131,7 @@ class CommunicationController extends BaseApiController
 
     public function updatePolicy(Request $request, string $category)
     {
-        $data = $request->validate(['enabled_channels' => 'sometimes|array|min:1', 'enabled_channels.*' => 'in:in_app,email', 'minimum_priority' => 'sometimes|in:low,normal,high,critical', 'requires_approval' => 'sometimes|boolean', 'approval_recipient_threshold' => 'sometimes|integer|min:1|max:5000', 'critical_recipient_threshold' => 'sometimes|integer|min:1|max:5000', 'allowed_sender_roles' => 'nullable|array', 'allowed_sender_roles.*' => 'uuid', 'allow_scheduling' => 'sometimes|boolean', 'default_expiry_days' => 'nullable|integer|min:1|max:365']);
+        $data = $request->validate(['enabled_channels' => 'sometimes|array|min:1', 'enabled_channels.*' => 'in:in_app,email,sms', 'sms_enabled' => 'sometimes|boolean', 'minimum_priority' => 'sometimes|in:low,normal,high,critical', 'requires_approval' => 'sometimes|boolean', 'approval_recipient_threshold' => 'sometimes|integer|min:1|max:5000', 'critical_recipient_threshold' => 'sometimes|integer|min:1|max:5000', 'allowed_sender_roles' => 'nullable|array', 'allowed_sender_roles.*' => 'uuid', 'allow_scheduling' => 'sometimes|boolean', 'default_expiry_days' => 'nullable|integer|min:1|max:365']);
 
         return $this->success(new CommunicationPolicyResource($this->policies->update(auth()->user(), $category, $data)));
     }
@@ -197,6 +197,6 @@ class CommunicationController extends BaseApiController
     {
         $required = $partial ? 'sometimes' : 'required';
 
-        return ['communication_type' => $required.'|in:announcement,circular,reminder,finance_notice,attendance_alert,homework_notice,timetable_notice,result_notice,behaviour_notice,emergency,general', 'category' => $required.'|string|max:50', 'priority' => 'sometimes|in:low,normal,high,critical', 'subject' => $required.'|string|max:255', 'body' => $required.'|string|max:20000', 'channels' => $required.'|array|min:1', 'channels.*' => 'in:in_app,email', 'targets' => $required.'|array|min:1', 'targets.*.target_type' => 'required_with:targets|string|max:60', 'targets.*.options' => 'sometimes|array', 'expires_at' => 'nullable|date', 'metadata' => 'sometimes|array'];
+        return ['communication_type' => $required.'|in:announcement,circular,reminder,finance_notice,attendance_alert,homework_notice,timetable_notice,result_notice,behaviour_notice,emergency,general', 'category' => $required.'|string|max:50', 'priority' => 'sometimes|in:low,normal,high,critical', 'subject' => $required.'|string|max:255', 'body' => $required.'|string|max:20000', 'channels' => $required.'|array|min:1', 'channels.*' => 'in:in_app,email,sms', 'targets' => $required.'|array|min:1', 'targets.*.target_type' => 'required_with:targets|string|max:60', 'targets.*.options' => 'sometimes|array', 'expires_at' => 'nullable|date', 'metadata' => 'sometimes|array'];
     }
 }

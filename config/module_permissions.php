@@ -67,6 +67,7 @@ return [
     'finance' => 'view_finance_analytics',
     'finance-phase-two' => 'view_advanced_finance_analytics',
     'communications' => 'view_communication_history',
+    'communication' => 'view_own_notifications',
     'communication-templates' => 'manage_communication_templates',
     'communication-policies' => 'manage_communication_policies',
     'notifications' => 'view_own_notifications',

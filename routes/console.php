@@ -1,9 +1,15 @@
 <?php
 
+use App\Jobs\DeliverCommunicationEmail;
+use App\Jobs\DeliverCommunicationSms;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
 use App\Services\Attendance\AttendanceIntelligenceService;
+use App\Services\Communication\CommunicationDigestService;
+use App\Services\Communication\CommunicationSandboxSmokeService;
 use App\Services\Communication\CommunicationService;
+use App\Services\Communication\RecurringCommunicationService;
+use App\Services\Communication\ScheduledCommunicationDispatchService;
 use App\Services\Finance\FinanceArrearsService;
 use App\Services\Finance\FinanceNotificationService;
 use App\Services\Homework\HomeworkAssignmentService;
@@ -12,6 +18,7 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\Console\Command\Command;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -78,35 +85,52 @@ Artisan::command('finance:send-reminders {--school=}', function (FinanceNotifica
     $this->info("Created {$count} finance reminders.");
 })->purpose('Create idempotent fee-plan due and overdue portal reminders');
 
-Artisan::command('communications:dispatch-scheduled', function (CommunicationService $service) {
-    $sent = 0;
-    DB::table('communications')
-        ->where('status', 'scheduled')
-        ->whereNotNull('scheduled_for')
-        ->where('scheduled_for', '<=', now())
-        ->orderBy('scheduled_for')
-        ->pluck('id')
-        ->each(function (string $id) use ($service, &$sent) {
-            try {
-                $communication = DB::table('communications')->where('id', $id)->where('status', 'scheduled')->first();
-                if (! $communication) {
-                    return;
-                }
-                $sender = User::whereKey($communication->sender_user_id)
-                    ->where('school_id', $communication->school_id)
-                    ->where('active', true)
-                    ->where('is_deleted', false)
-                    ->first();
-                if ($sender) {
-                    $service->send($sender, $id);
-                    $sent++;
-                }
-            } catch (Throwable $exception) {
-                report($exception);
-            }
-        });
+Artisan::command('communications:dispatch-scheduled', function (CommunicationService $service, RecurringCommunicationService $recurring, ScheduledCommunicationDispatchService $scheduled) {
+    $sent = $scheduled->dispatchDue($service);
+    $sent += $recurring->dispatchDue($service);
     $this->info("Dispatched {$sent} scheduled communications.");
 })->purpose('Dispatch due approved communications idempotently');
+
+Artisan::command('communications:sandbox-smoke {--email=} {--cleanup}', function (CommunicationSandboxSmokeService $smoke) {
+    try {
+        $report = $smoke->run((string) $this->option('email'), (bool) $this->option('cleanup'));
+        $this->line(json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+        return ($report['result'] ?? 'FAIL') === 'PASS' ? Command::SUCCESS : Command::FAILURE;
+    } catch (Throwable $exception) {
+        $this->error($exception->getMessage());
+
+        return Command::FAILURE;
+    }
+})->purpose('Run a guarded local-only communication workflow smoke test');
+
+Artisan::command('communications:generate-digests', function (CommunicationDigestService $digests) {
+    $this->info('Generated '.$digests->generate().' idempotent digest runs.');
+})->purpose('Generate bounded, digest-safe communication runs');
+
+Artisan::command('communications:retry-failed', function () {
+    $count = 0;
+    DB::table('communication_deliveries')->whereIn('status', ['queued', 'failed'])->where('failure_code', 'temporary_provider_failure')->where('attempt_count', '<', config('communication.email.retry_limit', 3))->orderBy('updated_at')->limit(config('communication.scheduler_batch_size', 100))->get()->each(function ($delivery) use (&$count) {
+        if ($delivery->channel === 'email') {
+            DeliverCommunicationEmail::dispatch($delivery->id);
+            $count++;
+        } elseif ($delivery->channel === 'sms') {
+            DeliverCommunicationSms::dispatch($delivery->id);
+            $count++;
+        }
+    });
+    $this->info("Queued {$count} temporary delivery failures for retry.");
+})->purpose('Retry bounded temporary communication failures');
+
+Artisan::command('communications:reconcile-deliveries', function () {
+    $count = 0;
+    DB::table('communications')->whereIn('status', ['sent', 'partially_failed'])->orderBy('updated_at')->limit(config('communication.scheduler_batch_size', 100))->pluck('id')->each(function ($id) use (&$count) {
+        $deliveries = DB::table('communication_deliveries')->where('communication_id', $id);
+        $status = (clone $deliveries)->whereIn('status', ['failed', 'bounced', 'complained'])->exists() ? 'partially_failed' : 'sent';
+        $count += DB::table('communications')->where('id', $id)->where('status', '<>', $status)->update(['status' => $status, 'updated_at' => now()]);
+    });
+    $this->info("Reconciled {$count} communication aggregate statuses.");
+})->purpose('Reconcile communication aggregate status from channel deliveries');
 
 Artisan::command('communications:cleanup', function () {
     $draftCutoff = now()->subDays(config('communication.draft_retention_days', 30));
