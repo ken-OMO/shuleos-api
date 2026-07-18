@@ -10,6 +10,7 @@ use App\Models\SchemeOfWork;
 use App\Services\TeacherPortal\TeacherPortalAccessService;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class TeacherAcademicScope
@@ -58,6 +59,17 @@ class TeacherAcademicScope
         if ($coverageId = $route?->parameter('coverage')) {
             $coverage = CurriculumCoverage::current()->whereKey($coverageId)->where('school_id', $user->school_id)->firstOrFail();
             $this->access->requireAssignment($user, $coverage->teacher_assignment_id);
+        }
+
+        if (! $request->isMethodSafe()) {
+            foreach (['scheme' => 'scheme_of_work', 'lessonPlan' => 'lesson_plan', 'lessonNote' => 'lesson_note', 'record' => 'record_of_work'] as $parameter => $type) {
+                $entityId = $route?->parameter($parameter);
+                if (! $entityId || str_ends_with($request->path(), '/submit') || str_ends_with($request->path(), '/withdraw')) {
+                    continue;
+                }
+                $state = DB::table('teacher_workflows')->where('school_id', $user->school_id)->where('entity_type', $type)->where('entity_id', $entityId)->value('state');
+                abort_if($state && ! in_array($state, ['draft', 'changes_requested', 'rejected'], true), 409, 'Submitted or approved teaching work is immutable.');
+            }
         }
 
         return $next($request);

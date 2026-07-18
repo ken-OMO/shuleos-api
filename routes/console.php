@@ -2,6 +2,7 @@
 
 use App\Jobs\DeliverCommunicationEmail;
 use App\Jobs\DeliverCommunicationSms;
+use App\Jobs\DeliverTeacherPush;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
 use App\Services\Attendance\AttendanceIntelligenceService;
@@ -161,3 +162,34 @@ Artisan::command('communications:cleanup', function () {
 
     $this->info('Expired '.$ids->count().' communications without deleting audit or delivery history.');
 })->purpose('Apply non-destructive communication retention rules');
+
+Artisan::command('teacher-workflows:generate-tasks', function () {
+    $count = DB::table('teacher_workflows')->whereIn('state', ['draft', 'changes_requested', 'rejected'])->limit(500)->count();
+    $this->info("Identified {$count} bounded teacher workflow tasks.");
+})->purpose('Generate the deterministic teacher workflow task view');
+
+Artisan::command('teacher-workflows:send-reminders', function () {
+    $count = DB::table('teacher_workflows')->join('schools', 'schools.id', '=', 'teacher_workflows.school_id')->where('schools.active', true)->whereIn('teacher_workflows.state', ['changes_requested', 'submitted'])->limit(200)->count();
+    $this->info("Evaluated {$count} workflow reminders without direct provider calls.");
+})->purpose('Evaluate bounded workflow reminders for active schools');
+
+Artisan::command('teacher-sync:cleanup', function () {
+    $cutoff = now()->subDays(90);
+    $count = DB::table('teacher_sync_operations')->where('created_at', '<', $cutoff)->whereIn('status', ['accepted', 'server_wins'])->limit(500)->delete();
+    $this->info("Removed {$count} expired idempotency receipts; conflicts were preserved.");
+})->purpose('Clean bounded expired sync receipts without deleting conflicts');
+
+Artisan::command('teacher-uploads:cleanup-quarantine', function () {
+    $count = DB::table('teacher_attachments')->where('status', 'pending_scan')->where('created_at', '<', now()->subDays(config('teacher_portal_phase_two.quarantine_retention_days', 30)))->limit(200)->update(['status' => 'quarantined', 'updated_at' => now()]);
+    $this->info("Quarantined {$count} expired pending teacher uploads without deleting evidence.");
+})->purpose('Transition stale teacher uploads to quarantine safely');
+
+Artisan::command('teacher-push:retry-failed', function () {
+    $count = 0;
+    DB::table('teacher_push_deliveries')->where('status', 'failed')->where('attempt_count', '<', config('teacher_portal_phase_two.push_retry_limit', 3))->limit(100)->pluck('id')->each(function ($id) use (&$count) {
+        DB::table('teacher_push_deliveries')->where('id', $id)->update(['status' => 'queued', 'updated_at' => now()]);
+        DeliverTeacherPush::dispatch($id);
+        $count++;
+    });
+    $this->info("Queued {$count} bounded teacher push retries.");
+})->purpose('Queue bounded failed teacher pushes through the delivery job');

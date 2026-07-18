@@ -17,7 +17,7 @@ class TeacherPortalSafeResource extends JsonResource
 
     private function sanitize(array $data): array
     {
-        $blocked = ['school_id', 'teacher_id', 'user_id', 'parent_id', 'guardian_id', 'storage_id', 'storage_path', 'path', 'metadata', 'audit_metadata', 'password', 'password_hash', 'created_by', 'updated_by', 'deleted_by', 'approved_by', 'submitted_by', 'finalized_by', 'provider_message_id', 'provider_response', 'push_token_encrypted', 'device_identifier_hash', 'private_teacher_notes', 'correction_reason'];
+        $blocked = ['school_id', 'teacher_id', 'user_id', 'parent_id', 'guardian_id', 'storage_id', 'storage_path', 'path', 'metadata', 'audit_metadata', 'safe_metadata', 'source_hash', 'stored_hash', 'requested_value_hash', 'password', 'password_hash', 'created_by', 'updated_by', 'deleted_by', 'approved_by', 'submitted_by', 'reviewed_by', 'moderated_by', 'decided_by', 'finalized_by', 'provider_message_id', 'provider_response', 'push_token', 'push_token_encrypted', 'device_identifier_hash', 'idempotency_key', 'private_teacher_notes', 'correction_reason'];
 
         return collect($data)->except($blocked)->map(function ($value) {
             if (is_array($value)) {

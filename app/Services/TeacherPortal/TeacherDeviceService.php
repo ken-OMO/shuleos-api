@@ -58,4 +58,23 @@ class TeacherDeviceService
         $device->update(['revoked_at' => now(), 'push_enabled' => false, 'push_token_encrypted' => null]);
         $this->audit->record($user, 'device_revoked', $teacher->id, 'teacher_portal_device', $id);
     }
+
+    public function rotatePushToken(User $user, string $id, string $token): TeacherPortalDevice
+    {
+        $teacher = $this->access->teacher($user);
+        $device = TeacherPortalDevice::withoutGlobalScopes()->whereKey($id)->where('school_id', $user->school_id)->where('user_id', $user->id)->whereNull('revoked_at')->lockForUpdate()->firstOrFail();
+        abort_unless(config('teacher_portal_phase_two.push_enabled'), 409, 'Teacher push is disabled by platform policy.');
+        $device->update(['push_token_encrypted' => Crypt::encryptString($token), 'push_enabled' => true, 'last_seen_at' => now()]);
+        $this->audit->record($user, 'push_token_rotated', $teacher->id, 'teacher_portal_device', $id);
+
+        return $device->fresh();
+    }
+
+    public function removePushToken(User $user, string $id): void
+    {
+        $teacher = $this->access->teacher($user);
+        $device = TeacherPortalDevice::withoutGlobalScopes()->whereKey($id)->where('school_id', $user->school_id)->where('user_id', $user->id)->whereNull('revoked_at')->firstOrFail();
+        $device->update(['push_token_encrypted' => null, 'push_enabled' => false]);
+        $this->audit->record($user, 'push_token_removed', $teacher->id, 'teacher_portal_device', $id);
+    }
 }
