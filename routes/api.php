@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\BehaviourLearnerController;
 use App\Http\Controllers\Api\BehaviourParentController;
 use App\Http\Controllers\Api\BehaviourTeacherController;
 use App\Http\Controllers\Api\CommunicationController;
+use App\Http\Controllers\Api\CommunicationPhaseTwoController;
+use App\Http\Controllers\Api\CommunicationWebhookController;
 use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
@@ -112,6 +114,14 @@ Route::prefix('communications')->middleware($secure)->group(function () {
     Route::get('/', [CommunicationController::class, 'index'])->middleware('permission:view_communication_history');
     Route::post('/', [CommunicationController::class, 'store'])->middleware('permission:create_communications');
     Route::get('/analytics', [CommunicationController::class, 'analytics'])->middleware('permission:view_communication_analytics');
+    Route::get('/recurring', [CommunicationPhaseTwoController::class, 'recurringIndex'])->middleware('permission:manage_recurring_communications');
+    Route::post('/recurring', [CommunicationPhaseTwoController::class, 'recurringStore'])->middleware('permission:manage_recurring_communications');
+    Route::put('/recurring/{schedule}', [CommunicationPhaseTwoController::class, 'recurringUpdate'])->middleware('permission:manage_recurring_communications');
+    foreach (['pause', 'resume', 'cancel'] as $action) {
+        Route::post('/recurring/{schedule}/'.$action, fn (string $schedule) => app(CommunicationPhaseTwoController::class)->recurringAction($schedule, $action))->middleware('permission:manage_recurring_communications');
+    }
+    Route::post('/emergency/preview', [CommunicationPhaseTwoController::class, 'emergencyPreview'])->middleware(['permission:send_emergency_broadcasts', 'throttle:5,1']);
+    Route::post('/emergency/send', [CommunicationPhaseTwoController::class, 'emergencySend'])->middleware(['permission:send_emergency_broadcasts', 'throttle:3,1']);
     Route::get('/{communication}', [CommunicationController::class, 'show'])->middleware('permission:view_communication_history');
     Route::put('/{communication}', [CommunicationController::class, 'update'])->middleware('permission:edit_own_communication_drafts');
     Route::post('/{communication}/preview', [CommunicationController::class, 'preview'])->middleware('permission:preview_communication_recipients');
@@ -123,6 +133,25 @@ Route::prefix('communications')->middleware($secure)->group(function () {
     Route::post('/{communication}/cancel', fn (Request $request, string $communication) => app(CommunicationController::class)->action($request, $communication, 'cancel'))->middleware('permission:cancel_communications');
     Route::get('/{communication}/deliveries', [CommunicationController::class, 'deliveries'])->middleware('permission:view_communication_history');
     Route::get('/{communication}/audit', [CommunicationController::class, 'audit'])->middleware('permission:view_communication_history');
+});
+
+Route::prefix('communication')->middleware($secure)->group(function () {
+    Route::get('/provider-health', [CommunicationPhaseTwoController::class, 'providerHealth'])->middleware('permission:view_provider_delivery_diagnostics');
+    Route::get('/contact-health', [CommunicationPhaseTwoController::class, 'contactHealth'])->middleware('permission:manage_contact_health');
+    Route::post('/contact-health/{contact}/restore', [CommunicationPhaseTwoController::class, 'restoreContact'])->middleware('permission:manage_email_suppressions');
+    Route::get('/sms-wallet', [CommunicationPhaseTwoController::class, 'wallet'])->middleware('permission:view_sms_billing');
+    Route::get('/sms-wallet/transactions', [CommunicationPhaseTwoController::class, 'walletTransactions'])->middleware('permission:view_sms_billing');
+    Route::post('/sms-wallet/adjustments', [CommunicationPhaseTwoController::class, 'adjustWallet'])->middleware('permission:adjust_sms_credits');
+    Route::get('/preferences', [CommunicationPhaseTwoController::class, 'preferences'])->middleware('permission:view_own_notifications');
+    Route::put('/preferences', [CommunicationPhaseTwoController::class, 'updatePreferences'])->middleware('permission:view_own_notifications');
+    Route::get('/branding', [CommunicationPhaseTwoController::class, 'branding'])->middleware('permission:manage_communication_branding');
+    Route::put('/branding', [CommunicationPhaseTwoController::class, 'updateBranding'])->middleware('permission:manage_communication_branding');
+    Route::get('/advanced-analytics', [CommunicationPhaseTwoController::class, 'analytics'])->middleware('permission:view_advanced_communication_analytics');
+});
+
+Route::prefix('webhooks/communication')->middleware('throttle:30,1')->group(function () {
+    Route::post('/email/resend', [CommunicationWebhookController::class, 'resend']);
+    Route::post('/sms/africas-talking', [CommunicationWebhookController::class, 'africasTalking']);
 });
 
 Route::prefix('communication-templates')->middleware($secure)->group(function () {

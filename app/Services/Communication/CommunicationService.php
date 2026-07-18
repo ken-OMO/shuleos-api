@@ -4,6 +4,7 @@ namespace App\Services\Communication;
 
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -14,7 +15,7 @@ class CommunicationService
 
     private const PRIORITIES = ['low', 'normal', 'high', 'critical'];
 
-    public function __construct(private CommunicationRecipientResolverService $resolver, private CommunicationImpactService $impact, private CommunicationPolicyService $policies, private CommunicationInAppChannel $inApp, private CommunicationEmailChannel $email, private CommunicationAuditService $audit) {}
+    public function __construct(private CommunicationRecipientResolverService $resolver, private CommunicationImpactService $impact, private CommunicationPolicyService $policies, private CommunicationInAppChannel $inApp, private CommunicationEmailChannel $email, private CommunicationSmsChannel $sms, private SmsSegmentCalculator $segments, private SmsWalletService $wallet, private KenyanPhoneNormalizer $phones, private PhaseTwoCommunicationPreviewService $phaseTwoPreview, private CommunicationAuditService $audit) {}
 
     public function create(User $user, array $data): object
     {
@@ -62,7 +63,10 @@ class CommunicationService
         $impact = $this->impact->analyze($resolution, $communication->targets, $communication->priority, $communication->communication_type, $policy);
         $this->audit->record($user, 'preview_generated', 'communication', $id, $id, ['unique_users' => $resolution['unique_users'], 'risk_level' => $impact['risk_level']]);
 
-        return ['target_summary' => $communication->targets->countBy('target_type'), 'parents_count' => $resolution['counts']['parent'] ?? 0, 'learners_count' => $resolution['counts']['learner'] ?? 0, 'teachers_count' => $resolution['counts']['teacher'] ?? 0, 'staff_count' => $resolution['unique_users'] - ($resolution['counts']['parent'] ?? 0) - ($resolution['counts']['learner'] ?? 0) - ($resolution['counts']['teacher'] ?? 0), 'unique_users_count' => $resolution['unique_users'], 'in_app_eligible_count' => $resolution['in_app_eligible'], 'email_eligible_count' => $resolution['email_eligible'], 'duplicate_recipients_removed' => $resolution['duplicates_removed'], 'inactive_recipients_excluded' => $resolution['excluded']['inactive'], 'missing_email_count' => $resolution['excluded']['missing_email'], 'invalid_email_count' => $resolution['excluded']['invalid_email'], 'estimated_deliveries' => ['in_app' => in_array('in_app', json_decode($communication->channels, true)) ? $resolution['in_app_eligible'] : 0, 'email' => in_array('email', json_decode($communication->channels, true)) ? $resolution['email_eligible'] : 0], 'risk_level' => $impact['risk_level'], 'risk_reasons' => $impact['reasons'], 'warnings' => $impact['recommended_corrections'], 'approval_required' => $impact['approval_required']];
+        $channels = json_decode($communication->channels, true);
+        $base = ['target_summary' => $communication->targets->countBy('target_type'), 'parents_count' => $resolution['counts']['parent'] ?? 0, 'learners_count' => $resolution['counts']['learner'] ?? 0, 'teachers_count' => $resolution['counts']['teacher'] ?? 0, 'staff_count' => $resolution['unique_users'] - ($resolution['counts']['parent'] ?? 0) - ($resolution['counts']['learner'] ?? 0) - ($resolution['counts']['teacher'] ?? 0), 'unique_users_count' => $resolution['unique_users'], 'in_app_eligible_count' => $resolution['in_app_eligible'], 'email_eligible_count' => $resolution['email_eligible'], 'duplicate_recipients_removed' => $resolution['duplicates_removed'], 'inactive_recipients_excluded' => $resolution['excluded']['inactive'], 'missing_email_count' => $resolution['excluded']['missing_email'], 'invalid_email_count' => $resolution['excluded']['invalid_email'], 'estimated_deliveries' => ['in_app' => in_array('in_app', $channels) ? $resolution['in_app_eligible'] : 0, 'email' => in_array('email', $channels) ? $resolution['email_eligible'] : 0, 'sms' => in_array('sms', $channels) ? $resolution['sms_eligible'] : 0], 'risk_level' => $impact['risk_level'], 'risk_reasons' => $impact['reasons'], 'warnings' => $impact['recommended_corrections'], 'approval_required' => $impact['approval_required']];
+
+        return array_merge($base, $this->phaseTwoPreview->extend($user->school_id, $resolution, $communication->body, $channels));
     }
 
     public function previewDefinition(User $user, array $data): array
@@ -75,7 +79,9 @@ class CommunicationService
         $impact = $this->impact->analyze($resolution, $data['targets'], $data['priority'] ?? 'normal', $data['communication_type'], $policy);
         $this->audit->record($user, 'preview_generated', 'communication_preview', null, null, ['unique_users' => $resolution['unique_users'], 'risk_level' => $impact['risk_level']]);
 
-        return ['target_summary' => collect($data['targets'])->countBy('target_type'), 'parents_count' => $resolution['counts']['parent'] ?? 0, 'learners_count' => $resolution['counts']['learner'] ?? 0, 'teachers_count' => $resolution['counts']['teacher'] ?? 0, 'unique_users_count' => $resolution['unique_users'], 'in_app_eligible_count' => $resolution['in_app_eligible'], 'email_eligible_count' => $resolution['email_eligible'], 'duplicate_recipients_removed' => $resolution['duplicates_removed'], 'missing_email_count' => $resolution['excluded']['missing_email'], 'invalid_email_count' => $resolution['excluded']['invalid_email'], 'estimated_deliveries' => ['in_app' => in_array('in_app', $channels) ? $resolution['in_app_eligible'] : 0, 'email' => in_array('email', $channels) ? $resolution['email_eligible'] : 0], 'risk_level' => $impact['risk_level'], 'risk_reasons' => $impact['reasons'], 'warnings' => $impact['recommended_corrections'], 'approval_required' => $impact['approval_required']];
+        $base = ['target_summary' => collect($data['targets'])->countBy('target_type'), 'parents_count' => $resolution['counts']['parent'] ?? 0, 'learners_count' => $resolution['counts']['learner'] ?? 0, 'teachers_count' => $resolution['counts']['teacher'] ?? 0, 'unique_users_count' => $resolution['unique_users'], 'in_app_eligible_count' => $resolution['in_app_eligible'], 'email_eligible_count' => $resolution['email_eligible'], 'duplicate_recipients_removed' => $resolution['duplicates_removed'], 'missing_email_count' => $resolution['excluded']['missing_email'], 'invalid_email_count' => $resolution['excluded']['invalid_email'], 'estimated_deliveries' => ['in_app' => in_array('in_app', $channels) ? $resolution['in_app_eligible'] : 0, 'email' => in_array('email', $channels) ? $resolution['email_eligible'] : 0, 'sms' => in_array('sms', $channels) ? $resolution['sms_eligible'] : 0], 'risk_level' => $impact['risk_level'], 'risk_reasons' => $impact['reasons'], 'warnings' => $impact['recommended_corrections'], 'approval_required' => $impact['approval_required']];
+
+        return array_merge($base, $this->phaseTwoPreview->extend($user->school_id, $resolution, $data['body'], $channels));
     }
 
     public function submit(User $user, string $id): object
@@ -154,22 +160,30 @@ class CommunicationService
             $policy = $this->policies->policy($user, $communication->category);
             $this->policies->assertSenderAndPriority($sender, $policy, $communication->priority);
             $channels = $this->policies->validateChannels(json_decode($communication->channels, true), $policy);
+            if (in_array('sms', $channels, true)) {
+                $this->policies->assertSmsPermission($sender, $communication->category);
+            }
             $impact = $this->impact->analyze($resolution, $targets, $communication->priority, $communication->communication_type, $policy);
             abort_if($impact['approval_required'] && ! $communication->approved_at, 409, 'Current audience impact requires approval.');
             DB::table('communications')->where('id', $id)->update(['status' => 'sending', 'recipient_count' => $resolution['unique_users'], 'risk_level' => $impact['risk_level'], 'updated_at' => now()]);
             foreach ($resolution['recipients'] as $recipient) {
-                DB::table('communication_recipient_snapshots')->insertOrIgnore(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'communication_id' => $id, 'user_id' => $recipient->user_id, 'audience_type' => $recipient->audience_type, 'context' => null, 'email' => $recipient->email, 'email_valid' => $recipient->email_valid, 'resolved_at' => now()]);
+                DB::table('communication_recipient_snapshots')->insertOrIgnore(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'communication_id' => $id, 'user_id' => $recipient->user_id, 'audience_type' => $recipient->audience_type, 'context' => null, 'email' => $recipient->email, 'email_valid' => $recipient->email_valid, 'email_suppressed' => $recipient->email_suppressed, 'sms_eligible' => $recipient->sms_eligible, 'phone_hash' => $recipient->sms_eligible ? hash('sha256', $this->phones->normalize($recipient->phone)) : null, 'resolved_at' => now()]);
                 foreach ($channels as $channel) {
                     $deliveryId = (string) Str::uuid();
                     $key = $id.':'.$recipient->user_id.':'.$channel;
-                    $inserted = DB::table('communication_deliveries')->insertOrIgnore(['id' => $deliveryId, 'school_id' => $user->school_id, 'communication_id' => $id, 'recipient_user_id' => $recipient->user_id, 'channel' => $channel, 'status' => $channel === 'email' ? ($recipient->email_valid ? 'queued' : 'skipped') : 'pending', 'delivery_key' => hash('sha256', $key), 'attempt_count' => 0, 'failure_reason' => $channel === 'email' && ! $recipient->email_valid ? 'Email unavailable.' : null, 'queued_at' => $channel === 'email' && $recipient->email_valid ? now() : null, 'created_at' => now(), 'updated_at' => now()]);
+                    $eligible = $channel === 'email' ? $recipient->email_valid : ($channel === 'sms' ? $recipient->sms_eligible : true);
+                    $inserted = DB::table('communication_deliveries')->insertOrIgnore(['id' => $deliveryId, 'school_id' => $user->school_id, 'communication_id' => $id, 'recipient_user_id' => $recipient->user_id, 'channel' => $channel, 'status' => $channel === 'in_app' ? 'pending' : ($eligible ? 'queued' : 'skipped'), 'delivery_key' => hash('sha256', $key), 'destination_encrypted' => $channel === 'sms' && $eligible ? Crypt::encryptString($this->phones->normalize($recipient->phone)) : null, 'destination_hash' => $channel === 'sms' && $eligible ? hash('sha256', $this->phones->normalize($recipient->phone)) : null, 'attempt_count' => 0, 'failure_reason' => ! $eligible ? 'Channel destination unavailable or suppressed.' : null, 'queued_at' => $channel !== 'in_app' && $eligible ? now() : null, 'created_at' => now(), 'updated_at' => now()]);
                     if (! $inserted) {
                         continue;
                     }
                     if ($channel === 'in_app') {
                         $this->inApp->deliver($communication, $recipient, $deliveryId);
-                    } elseif ($recipient->email_valid) {
+                    } elseif ($channel === 'email' && $recipient->email_valid) {
                         $this->email->queue($deliveryId);
+                    } elseif ($channel === 'sms' && $recipient->sms_eligible) {
+                        $segment = $this->segments->calculate($communication->body);
+                        $this->wallet->reserve($user->school_id, $id, $deliveryId, $segment['segments']);
+                        $this->sms->queue($deliveryId);
                     }
                 }
             }
