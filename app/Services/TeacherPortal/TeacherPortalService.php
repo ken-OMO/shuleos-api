@@ -61,9 +61,11 @@ class TeacherPortalService
     {
         $t = $this->a->teacher($u);
 
-        return DB::table('timetable_entries as e')->join('timetables as tt', 'tt.id', '=', 'e.timetable_id')->leftJoin('timetable_substitutions as sub', function ($join) {
-            $join->on('sub.timetable_entry_id', '=', 'e.id')->where('sub.status', 'approved');
-        })->where('tt.school_id', $u->school_id)->where('tt.status', 'published')->where('tt.active', true)->where('e.is_deleted', false)->where(fn ($query) => $query->where('e.teacher_id', $t->id)->orWhere('sub.substitute_teacher_id', $t->id))->when($day, fn ($q) => $q->where('e.day_of_week', $day))->select('e.*', 'sub.id as substitution_id', 'sub.substitution_date', 'sub.substitute_teacher_id', 'sub.absent_teacher_id')->orderBy('e.day_of_week')->orderBy('e.period_id')->get();
+        $today = today()->toDateString();
+
+        return DB::table('timetable_entries as e')->join('timetables as tt', 'tt.id', '=', 'e.timetable_id')->leftJoin('timetable_substitutions as sub', function ($join) use ($today) {
+            $join->on('sub.timetable_entry_id', '=', 'e.id')->where('sub.status', 'approved')->whereDate('sub.substitution_date', $today);
+        })->where('tt.school_id', $u->school_id)->where('tt.status', 'published')->where('tt.active', true)->where('tt.is_deleted', false)->where(fn ($q) => $q->whereNull('tt.effective_from')->orWhereDate('tt.effective_from', '<=', $today))->where(fn ($q) => $q->whereNull('tt.effective_to')->orWhereDate('tt.effective_to', '>=', $today))->where('e.is_deleted', false)->where(fn ($query) => $query->where('e.teacher_id', $t->id)->orWhere('sub.substitute_teacher_id', $t->id))->when($day, fn ($q) => $q->where('e.day_of_week', $day))->select('e.id', 'e.day_of_week', 'e.period_id', 'e.grade_id', 'e.stream_id', 'e.learning_area_id', 'e.room_id', 'sub.id as substitution_id', 'sub.substitution_date')->orderBy('e.day_of_week')->orderBy('e.period_id')->limit(100)->get();
     }
 
     public function assessments(User $u)
