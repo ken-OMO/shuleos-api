@@ -6,6 +6,7 @@ return [
     'teachers' => 'manage_users',
     'teacher' => 'access_teacher_portal',
     'leadership' => 'access_school_leadership_portal',
+    'leadership-phase-two' => 'access_leadership_portal_phase_two',
     'grades' => 'manage_academics',
     'streams' => 'manage_academics',
     'academic-years' => 'manage_academics',

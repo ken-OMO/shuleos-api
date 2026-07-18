@@ -36,6 +36,7 @@ use App\Http\Controllers\Api\HomeworkLeadershipController;
 use App\Http\Controllers\Api\HomeworkLearnerController;
 use App\Http\Controllers\Api\HomeworkTeacherController;
 use App\Http\Controllers\Api\LeadershipPortalController;
+use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
@@ -505,15 +506,20 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
 
 Route::prefix('leadership')->middleware($secure)->group(function () {
     Route::get('/me', [LeadershipPortalController::class, 'me']);
-    Route::get('/dashboard', [LeadershipPortalController::class, 'dashboard']);
+    Route::get('/dashboard', [LeadershipPortalPhaseTwoController::class, 'dashboard'])->middleware('permission:access_leadership_portal_phase_two');
+    foreach (['principal', 'deputy', 'hod', 'director'] as $view) {
+        Route::get('/dashboard/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->dashboard($view))->middleware('permission:view_'.$view.'_dashboard');
+    }
     Route::get('/dashboard-preferences', [LeadershipPortalController::class, 'preferences']);
     Route::patch('/dashboard-preferences', [LeadershipPortalController::class, 'updatePreferences']);
     Route::get('/attendance', [LeadershipPortalController::class, 'attendance']);
     Route::get('/curriculum-coverage', [LeadershipPortalController::class, 'curriculum']);
-    Route::get('/approvals', [LeadershipPortalController::class, 'approvals']);
-    Route::get('/approvals/{id}', [LeadershipPortalController::class, 'approval']);
-    Route::post('/approvals/{id}/approve', [LeadershipPortalController::class, 'approve']);
-    Route::post('/approvals/{id}/reject', [LeadershipPortalController::class, 'reject']);
+    Route::get('/approvals', [LeadershipPortalPhaseTwoController::class, 'approvals'])->middleware('permission:review_cross_module_approvals');
+    Route::get('/approvals/summary', [LeadershipPortalPhaseTwoController::class, 'approvalSummary'])->middleware('permission:review_cross_module_approvals');
+    Route::get('/approvals/{approval}', [LeadershipPortalPhaseTwoController::class, 'approval'])->middleware('permission:review_cross_module_approvals');
+    Route::post('/approvals/{approval}/approve', fn (Request $request, string $approval) => app(LeadershipPortalPhaseTwoController::class)->decideApproval($request, $approval, 'approved'))->middleware('permission:review_cross_module_approvals');
+    Route::post('/approvals/{approval}/request-changes', fn (Request $request, string $approval) => app(LeadershipPortalPhaseTwoController::class)->decideApproval($request, $approval, 'changes_requested'))->middleware('permission:review_cross_module_approvals');
+    Route::post('/approvals/{approval}/reject', fn (Request $request, string $approval) => app(LeadershipPortalPhaseTwoController::class)->decideApproval($request, $approval, 'rejected'))->middleware('permission:review_cross_module_approvals');
     Route::get('/lesson-plans', [LeadershipPortalController::class, 'lessonPlans']);
     Route::get('/records-of-work', [LeadershipPortalController::class, 'records']);
     Route::get('/teacher-workload', [LeadershipPortalController::class, 'workload']);
@@ -524,6 +530,65 @@ Route::prefix('leadership')->middleware($secure)->group(function () {
     Route::get('/finance', [LeadershipPortalController::class, 'finance']);
     Route::get('/announcements', [LeadershipPortalController::class, 'announcements']);
     Route::get('/notifications', [LeadershipPortalController::class, 'notifications']);
+
+    Route::get('/teachers', [LeadershipPortalPhaseTwoController::class, 'teachers'])->middleware('permission:view_teacher_compliance');
+    Route::get('/teachers/{teacher}', [LeadershipPortalPhaseTwoController::class, 'teacher'])->middleware('permission:view_teacher_compliance');
+    foreach (['workload', 'compliance', 'teaching-workflows', 'attendance-submissions', 'homework-activity', 'marks-progress'] as $metric) {
+        Route::get('/teachers/{teacher}/'.$metric, fn (string $teacher) => app(LeadershipPortalPhaseTwoController::class)->teacherMetric($teacher, $metric))->middleware('permission:'.($metric === 'workload' ? 'view_teacher_workload' : 'view_teacher_compliance'));
+    }
+
+    Route::get('/kpis', [LeadershipPortalPhaseTwoController::class, 'kpis'])->middleware('permission:view_school_kpis');
+    Route::get('/kpis/trends', fn () => app(LeadershipPortalPhaseTwoController::class)->kpis(true))->middleware('permission:view_school_kpis');
+
+    Route::get('/academics/summary', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('summary'))->middleware('permission:view_academic_insights');
+    Route::get('/academics/grades', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('grades'))->middleware('permission:view_academic_insights');
+    Route::get('/academics/grades/{grade}', fn (string $grade) => app(LeadershipPortalPhaseTwoController::class)->academic('grade', $grade))->middleware('permission:view_academic_insights');
+    Route::get('/academics/streams/{stream}', fn (string $stream) => app(LeadershipPortalPhaseTwoController::class)->academic('stream', $stream))->middleware('permission:view_academic_insights');
+    Route::get('/academics/learning-areas', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('learning-areas'))->middleware('permission:view_academic_insights');
+    Route::get('/academics/learning-areas/{learningArea}', fn (string $learningArea) => app(LeadershipPortalPhaseTwoController::class)->academic('learning-area', $learningArea))->middleware('permission:view_academic_insights');
+    Route::get('/academics/readiness', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('readiness'))->middleware('permission:view_academic_insights');
+    Route::get('/academics/interventions', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('interventions'))->middleware('permission:view_academic_insights');
+
+    foreach (['summary', 'today', 'trends', 'alerts'] as $view) {
+        Route::get('/attendance/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->attendance($view))->middleware('permission:view_attendance_intelligence');
+    }
+    Route::get('/attendance/grades/{grade}', fn (string $grade) => app(LeadershipPortalPhaseTwoController::class)->attendance('grade', $grade))->middleware('permission:view_attendance_intelligence');
+    Route::get('/attendance/streams/{stream}', fn (string $stream) => app(LeadershipPortalPhaseTwoController::class)->attendance('stream', $stream))->middleware('permission:view_attendance_intelligence');
+    Route::get('/attendance/learners/{learner}', fn (string $learner) => app(LeadershipPortalPhaseTwoController::class)->attendance('learner', $learner))->middleware(['permission:view_attendance_intelligence', 'permission:view_attendance_analytics']);
+
+    foreach (['summary', 'trends', 'escalations', 'recognitions'] as $view) {
+        Route::get('/behaviour/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->behaviour($view))->middleware('permission:view_behaviour_oversight');
+    }
+    Route::get('/behaviour/cases/{case}', fn (string $case) => app(LeadershipPortalPhaseTwoController::class)->behaviour('case', $case))->middleware('permission:view_behaviour_oversight');
+
+    foreach (['summary', 'collections', 'outstanding', 'arrears', 'payment-plans', 'refunds', 'adjustments', 'sms-wallet'] as $view) {
+        Route::get('/finance/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->finance($view))->middleware('permission:view_finance_oversight');
+    }
+    foreach (['summary', 'pending-approvals', 'delivery-health', 'failures', 'emergencies', 'sms-usage'] as $view) {
+        Route::get('/communications/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->communications($view))->middleware('permission:view_communication_monitoring');
+    }
+    foreach (['summary', 'coverage', 'conflicts', 'substitutions', 'uncovered-lessons', 'teacher-workload'] as $view) {
+        Route::get('/timetable/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->timetable($view))->middleware('permission:view_timetable_oversight');
+    }
+
+    Route::get('/actions', [LeadershipPortalPhaseTwoController::class, 'actions'])->middleware('permission:view_leadership_action_queue');
+    Route::get('/alerts', [LeadershipPortalPhaseTwoController::class, 'alerts'])->middleware('permission:view_leadership_alerts');
+    Route::post('/alerts/{alert}/acknowledge', fn (string $alert) => app(LeadershipPortalPhaseTwoController::class)->alertState($alert, 'acknowledged'))->middleware('permission:acknowledge_leadership_alerts');
+    Route::post('/alerts/{alert}/dismiss', fn (string $alert) => app(LeadershipPortalPhaseTwoController::class)->alertState($alert, 'dismissed'))->middleware('permission:acknowledge_leadership_alerts');
+
+    foreach (['dashboard', 'teachers', 'compliance', 'curriculum-coverage', 'marks', 'homework', 'resources', 'communications'] as $view) {
+        Route::get('/hod/'.$view, fn () => app(LeadershipPortalPhaseTwoController::class)->hod($view))->middleware('permission:view_hod_department_analytics');
+    }
+
+    Route::get('/reports', [LeadershipPortalPhaseTwoController::class, 'reports'])->middleware('permission:view_leadership_reports');
+    Route::post('/reports/preview', fn (Request $request) => app(LeadershipPortalPhaseTwoController::class)->report($request))->middleware('permission:view_leadership_reports');
+    Route::post('/reports/generate', fn (Request $request) => app(LeadershipPortalPhaseTwoController::class)->report($request, true))->middleware('permission:generate_leadership_reports');
+
+    Route::get('/preferences', [LeadershipPortalPhaseTwoController::class, 'preferences'])->middleware('permission:manage_leadership_preferences');
+    Route::put('/preferences', [LeadershipPortalPhaseTwoController::class, 'updatePreferences'])->middleware('permission:manage_leadership_preferences');
+    Route::get('/devices', [LeadershipPortalPhaseTwoController::class, 'devices'])->middleware('permission:manage_leadership_devices');
+    Route::post('/devices', [LeadershipPortalPhaseTwoController::class, 'registerDevice'])->middleware('permission:manage_leadership_devices');
+    Route::delete('/devices/{device}', [LeadershipPortalPhaseTwoController::class, 'revokeDevice'])->middleware('permission:manage_leadership_devices');
 });
 
 /*
