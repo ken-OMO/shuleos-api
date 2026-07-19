@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AcademicWeekController;
 use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AdministratorPortalController;
 use App\Http\Controllers\Api\AssessmentRegistrationController;
 use App\Http\Controllers\Api\AssessmentTypeController;
 use App\Http\Controllers\Api\AttendanceAlertController;
@@ -112,6 +113,100 @@ $secure = [
     'module.permission',
 
 ];
+
+Route::prefix('admin')->middleware($secure)->group(function () {
+    Route::get('/dashboard', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
+    Route::get('/dashboard/school', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
+    Route::get('/dashboard/platform', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_platform_dashboard')->name('admin.dashboard.platform');
+    Route::get('/school', [AdministratorPortalController::class, 'school'])->middleware('permission:manage_school_profile');
+    Route::put('/school', [AdministratorPortalController::class, 'updateSchool'])->middleware('permission:manage_school_profile');
+    Route::get('/school/completeness', [AdministratorPortalController::class, 'completeness'])->middleware('permission:view_school_completeness');
+
+    Route::get('/platform/schools', [AdministratorPortalController::class, 'platformSchools'])->middleware('permission:manage_school_lifecycle');
+    Route::get('/platform/schools/{school}', [AdministratorPortalController::class, 'platformSchool'])->middleware('permission:manage_school_lifecycle');
+    foreach (['activate', 'suspend', 'resume', 'enter-read-only', 'lock', 'archive'] as $action) {
+        Route::post('/platform/schools/{school}/'.$action, fn (Request $request, string $school) => app(AdministratorPortalController::class)->lifecycle($request, $school, $action))->middleware('permission:manage_school_lifecycle');
+    }
+
+    Route::get('/users', [AdministratorPortalController::class, 'users'])->middleware('permission:view_school_users');
+    Route::post('/users', [AdministratorPortalController::class, 'userCreate'])->middleware('permission:create_school_users');
+    Route::get('/users/{user}', [AdministratorPortalController::class, 'userShow'])->middleware('permission:view_school_users');
+    Route::put('/users/{user}', [AdministratorPortalController::class, 'userUpdate'])->middleware('permission:update_school_users');
+    foreach (['activate', 'suspend', 'unlock', 'force-password-reset', 'revoke-sessions', 'revoke-devices'] as $action) {
+        $permission = match ($action) {
+            'activate' => 'activate_school_users', 'suspend' => 'suspend_school_users', 'unlock' => 'unlock_school_users', 'force-password-reset' => 'force_school_user_password_reset', 'revoke-sessions' => 'revoke_school_user_sessions', default => 'revoke_school_user_devices'
+        };
+        Route::post('/users/{user}/'.$action, fn (string $user) => app(AdministratorPortalController::class)->userAction($user, $action))->middleware('permission:'.$permission);
+    }
+
+    Route::get('/roles', [AdministratorPortalController::class, 'roles'])->middleware('permission:view_roles_and_permissions');
+    Route::post('/roles', [AdministratorPortalController::class, 'createRole'])->middleware('permission:manage_school_roles');
+    Route::get('/roles/{role}', [AdministratorPortalController::class, 'role'])->middleware('permission:view_roles_and_permissions');
+    Route::put('/roles/{role}', [AdministratorPortalController::class, 'updateRole'])->middleware('permission:manage_school_roles');
+    Route::post('/roles/{role}/permissions', [AdministratorPortalController::class, 'rolePermissions'])->middleware('permission:assign_school_permissions');
+    Route::get('/permissions', [AdministratorPortalController::class, 'permissions'])->middleware('permission:view_roles_and_permissions');
+    Route::get('/permissions/modules', [AdministratorPortalController::class, 'permissions'])->middleware('permission:view_roles_and_permissions')->name('admin.permissions.modules');
+
+    foreach (['academic-years', 'terms', 'grades', 'streams', 'learning-areas'] as $type) {
+        Route::get('/'.$type, fn () => app(AdministratorPortalController::class)->academic($type))->middleware('permission:view_academic_setup_status');
+    }
+    Route::get('/academic-setup/status', fn () => app(AdministratorPortalController::class)->academic('status'))->middleware('permission:view_academic_setup_status');
+    Route::get('/branding', [AdministratorPortalController::class, 'branding'])->middleware('permission:manage_school_branding');
+    Route::put('/branding', [AdministratorPortalController::class, 'updateBranding'])->middleware('permission:manage_school_branding');
+    Route::post('/branding/uploads', [AdministratorPortalController::class, 'uploadBranding'])->middleware('permission:manage_school_branding');
+    Route::delete('/branding/uploads/{asset}', [AdministratorPortalController::class, 'archiveBranding'])->middleware('permission:manage_school_branding');
+
+    Route::get('/subscription', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription');
+    Route::get('/subscription/history', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription')->name('admin.subscription.history');
+    Route::get('/subscription/entitlements', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription')->name('admin.subscription.entitlements');
+    Route::get('/platform/subscriptions', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_platform_subscriptions')->name('admin.platform.subscriptions');
+    Route::get('/platform/subscriptions/{school}', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_platform_subscriptions');
+    Route::get('/modules', [AdministratorPortalController::class, 'modules'])->middleware('permission:view_module_readiness');
+    Route::get('/modules/{module}', [AdministratorPortalController::class, 'modules'])->middleware('permission:view_module_readiness');
+
+    Route::get('/audit/summary', [AdministratorPortalController::class, 'audit'])->middleware('permission:view_admin_audit')->name('admin.audit.summary');
+    Route::get('/audit', [AdministratorPortalController::class, 'audit'])->middleware('permission:view_admin_audit');
+    Route::get('/audit/{event}', [AdministratorPortalController::class, 'audit'])->middleware('permission:view_admin_audit');
+    foreach (['summary', 'logins', 'locked-users', 'devices', 'sessions'] as $view) {
+        Route::get('/security/'.$view, fn () => app(AdministratorPortalController::class)->security($view))->middleware('permission:view_admin_security');
+    }
+    foreach (['revoke-sessions', 'revoke-devices'] as $action) {
+        Route::post('/security/users/{user}/'.$action, fn (string $user) => app(AdministratorPortalController::class)->securityUserAction($user, $action))->middleware('permission:manage_admin_security_actions');
+    }
+    Route::get('/devices', [AdministratorPortalController::class, 'devices'])->middleware('permission:view_school_devices');
+    Route::get('/devices/{device}', [AdministratorPortalController::class, 'devices'])->middleware('permission:view_school_devices');
+    Route::post('/devices/{device}/revoke', [AdministratorPortalController::class, 'revokeDevice'])->middleware('permission:revoke_school_devices');
+
+    foreach (['summary', 'policies', 'provider-health', 'failures', 'suppressed-contacts'] as $view) {
+        Route::get('/communications/'.$view, fn (Request $request) => app(AdministratorPortalController::class)->communications($request, $view))->middleware('permission:view_provider_readiness');
+    }
+    Route::put('/communications/policies', fn (Request $request) => app(AdministratorPortalController::class)->communications($request, 'policies-update'))->middleware('permission:manage_communication_policy');
+    foreach (['provider-health', 'settings', 'reconciliation-summary'] as $view) {
+        Route::get('/payments/'.$view, fn () => app(AdministratorPortalController::class)->payments($view))->middleware('permission:view_payment_reconciliation_summary');
+    }
+
+    Route::get('/imports', [AdministratorPortalController::class, 'imports'])->middleware('permission:manage_data_imports');
+    Route::post('/imports/preview', [AdministratorPortalController::class, 'previewImport'])->middleware('permission:manage_data_imports');
+    Route::post('/imports', [AdministratorPortalController::class, 'queueImport'])->middleware('permission:manage_data_imports');
+    Route::get('/imports/{import}', [AdministratorPortalController::class, 'import'])->middleware('permission:manage_data_imports');
+    Route::get('/imports/{import}/errors', [AdministratorPortalController::class, 'importErrors'])->middleware('permission:manage_data_imports');
+    Route::post('/imports/{import}/cancel', [AdministratorPortalController::class, 'cancelImport'])->middleware('permission:manage_data_imports');
+
+    Route::get('/system-health', [AdministratorPortalController::class, 'health'])->middleware('permission:view_system_health');
+    foreach (['database', 'queue', 'scheduler', 'storage', 'cache'] as $component) {
+        Route::get('/system-health/'.$component, fn () => app(AdministratorPortalController::class)->health($component))->middleware('permission:view_system_health');
+    }
+    Route::get('/tasks', [AdministratorPortalController::class, 'tasks'])->middleware('permission:view_admin_tasks');
+    Route::get('/alerts', [AdministratorPortalController::class, 'alerts'])->middleware('permission:view_admin_alerts');
+    foreach (['acknowledge', 'dismiss'] as $state) {
+        Route::post('/alerts/{alert}/'.$state, fn (string $alert) => app(AdministratorPortalController::class)->alert($alert, $state))->middleware('permission:acknowledge_admin_alerts');
+    }
+    Route::get('/preferences', [AdministratorPortalController::class, 'preferences'])->middleware('permission:manage_admin_preferences');
+    Route::put('/preferences', [AdministratorPortalController::class, 'preferences'])->middleware('permission:manage_admin_preferences');
+    Route::get('/reports', [AdministratorPortalController::class, 'reports'])->middleware('permission:view_admin_reports');
+    Route::post('/reports/preview', [AdministratorPortalController::class, 'reports'])->middleware('permission:view_admin_reports');
+    Route::post('/reports/generate', [AdministratorPortalController::class, 'reports'])->middleware('permission:generate_admin_reports')->name('admin.reports.generate');
+});
 
 Route::prefix('communications')->middleware($secure)->group(function () {
     Route::post('/preview', [CommunicationController::class, 'previewDefinition'])->middleware('permission:preview_communication_recipients');
@@ -245,15 +340,9 @@ Route::prefix('schools')
     ->middleware($secure)
     ->group(function () {
 
-        Route::get('/', [SchoolController::class, 'index']);
+        Route::get('/', [SchoolController::class, 'index'])->middleware('permission:access_platform_administration');
 
-        Route::get('/{id}', [SchoolController::class, 'show']);
-
-        Route::post('/', [SchoolController::class, 'store']);
-
-        Route::put('/{id}', [SchoolController::class, 'update']);
-
-        Route::delete('/{id}', [SchoolController::class, 'destroy']);
+        Route::get('/{id}', [SchoolController::class, 'show'])->middleware('permission:access_platform_administration');
 
     });
 
@@ -267,25 +356,9 @@ Route::prefix('users')
     ->middleware($secure)
     ->group(function () {
 
-        Route::get('/', [UserController::class, 'index']);
+        Route::get('/', [UserController::class, 'index'])->middleware('permission:view_school_users');
 
-        Route::get('/{id}', [UserController::class, 'show']);
-
-        Route::post('/', [UserController::class, 'store']);
-
-        Route::put('/{id}', [UserController::class, 'update']);
-
-        Route::delete('/{id}', [UserController::class, 'destroy']);
-
-        Route::post(
-            '/{id}/reset-password',
-            [UserController::class, 'resetPassword']
-        );
-
-        Route::post(
-            '/{id}/assign-role',
-            [UserController::class, 'assignRole']
-        );
+        Route::get('/{id}', [UserController::class, 'show'])->middleware('permission:view_school_users');
 
     });
 

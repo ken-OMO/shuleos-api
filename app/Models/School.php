@@ -45,6 +45,15 @@ class School extends Model
         'kra_pin',
 
         'website',
+        'short_name',
+        'motto',
+        'lifecycle_state',
+        'lifecycle_version',
+        'timezone',
+        'locale',
+        'academic_contact',
+        'finance_contact',
+        'communication_contact',
 
     ];
 
@@ -59,6 +68,9 @@ class School extends Model
         'updated_at' => 'datetime',
 
         'deleted_at' => 'datetime',
+        'suspended_at' => 'datetime',
+        'locked_at' => 'datetime',
+        'archived_at' => 'datetime',
 
     ];
 

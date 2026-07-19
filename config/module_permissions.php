@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'admin' => 'access_administrator_portal',
     'schools' => 'manage_users',
     'users' => 'manage_users',
     'teachers' => 'manage_users',

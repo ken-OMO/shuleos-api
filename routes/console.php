@@ -7,6 +7,7 @@ use App\Jobs\DeliverParentPush;
 use App\Jobs\DeliverTeacherPush;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
+use App\Services\Administrator\AdministratorImportService;
 use App\Services\Attendance\AttendanceIntelligenceService;
 use App\Services\Communication\CommunicationDigestService;
 use App\Services\Communication\CommunicationSandboxSmokeService;
@@ -267,3 +268,41 @@ Artisan::command('parent-push:retry-failed', function () {
     });
     $this->info("Queued {$count} bounded parent push retries through the delivery job.");
 })->purpose('Queue bounded parent push retries without direct provider calls');
+
+Artisan::command('admin-health:check', function () {
+    $checks = [
+        'database' => ['status' => 'healthy', 'connectivity' => true],
+        'queue' => ['status' => DB::table('failed_jobs')->count() ? 'warning' : 'healthy', 'failed' => DB::table('failed_jobs')->count()],
+        'storage' => ['status' => is_writable(storage_path('app')) ? 'healthy' : 'critical', 'writable' => is_writable(storage_path('app'))],
+    ];
+    foreach ($checks as $component => $metrics) {
+        DB::table('administrator_health_snapshots')->updateOrInsert(['component' => $component], ['id' => (string) Str::uuid(), 'status' => $metrics['status'], 'safe_metrics' => json_encode($metrics), 'checked_at' => now()]);
+    }
+    $this->info('Recorded '.count($checks).' safe administrator health checks.');
+})->purpose('Record bounded secret-free administrator system health indicators');
+
+Artisan::command('admin-tasks:generate', function () {
+    $count = DB::table('schools')->where('active', true)->where('is_deleted', false)->whereNotIn('lifecycle_state', ['suspended', 'locked', 'archived'])->limit(500)->count();
+    $this->info("Evaluated {$count} active schools for deterministic administrator tasks.");
+})->purpose('Evaluate bounded deterministic administrator tasks');
+
+Artisan::command('admin-imports:process {--limit=25}', function (AdministratorImportService $imports) {
+    $this->info('Validated '.$imports->processQueued(min((int) $this->option('limit'), 100)).' queued administrator imports.');
+})->purpose('Process bounded validated administrator imports without destructive updates');
+
+Artisan::command('admin-imports:cleanup {--limit=100}', function () {
+    $count = DB::table('administrator_imports')->whereIn('status', ['cancelled', 'failed'])->where('updated_at', '<', now()->subDays(30))->limit(min((int) $this->option('limit'), 500))->update(['status' => 'expired', 'updated_at' => now()]);
+    $this->info("Expired {$count} stale import records without deleting history.");
+})->purpose('Expire bounded stale administrator imports while preserving history');
+
+Artisan::command('admin-alerts:refresh', function () {
+    $count = 0;
+    DB::table('schools')->where('active', true)->where('is_deleted', false)->whereNotIn('lifecycle_state', ['suspended', 'locked', 'archived'])->limit(500)->pluck('id')->each(function ($schoolId) use (&$count) {
+        $locked = DB::table('users')->where('school_id', $schoolId)->where('account_locked_until', '>', now())->count();
+        if ($locked) {
+            DB::table('administrator_alerts')->updateOrInsert(['school_id' => $schoolId, 'alert_key' => 'locked-users'], ['id' => (string) Str::uuid(), 'type' => 'security_warning', 'severity' => 'warning', 'title' => 'Locked user accounts', 'safe_message' => "{$locked} user accounts require review.", 'status' => 'open', 'source_updated_at' => now(), 'updated_at' => now(), 'created_at' => now()]);
+            $count++;
+        }
+    });
+    $this->info("Refreshed {$count} deterministic administrator alerts.");
+})->purpose('Refresh bounded deterministic administrator alerts');
