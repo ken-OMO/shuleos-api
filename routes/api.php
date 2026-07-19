@@ -54,8 +54,10 @@ use App\Http\Controllers\Api\LessonNoteController;
 use App\Http\Controllers\Api\LessonPlanController;
 use App\Http\Controllers\Api\MarkEntryPermissionController;
 use App\Http\Controllers\Api\MeritListController;
+use App\Http\Controllers\Api\ParentPaymentWebhookController;
 use App\Http\Controllers\Api\ParentPortalAdminController;
 use App\Http\Controllers\Api\ParentPortalMobileController;
+use App\Http\Controllers\Api\ParentPortalPhaseTwoController;
 use App\Http\Controllers\Api\PaymentAllocationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -155,6 +157,8 @@ Route::prefix('webhooks/communication')->middleware('throttle:30,1')->group(func
     Route::post('/email/resend', [CommunicationWebhookController::class, 'resend']);
     Route::post('/sms/africas-talking', [CommunicationWebhookController::class, 'africasTalking']);
 });
+
+Route::post('webhooks/payments/mpesa', [ParentPaymentWebhookController::class, 'mpesa'])->middleware('throttle:30,1');
 
 Route::prefix('communication-templates')->middleware($secure)->group(function () {
     Route::get('/', [CommunicationController::class, 'templates'])->middleware('permission:manage_communication_templates');
@@ -1179,7 +1183,54 @@ Route::prefix('report-cards')
     });
 
 Route::prefix('parent')->middleware($secure)->group(function () {
-    Route::get('/dashboard', [ParentPortalMobileController::class, 'dashboard'])->middleware('permission:access_parent_portal');
+    Route::get('/phase-two/dashboard', [ParentPortalPhaseTwoController::class, 'dashboard'])->middleware('permission:access_parent_portal_phase_two');
+    Route::get('/tasks', [ParentPortalPhaseTwoController::class, 'tasks'])->middleware('permission:view_own_parent_tasks');
+    Route::get('/analytics', [ParentPortalPhaseTwoController::class, 'analytics'])->middleware('permission:view_own_parent_analytics');
+    Route::get('/payments/provider-health', [ParentPortalPhaseTwoController::class, 'providerHealth'])->middleware('permission:initiate_linked_learner_payments');
+    Route::get('/payments', [ParentPortalPhaseTwoController::class, 'payments'])->middleware('permission:view_own_payment_attempts');
+    Route::post('/payments/{paymentAttempt}/cancel', [ParentPortalPhaseTwoController::class, 'cancelPayment'])->middleware('permission:initiate_linked_learner_payments');
+    Route::get('/payments/{paymentAttempt}', [ParentPortalPhaseTwoController::class, 'payment'])->middleware('permission:view_own_payment_attempts');
+    Route::post('/children/{learner}/payments/stk/preview', [ParentPortalPhaseTwoController::class, 'paymentPreview'])->middleware('permission:initiate_linked_learner_payments');
+    Route::post('/children/{learner}/payments/stk/initiate', [ParentPortalPhaseTwoController::class, 'paymentInitiate'])->middleware('permission:initiate_linked_learner_payments');
+    Route::get('/children/{learner}/payments', [ParentPortalPhaseTwoController::class, 'payments'])->middleware('permission:view_own_payment_attempts');
+    Route::get('/children/{learner}/payments/{payment}', [ParentPortalPhaseTwoController::class, 'financePayment'])->middleware('permission:view_own_payment_attempts');
+    Route::get('/children/{learner}/receipts/{payment}/download', [ParentPortalPhaseTwoController::class, 'downloadReceipt'])->middleware('permission:download_own_payment_receipts');
+
+    Route::get('/conversations', [ParentPortalPhaseTwoController::class, 'conversations'])->middleware('permission:view_own_parent_conversations');
+    Route::post('/conversations', [ParentPortalPhaseTwoController::class, 'createConversation'])->middleware(['permission:create_parent_conversations', 'throttle:10,1']);
+    Route::get('/conversations/{conversation}/messages', [ParentPortalPhaseTwoController::class, 'messages'])->middleware('permission:view_own_parent_conversations');
+    Route::post('/conversations/{conversation}/messages', [ParentPortalPhaseTwoController::class, 'sendMessage'])->middleware(['permission:send_parent_messages', 'throttle:20,1']);
+    Route::post('/conversations/{conversation}/close', [ParentPortalPhaseTwoController::class, 'closeConversation'])->middleware('permission:create_parent_conversations');
+    Route::get('/conversations/{conversation}', [ParentPortalPhaseTwoController::class, 'conversation'])->middleware('permission:view_own_parent_conversations');
+
+    Route::get('/consents', [ParentPortalPhaseTwoController::class, 'consents'])->middleware('permission:view_linked_learner_consents');
+    Route::post('/consents/{consent}/accept', fn (Request $request, string $consent) => app(ParentPortalPhaseTwoController::class)->respondConsent($request, $consent, 'accepted'))->middleware('permission:respond_to_parent_consents');
+    Route::post('/consents/{consent}/decline', fn (Request $request, string $consent) => app(ParentPortalPhaseTwoController::class)->respondConsent($request, $consent, 'declined'))->middleware('permission:respond_to_parent_consents');
+    Route::get('/consents/{consent}', [ParentPortalPhaseTwoController::class, 'consent'])->middleware('permission:view_linked_learner_consents');
+    Route::get('/children/{learner}/consents', [ParentPortalPhaseTwoController::class, 'learnerConsents'])->middleware('permission:view_linked_learner_consents');
+
+    Route::get('/appointments', [ParentPortalPhaseTwoController::class, 'appointments'])->middleware('permission:manage_own_parent_appointments');
+    Route::post('/appointments', [ParentPortalPhaseTwoController::class, 'createAppointment'])->middleware(['permission:create_parent_appointments', 'throttle:10,1']);
+    foreach (['accept-proposal', 'decline-proposal', 'cancel'] as $action) {
+        Route::post('/appointments/{appointment}/'.$action, fn (string $appointment) => app(ParentPortalPhaseTwoController::class)->appointmentAction($appointment, $action))->middleware('permission:manage_own_parent_appointments');
+    }
+    Route::get('/appointments/{appointment}', [ParentPortalPhaseTwoController::class, 'appointment'])->middleware('permission:manage_own_parent_appointments');
+
+    Route::get('/children/{learner}/progress/{section}', [ParentPortalPhaseTwoController::class, 'progress'])->whereIn('section', ['academics', 'attendance', 'homework', 'trends'])->middleware('permission:view_linked_learner_progress');
+    Route::get('/children/{learner}/progress', [ParentPortalPhaseTwoController::class, 'progress'])->middleware('permission:view_linked_learner_progress');
+    Route::post('/sync/push', [ParentPortalPhaseTwoController::class, 'syncPush'])->middleware('permission:use_parent_offline_sync');
+    Route::get('/sync/pull', [ParentPortalPhaseTwoController::class, 'syncPull'])->middleware('permission:use_parent_offline_sync');
+    Route::get('/sync/status', [ParentPortalPhaseTwoController::class, 'syncStatus'])->middleware('permission:use_parent_offline_sync');
+    Route::get('/sync/conflicts', [ParentPortalPhaseTwoController::class, 'syncConflicts'])->middleware('permission:use_parent_offline_sync');
+    Route::post('/sync/conflicts/{conflict}/resolve', [ParentPortalPhaseTwoController::class, 'resolveConflict'])->middleware('permission:resolve_own_parent_sync_conflicts');
+    Route::post('/uploads', [ParentPortalPhaseTwoController::class, 'upload'])->middleware('permission:upload_parent_portal_files');
+    Route::get('/uploads/{attachment}/download', [ParentPortalPhaseTwoController::class, 'downloadAttachment'])->middleware('permission:download_parent_portal_files');
+    Route::get('/uploads/{attachment}', [ParentPortalPhaseTwoController::class, 'attachment'])->middleware('permission:download_parent_portal_files');
+    Route::delete('/uploads/{attachment}', [ParentPortalPhaseTwoController::class, 'deleteAttachment'])->middleware('permission:upload_parent_portal_files');
+    Route::post('/devices/{device}/push-token', [ParentPortalPhaseTwoController::class, 'updatePushToken'])->middleware('permission:manage_own_parent_push_token');
+    Route::delete('/devices/{device}/push-token', [ParentPortalPhaseTwoController::class, 'deletePushToken'])->middleware('permission:manage_own_parent_push_token');
+    Route::get('/push/deliveries', [ParentPortalPhaseTwoController::class, 'pushDeliveries'])->middleware('permission:view_own_parent_push_deliveries');
+    Route::get('/dashboard', [ParentPortalPhaseTwoController::class, 'dashboard'])->middleware('permission:access_parent_portal_phase_two');
     Route::get('/children', [ParentPortalMobileController::class, 'children'])->middleware('permission:view_linked_learners');
     Route::get('/children/{learner}/profile', [ParentPortalMobileController::class, 'childProfile'])->middleware('permission:view_linked_learner_profile');
     Route::get('/children/{learner}/attendance/summary', [ParentPortalMobileController::class, 'attendanceSummary'])->middleware('permission:view_linked_learner_attendance');

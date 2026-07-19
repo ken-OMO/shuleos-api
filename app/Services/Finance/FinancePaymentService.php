@@ -45,6 +45,39 @@ class FinancePaymentService
         });
     }
 
+    /** Create a confirmed payment from a callback already authenticated by a provider adapter. */
+    public function createVerifiedProviderPayment(User $user, LearnerFeeAccount $account, array $data): Payment
+    {
+        return DB::transaction(function () use ($user, $account, $data) {
+            $account = LearnerFeeAccount::withoutGlobalScopes()->whereKey($account->id)->where('school_id', $user->school_id)->where('account_status', 'active')->lockForUpdate()->firstOrFail();
+            $existing = Payment::withoutGlobalScopes()->where('school_id', $user->school_id)->where('transaction_reference', $data['transaction_reference'])->lockForUpdate()->first();
+            if ($existing) {
+                abort_unless($existing->learner_id === $account->learner_id, 409, 'Provider reference conflict.');
+
+                return $existing;
+            }
+            $provider = strtolower((string) ($data['provider'] ?? 'online'));
+            $method = DB::table('payment_methods')->where('school_id', $user->school_id)->where('active', true)->where('is_online', true)
+                ->whereRaw('LOWER(method_name) LIKE ?', ['%'.$provider.'%'])->first();
+            if (! $method) {
+                throw ValidationException::withMessages(['payment_method' => 'An active online payment method is required.']);
+            }
+            $amount = $this->money->positive($data['amount']);
+            $payment = Payment::create([
+                'id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'learner_id' => $account->learner_id,
+                'payment_method_id' => $method->id, 'receipt_number' => 'RCT-'.now()->format('Ymd').'-'.strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 10)),
+                'amount' => $amount, 'allocated_amount' => '0.00', 'payment_channel' => $provider,
+                'transaction_reference' => $data['transaction_reference'], 'payment_date' => now()->toDateString(),
+                'received_by' => $user->id, 'payment_status' => 'confirmed', 'reversed' => false,
+                'payer_phone' => $data['payer_phone'] ?? null, 'payer_name' => $data['payer_name'] ?? 'Parent portal',
+                'remarks' => 'Verified provider payment', 'confirmed_by' => $user->id, 'confirmed_at' => now(), 'posted_by' => $user->id,
+            ]);
+            $this->audit->record($user, 'provider_payment_posted', 'payments', $payment->id, [], ['amount' => $amount, 'provider' => $provider]);
+
+            return $payment;
+        });
+    }
+
     public function confirm(User $user, string $id): Payment
     {
         return DB::transaction(function () use ($user, $id) {

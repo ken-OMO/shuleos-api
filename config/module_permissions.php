@@ -42,6 +42,7 @@ return [
     'merit-lists' => 'approve_exam_results',
     'report-cards' => 'generate_report_cards',
     'parent' => 'access_parent_portal',
+    'parent-phase-two' => 'access_parent_portal_phase_two',
     'parent-access-policy' => 'manage_report_card_access_policy',
     'parent-access-overrides' => 'manage_report_card_access_overrides',
     'attendance-statuses' => 'manage_attendance',
