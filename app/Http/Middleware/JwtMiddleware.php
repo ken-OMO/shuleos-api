@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Auth\AuthContextService;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
@@ -10,6 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class JwtMiddleware
 {
+    public function __construct(private AuthContextService $authContext) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         try {
@@ -22,20 +27,24 @@ class JwtMiddleware
             }
 
             $generation = (int) (JWTAuth::parseToken()->getPayload()->get('auth_generation') ?? 1);
-            if (! $user->active || $user->is_deleted || $generation !== (int) ($user->auth_generation ?: 1)) {
-                return response()->json(['success' => false, 'message' => 'Session has been revoked.'], 401);
+            if ($generation !== (int) ($user->auth_generation ?: 1)) {
+                throw new AuthenticationException('Unauthenticated.');
             }
 
-            $school = $user->school;
-            if (! $school || ! $school->active || in_array($school->lifecycle_state, ['suspended', 'locked', 'archived'], true)) {
-                return response()->json(['success' => false, 'message' => 'School access is unavailable.'], 403);
-            }
+            $this->authContext->assertAccessible($user);
+            $request->setUserResolver(fn () => $user);
 
-        } catch (JWTException $e) {
+        } catch (AuthorizationException) {
+            return response()->json(['success' => false, 'message' => 'Access is unavailable.'], 403);
+
+        } catch (AuthenticationException) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+
+        } catch (JWTException) {
 
             return response()->json([
                 'success' => false,
-                'message' => 'Token is invalid or missing',
+                'message' => 'Unauthenticated.',
             ], 401);
 
         }

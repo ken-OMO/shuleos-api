@@ -2,48 +2,36 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Auth\AuthContextService;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Symfony\Component\HttpFoundation\Response;
 
 class PermissionMiddleware
 {
+    public function __construct(private AuthContextService $authContext) {}
+
     public function handle(Request $request, Closure $next, string $permission): Response
     {
         try {
-
             $user = JWTAuth::parseToken()->authenticate();
-
             if (! $user) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'User not found',
-                ], 404);
+                throw new AuthenticationException('Unauthenticated.');
             }
 
-            $hasPermission = DB::table('role_permissions')
-                ->join('permissions', 'role_permissions.permission_id', '=', 'permissions.id')
-                ->where('role_permissions.role_id', $user->role_id)
-                ->where('permissions.permission_name', $permission)
-                ->exists();
-
-            if (! $hasPermission) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Permission denied: '.$permission,
-                ], 403);
+            if (! $this->authContext->hasPermission($user, $permission)) {
+                return response()->json(['success' => false, 'message' => 'Forbidden.'], 403);
             }
 
             return $next($request);
-
-        } catch (\Exception $e) {
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Unable to verify permission.',
-            ], 401);
+        } catch (AuthorizationException) {
+            return response()->json(['success' => false, 'message' => 'Access is unavailable.'], 403);
+        } catch (AuthenticationException|JWTException) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
     }
 }
