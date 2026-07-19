@@ -4,6 +4,7 @@ namespace App\Services\Administrator;
 
 use App\Models\User;
 use App\Services\Communication\CommunicationPolicyService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -218,7 +219,8 @@ class AdministratorOperationsService
 
     public function tasks(User $user): array
     {
-        $schoolId = $this->access->require($user, 'view_admin_tasks')['school_id'];
+        $scope = $this->access->require($user, 'view_admin_tasks');
+        $schoolId = $scope['school_id'];
         $tasks = [];
         $setup = $this->portal->academicSetup($user);
         foreach ($setup['missing'] as $missing) {
@@ -227,21 +229,65 @@ class AdministratorOperationsService
         if (($pending = DB::table('users')->where('school_id', $schoolId)->where('active', false)->where('is_deleted', false)->count()) > 0) {
             $tasks[] = ['key' => 'pending_user_activation', 'type' => 'users', 'severity' => 'warning', 'title' => 'Pending user activation', 'count' => $pending, 'explanation' => 'Inactive user accounts require review.'];
         }
+        if (Schema::hasTable('administrator_backups')) {
+            $latest = DB::table('administrator_backups')->where('school_id', $schoolId)->whereIn('status', ['completed', 'verified'])->latest('updated_at')->first();
+            if (! $latest || Carbon::parse($latest->updated_at)->lt(now()->subDays(7))) {
+                $tasks[] = ['key' => 'backup_overdue', 'type' => 'backup', 'severity' => 'warning', 'title' => 'Backup overdue', 'explanation' => 'No recent completed school backup manifest is recorded.'];
+            }
+            if (DB::table('administrator_backups')->where('school_id', $schoolId)->where('status', 'completed')->exists()) {
+                $tasks[] = ['key' => 'backup_unverified', 'type' => 'backup', 'severity' => 'warning', 'title' => 'Backup verification pending', 'explanation' => 'A completed backup requires verification.'];
+            }
+        }
+        if (Schema::hasTable('administrator_feature_flags') && DB::table('administrator_feature_flags')->where('scope_type', 'school')->where('scope_id', $schoolId)->where('status', 'active')->whereBetween('ends_at', [now(), now()->addDays(7)])->exists()) {
+            $tasks[] = ['key' => 'feature_flag_expiring', 'type' => 'feature_flag', 'severity' => 'info', 'title' => 'Feature flag expiring', 'explanation' => 'A school feature flag expires within seven days.'];
+        }
+        if (Schema::hasTable('administrator_maintenance_windows') && DB::table('administrator_maintenance_windows')->where('school_id', $schoolId)->where('status', 'scheduled')->exists()) {
+            $tasks[] = ['key' => 'maintenance_scheduled', 'type' => 'maintenance', 'severity' => 'info', 'title' => 'Maintenance scheduled', 'explanation' => 'A school maintenance window is scheduled.'];
+        }
+        if (Schema::hasTable('administrator_storage_records') && ($count = DB::table('administrator_storage_records')->where('school_id', $schoolId)->where('status', 'quarantined')->count())) {
+            $tasks[] = ['key' => 'quarantine_backlog', 'type' => 'storage', 'severity' => 'warning', 'title' => 'Quarantine review required', 'count' => $count, 'explanation' => 'Quarantined file records require review.'];
+        }
+        if (Schema::hasTable('administrator_webhook_deliveries') && ($count = DB::table('administrator_webhook_deliveries')->join('administrator_webhooks', 'administrator_webhooks.id', '=', 'administrator_webhook_deliveries.webhook_id')->where('administrator_webhooks.school_id', $schoolId)->where('administrator_webhook_deliveries.status', 'failed')->count())) {
+            $tasks[] = ['key' => 'webhook_failures', 'type' => 'webhook', 'severity' => 'warning', 'title' => 'Webhook delivery failures', 'count' => $count, 'explanation' => 'Webhook delivery records require review.'];
+        }
+        if (Schema::hasTable('administrator_api_keys') && DB::table('administrator_api_keys')->where('school_id', $schoolId)->whereNull('revoked_at')->whereBetween('expires_at', [now(), now()->addDays(14)])->exists()) {
+            $tasks[] = ['key' => 'api_key_expiring', 'type' => 'api_key', 'severity' => 'warning', 'title' => 'API key expiring', 'explanation' => 'An API key expires within fourteen days.'];
+        }
+        if ($scope['platform'] && Schema::hasTable('administrator_scheduler_heartbeats')) {
+            if (Schema::hasTable('administrator_provider_configurations') && DB::table('administrator_provider_configurations')->where('enabled', true)->where('secret_present', false)->exists()) {
+                $tasks[] = ['key' => 'provider_secret_missing', 'type' => 'provider', 'severity' => 'critical', 'title' => 'Provider secret missing', 'explanation' => 'An enabled provider lacks required write-only credentials.'];
+            }
+            if (Schema::hasTable('administrator_provider_configurations') && DB::table('administrator_provider_configurations')->where('enabled', true)->where(fn ($query) => $query->whereNull('rotated_at')->orWhere('rotated_at', '<', now()->subYear()))->exists()) {
+                $tasks[] = ['key' => 'provider_key_rotation_due', 'type' => 'provider', 'severity' => 'warning', 'title' => 'Provider key rotation review due', 'explanation' => 'An enabled provider credential has no recent recorded rotation.'];
+            }
+            if (DB::table('failed_jobs')->exists()) {
+                $tasks[] = ['key' => 'failed_job', 'type' => 'queue', 'severity' => 'warning', 'title' => 'Failed jobs require review', 'count' => DB::table('failed_jobs')->count(), 'explanation' => 'One or more failed jobs are recorded.'];
+            }
+            if (DB::table('administrator_scheduler_heartbeats')->where(fn ($query) => $query->whereNull('last_completed_at')->orWhere('last_completed_at', '<', now()->subMinutes((int) config('administrator_operations.heartbeat_stale_minutes', 15))))->exists()) {
+                $tasks[] = ['key' => 'scheduler_stale', 'type' => 'scheduler', 'severity' => 'critical', 'title' => 'Scheduler heartbeat stale', 'explanation' => 'At least one monitored scheduler task lacks a recent authoritative heartbeat.'];
+            }
+            if (Schema::hasTable('administrator_diagnostic_runs') && DB::table('administrator_diagnostic_runs')->where('status', 'critical')->where('created_at', '>=', now()->subDay())->exists()) {
+                $tasks[] = ['key' => 'critical_diagnostic_failure', 'type' => 'diagnostic', 'severity' => 'critical', 'title' => 'Critical diagnostic failure', 'explanation' => 'A recent authoritative diagnostic run reported a critical result.'];
+            }
+            if (! config('administrator_operations.restore_execution_enabled')) {
+                $tasks[] = ['key' => 'restore_tooling_disabled', 'type' => 'recovery', 'severity' => 'warning', 'title' => 'Restore tooling disabled', 'explanation' => 'Restore execution remains disabled until trusted tooling is configured.'];
+            }
+        }
 
         return array_slice($tasks, 0, 100);
     }
 
     public function alerts(User $user): mixed
     {
-        $schoolId = $this->access->require($user, 'view_admin_alerts')['school_id'];
+        $scope = $this->access->require($user, 'view_admin_alerts');
 
-        return DB::table('administrator_alerts as alerts')->leftJoin('administrator_alert_states as states', fn ($join) => $join->on('states.alert_id', '=', 'alerts.id')->where('states.user_id', $user->id))->where('alerts.school_id', $schoolId)->where('alerts.status', 'open')->select('alerts.id', 'alerts.type', 'alerts.severity', 'alerts.title', 'alerts.safe_message', 'alerts.created_at', 'states.state as user_state')->latest('alerts.created_at')->limit(100)->get();
+        return DB::table('administrator_alerts as alerts')->leftJoin('administrator_alert_states as states', fn ($join) => $join->on('states.alert_id', '=', 'alerts.id')->where('states.user_id', $user->id))->where(fn ($query) => $query->where('alerts.school_id', $scope['school_id'])->when($scope['platform'], fn ($platform) => $platform->orWhereNull('alerts.school_id')))->where('alerts.status', 'open')->select('alerts.id', 'alerts.type', 'alerts.severity', 'alerts.title', 'alerts.safe_message', 'alerts.created_at', 'states.state as user_state')->latest('alerts.created_at')->limit(100)->get();
     }
 
     public function alertState(User $user, string $id, string $state): array
     {
-        $schoolId = $this->access->require($user, 'acknowledge_admin_alerts')['school_id'];
-        DB::table('administrator_alerts')->where('id', $id)->where('school_id', $schoolId)->firstOrFail();
+        $scope = $this->access->require($user, 'acknowledge_admin_alerts');
+        DB::table('administrator_alerts')->where('id', $id)->where(fn ($query) => $query->where('school_id', $scope['school_id'])->when($scope['platform'], fn ($platform) => $platform->orWhereNull('school_id')))->firstOrFail();
         DB::table('administrator_alert_states')->updateOrInsert(['alert_id' => $id, 'user_id' => $user->id], ['id' => (string) Str::uuid(), 'state' => $state, 'changed_at' => now()]);
 
         return ['id' => $id, 'state' => $state];

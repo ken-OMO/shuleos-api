@@ -8,6 +8,8 @@ use App\Jobs\DeliverTeacherPush;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
 use App\Services\Administrator\AdministratorImportService;
+use App\Services\Administrator\Operations\AdministratorIntegrationService;
+use App\Services\Administrator\Operations\AdministratorRecoveryService;
 use App\Services\Attendance\AttendanceIntelligenceService;
 use App\Services\Communication\CommunicationDigestService;
 use App\Services\Communication\CommunicationSandboxSmokeService;
@@ -306,3 +308,65 @@ Artisan::command('admin-alerts:refresh', function () {
     });
     $this->info("Refreshed {$count} deterministic administrator alerts.");
 })->purpose('Refresh bounded deterministic administrator alerts');
+
+Artisan::command('admin-ops:heartbeat', function () {
+    $task = 'admin_health';
+    $existing = DB::table('administrator_scheduler_heartbeats')->where('task_key', $task)->first();
+    $values = ['status' => 'healthy', 'last_started_at' => now(), 'last_completed_at' => now(), 'duration_ms' => 0, 'safe_message' => 'Authoritative scheduler heartbeat recorded.', 'active_run_id' => null, 'updated_at' => now()];
+    if ($existing) {
+        DB::table('administrator_scheduler_heartbeats')->where('id', $existing->id)->update($values);
+    } else {
+        DB::table('administrator_scheduler_heartbeats')->insert($values + ['id' => (string) Str::uuid(), 'task_key' => $task, 'created_at' => now()]);
+    }
+    $this->info('Recorded one authoritative administrator scheduler heartbeat.');
+})->purpose('Record a safe authoritative administrator scheduler heartbeat');
+
+Artisan::command('admin-ops:diagnostics', function () {
+    $failed = DB::table('failed_jobs')->count();
+    $this->info('Local diagnostics completed: database=healthy, failed-jobs='.$failed.'.');
+})->purpose('Run bounded passive local operational diagnostics');
+
+Artisan::command('admin-ops:backup-dispatch {--limit=25}', function (AdministratorRecoveryService $service) {
+    $this->info('Completed '.$service->dispatch(min((int) $this->option('limit'), 100)).' safe manifest backups; unsupported backup types fail closed.');
+})->purpose('Dispatch bounded backup manifests without arbitrary shell commands');
+
+Artisan::command('admin-ops:backup-retention {--limit=100}', function () {
+    $count = DB::table('administrator_backups')->whereIn('status', ['completed', 'verified', 'failed'])->where('retention_until', '<=', now())->limit(min((int) $this->option('limit'), 500))->update(['status' => 'expired', 'updated_at' => now()]);
+    $this->info("Expired {$count} backup records without physical deletion.");
+})->purpose('Apply bounded non-destructive backup retention');
+
+Artisan::command('admin-ops:refresh-alerts', function () {
+    $failed = DB::table('failed_jobs')->count();
+    $stale = DB::table('administrator_scheduler_heartbeats')->where(fn ($query) => $query->whereNull('last_completed_at')->orWhere('last_completed_at', '<', now()->subMinutes((int) config('administrator_operations.heartbeat_stale_minutes'))))->count();
+    foreach ([
+        'failed-jobs' => ['count' => $failed, 'type' => 'queue_warning', 'severity' => 'warning', 'title' => 'Failed jobs require review', 'message' => "{$failed} failed queue jobs require review."],
+        'stale-scheduler' => ['count' => $stale, 'type' => 'scheduler_warning', 'severity' => 'critical', 'title' => 'Scheduler heartbeat stale', 'message' => "{$stale} monitored scheduler heartbeats are stale or unknown."],
+    ] as $key => $alert) {
+        $identity = ['school_id' => null, 'alert_key' => $key];
+        if ($alert['count'] > 0) {
+            $existing = DB::table('administrator_alerts')->where($identity)->first();
+            $values = ['type' => $alert['type'], 'severity' => $alert['severity'], 'title' => $alert['title'], 'safe_message' => $alert['message'], 'status' => 'open', 'source_updated_at' => now(), 'updated_at' => now()];
+            $existing
+                ? DB::table('administrator_alerts')->where('id', $existing->id)->update($values)
+                : DB::table('administrator_alerts')->insert($values + $identity + ['id' => (string) Str::uuid(), 'created_at' => now()]);
+        } else {
+            DB::table('administrator_alerts')->where($identity)->where('status', 'open')->update(['status' => 'resolved', 'source_updated_at' => now(), 'updated_at' => now()]);
+        }
+    }
+    $this->info("Operational alerts evaluated: failed-jobs={$failed}, stale-heartbeats={$stale}.");
+})->purpose('Evaluate bounded deterministic operational alerts');
+
+Artisan::command('admin-ops:retry-webhooks {--limit=50}', function (AdministratorIntegrationService $service) {
+    $this->info('Requeued '.$service->retryWebhooks(min((int) $this->option('limit'), 100)).' bounded webhook delivery records without making network calls.');
+})->purpose('Requeue bounded webhook deliveries without direct provider calls');
+
+Artisan::command('admin-ops:expire-api-keys {--limit=100}', function (AdministratorIntegrationService $service) {
+    $this->info('Revoked '.$service->expireApiKeys(min((int) $this->option('limit'), 500)).' expired API keys.');
+})->purpose('Revoke bounded expired API keys');
+
+Artisan::command('admin-ops:cleanup-operational-history {--limit=500}', function () {
+    $limit = min((int) $this->option('limit'), 1000);
+    $previews = DB::table('administrator_operation_previews')->whereNotNull('consumed_at')->where('expires_at', '<', now()->subDays(30))->limit($limit)->delete();
+    $runs = DB::table('administrator_scheduler_runs')->whereIn('status', ['completed', 'failed'])->where('updated_at', '<', now()->subDays(90))->limit($limit)->delete();
+    $this->info("Removed {$previews} expired one-time previews and {$runs} old scheduler run receipts; audit and change histories were preserved.");
+})->purpose('Clean bounded transient operational receipts while preserving audit history');
