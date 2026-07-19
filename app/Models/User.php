@@ -33,6 +33,9 @@ class User extends Authenticatable implements JWTSubject
         'last_name',
         'active',
         'first_login',
+        'auth_generation',
+        'suspended_at',
+        'force_password_reset_at',
     ];
 
     protected $hidden = [
@@ -54,6 +57,8 @@ class User extends Authenticatable implements JWTSubject
         'account_locked_until' => 'datetime',
         'password_reset_expires' => 'datetime',
         'last_failed_login' => 'datetime',
+        'suspended_at' => 'datetime',
+        'force_password_reset_at' => 'datetime',
     ];
 
     /**
@@ -128,6 +133,7 @@ class User extends Authenticatable implements JWTSubject
             'school_id' => $this->school_id,
             'role_id' => $this->role_id,
             'username' => $this->username,
+            'auth_generation' => (int) ($this->auth_generation ?: 1),
         ];
     }
 }

@@ -39,6 +39,7 @@ class UserController extends BaseCrudController
 
         )
             ->where('is_deleted', false)
+            ->where('school_id', auth()->user()->school_id)
             ->orderBy('first_name')
             ->get();
 
@@ -66,6 +67,7 @@ class UserController extends BaseCrudController
 
         )
             ->where('is_deleted', false)
+            ->where('school_id', auth()->user()->school_id)
             ->find($id);
 
         if ($this->modelNotFound($user)) {

@@ -19,7 +19,12 @@ class Role extends Model
     protected $fillable = [
         'id',
         'role_name',
+        'school_id',
+        'system_role',
+        'active',
     ];
+
+    protected $casts = ['system_role' => 'boolean', 'active' => 'boolean'];
 
     /**
      * Users whose primary role is this role

@@ -21,10 +21,9 @@ class AuthController extends Controller
         ]);
 
         $user = User::where('username', $request->username)
-            ->where('active', true)
             ->first();
 
-        if (! $user) {
+        if (! $user || ! $user->active || $user->is_deleted || ($user->account_locked_until && $user->account_locked_until->isFuture())) {
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid username or password',
@@ -32,11 +31,25 @@ class AuthController extends Controller
         }
 
         if (! Hash::check($request->password, $user->password_hash)) {
+            $attempts = (int) $user->failed_login_attempts + 1;
+            $user->forceFill([
+                'failed_login_attempts' => $attempts,
+                'last_failed_login' => now(),
+                'account_locked_until' => $attempts >= 5 ? now()->addMinutes(15) : null,
+            ])->save();
+
             return response()->json([
                 'success' => false,
                 'message' => 'Invalid username or password',
             ], 401);
         }
+
+        $school = $user->school;
+        if (! $school || ! $school->active || in_array($school->lifecycle_state, ['suspended', 'locked', 'archived'], true)) {
+            return response()->json(['success' => false, 'message' => 'School access is unavailable'], 403);
+        }
+
+        $user->forceFill(['failed_login_attempts' => 0, 'account_locked_until' => null, 'last_login' => now()])->save();
 
         $token = JWTAuth::fromUser($user);
 
@@ -51,6 +64,7 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'school_id' => $user->school_id,
                 'role_id' => $user->role_id,
+                'password_reset_required' => (bool) ($user->first_login || $user->force_password_reset_at),
             ],
         ]);
     }
