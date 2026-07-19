@@ -3,6 +3,7 @@
 use App\Jobs\DeliverCommunicationEmail;
 use App\Jobs\DeliverCommunicationSms;
 use App\Jobs\DeliverLearnerPush;
+use App\Jobs\DeliverParentPush;
 use App\Jobs\DeliverTeacherPush;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
@@ -16,6 +17,7 @@ use App\Services\Finance\FinanceArrearsService;
 use App\Services\Finance\FinanceNotificationService;
 use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkNotificationService;
+use App\Services\ParentPortal\ParentPaymentReconciliationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -227,3 +229,41 @@ Artisan::command('learner-offline:expire-resources', function () {
     $count = DB::table('learner_offline_resources')->whereIn('id', $ids)->update(['revoked_at' => now(), 'version' => DB::raw('version + 1'), 'updated_at' => now()]);
     $this->info("Expired {$count} stale learner offline markers without deleting history.");
 })->purpose('Expire bounded learner offline resource markers safely');
+
+Artisan::command('parent-payments:reconcile {--limit=100}', function (ParentPaymentReconciliationService $service) {
+    $this->info('Found '.$service->pending((int) $this->option('limit')).' bounded payment attempts requiring provider or finance reconciliation.');
+})->purpose('Report bounded unresolved parent payment attempts safely');
+
+Artisan::command('parent-payments:expire-attempts {--limit=100}', function (ParentPaymentReconciliationService $service) {
+    $this->info('Expired '.$service->expire((int) $this->option('limit')).' stale parent payment attempts.');
+})->purpose('Expire bounded stale parent payment attempts safely');
+
+Artisan::command('parent-payments:retry-posting {--limit=100}', function (ParentPaymentReconciliationService $service) {
+    $this->info('Retried '.$service->retryPosting((int) $this->option('limit')).' bounded provider-confirmed finance postings.');
+})->purpose('Identify bounded provider-confirmed posting exceptions without duplicate posting');
+
+Artisan::command('parent-tasks:generate', function () {
+    $count = DB::table('parent_payment_attempts')->join('schools', 'schools.id', '=', 'parent_payment_attempts.school_id')->where('schools.active', true)->whereIn('parent_payment_attempts.status', ['pending', 'awaiting_customer', 'failed', 'reconciliation_required'])->limit(500)->count();
+    $this->info("Identified {$count} bounded deterministic parent tasks.");
+})->purpose('Generate the deterministic parent task view');
+
+Artisan::command('parent-sync:cleanup', function () {
+    $count = DB::table('parent_sync_operations')->where('created_at', '<', now()->subDays(90))->whereIn('status', ['accepted', 'server_wins'])->limit(500)->delete();
+    $drafts = DB::table('parent_offline_drafts')->where('updated_at', '<', now()->subDays(90))->limit(500)->delete();
+    $this->info("Removed {$count} expired parent sync receipts and {$drafts} stale parent-owned drafts; conflicts were preserved.");
+})->purpose('Clean bounded parent sync receipts without deleting conflicts');
+
+Artisan::command('parent-uploads:cleanup-quarantine', function () {
+    $count = DB::table('parent_portal_attachments')->where('status', 'pending_scan')->where('created_at', '<', now()->subDays(30))->limit(200)->update(['status' => 'quarantined', 'updated_at' => now()]);
+    $this->info("Quarantined {$count} stale parent uploads without deleting evidence.");
+})->purpose('Transition stale parent uploads to quarantine safely');
+
+Artisan::command('parent-push:retry-failed', function () {
+    $count = 0;
+    DB::table('parent_push_deliveries')->where('status', 'failed')->where('attempt_count', '<', 3)->limit(100)->pluck('id')->each(function ($id) use (&$count) {
+        DB::table('parent_push_deliveries')->whereKey($id)->update(['status' => 'queued', 'updated_at' => now()]);
+        DeliverParentPush::dispatch($id);
+        $count++;
+    });
+    $this->info("Queued {$count} bounded parent push retries through the delivery job.");
+})->purpose('Queue bounded parent push retries without direct provider calls');

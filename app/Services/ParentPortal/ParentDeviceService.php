@@ -63,4 +63,26 @@ class ParentDeviceService
         $device->update(['revoked_at' => now(), 'push_enabled' => false, 'push_token_encrypted' => null]);
         $this->audit->record($user, 'device_revoked', null, 'parent_portal_device', $device->id);
     }
+
+    public function owned(User $user, string $id): ParentPortalDevice
+    {
+        $this->access->parent($user);
+
+        return ParentPortalDevice::withoutGlobalScopes()->whereKey($id)->where('school_id', $user->school_id)->where('user_id', $user->id)->whereNull('revoked_at')->firstOrFail();
+    }
+
+    public function updatePushToken(User $user, string $id, string $token): ParentPortalDevice
+    {
+        abort_unless(config('parent_portal_phase_two.push_enabled'), 409, 'Parent push notifications are disabled.');
+        $device = $this->owned($user, $id);
+        $device->update(['push_token_encrypted' => Crypt::encryptString($token), 'push_enabled' => true, 'version' => $device->version + 1, 'last_seen_at' => now()]);
+
+        return $device;
+    }
+
+    public function deletePushToken(User $user, string $id): void
+    {
+        $device = $this->owned($user, $id);
+        $device->update(['push_token_encrypted' => null, 'push_enabled' => false, 'version' => $device->version + 1]);
+    }
 }
