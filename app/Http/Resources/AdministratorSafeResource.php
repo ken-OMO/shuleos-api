@@ -7,7 +7,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class AdministratorSafeResource extends JsonResource
 {
-    private const BLOCKED = ['password', 'password_hash', 'password_reset_token', 'mfa_secret', 'token', 'push_token', 'push_token_encrypted', 'storage_id', 'source_hash', 'stored_hash', 'idempotency_key_hash', 'payload', 'exception', 'old_values', 'new_values'];
+    private const BLOCKED = ['password', 'password_hash', 'password_reset_token', 'mfa_secret', 'token', 'push_token', 'push_token_encrypted', 'storage_id', 'source_hash', 'stored_hash', 'idempotency_key_hash', 'payload', 'exception', 'old_values', 'new_values', 'configuration_encrypted', 'key_hash', 'secret_hash', 'secret_encrypted', 'path', 'absolute_path'];
 
     public function toArray(Request $request): array
     {

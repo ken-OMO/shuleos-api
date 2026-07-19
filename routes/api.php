@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\AcademicWeekController;
 use App\Http\Controllers\Api\AcademicYearController;
+use App\Http\Controllers\Api\AdministratorOperationsController;
 use App\Http\Controllers\Api\AdministratorPortalController;
 use App\Http\Controllers\Api\AssessmentRegistrationController;
 use App\Http\Controllers\Api\AssessmentTypeController;
@@ -206,6 +207,99 @@ Route::prefix('admin')->middleware($secure)->group(function () {
     Route::get('/reports', [AdministratorPortalController::class, 'reports'])->middleware('permission:view_admin_reports');
     Route::post('/reports/preview', [AdministratorPortalController::class, 'reports'])->middleware('permission:view_admin_reports');
     Route::post('/reports/generate', [AdministratorPortalController::class, 'reports'])->middleware('permission:generate_admin_reports')->name('admin.reports.generate');
+});
+
+Route::prefix('admin/operations')->middleware($secure)->group(function () {
+    Route::get('/feature-flags', [AdministratorOperationsController::class, 'flags'])->middleware('permission:manage_school_feature_flags');
+    Route::post('/feature-flags', [AdministratorOperationsController::class, 'saveFlag'])->middleware('permission:manage_school_feature_flags');
+    Route::get('/feature-flags/{flag}', [AdministratorOperationsController::class, 'flags'])->middleware('permission:manage_school_feature_flags');
+    Route::put('/feature-flags/{flag}', [AdministratorOperationsController::class, 'saveFlag'])->middleware('permission:manage_school_feature_flags');
+    foreach (['enable', 'disable', 'archive'] as $action) {
+        Route::post('/feature-flags/{flag}/'.$action, fn (string $flag) => app(AdministratorOperationsController::class)->flagAction($flag, $action))->middleware('permission:manage_school_feature_flags');
+    }
+
+    Route::get('/maintenance', [AdministratorOperationsController::class, 'maintenance'])->middleware('permission:manage_school_maintenance');
+    Route::post('/maintenance/preview', [AdministratorOperationsController::class, 'maintenancePreview'])->middleware('permission:manage_school_maintenance');
+    Route::post('/maintenance/schedule', [AdministratorOperationsController::class, 'maintenanceSchedule'])->middleware('permission:manage_school_maintenance');
+    foreach (['activate', 'deactivate', 'cancel'] as $action) {
+        Route::post('/maintenance/'.$action, fn (Request $request) => app(AdministratorOperationsController::class)->maintenanceAction($request, $action))->middleware('permission:manage_school_maintenance');
+    }
+
+    Route::get('/providers', [AdministratorOperationsController::class, 'providers'])->middleware('permission:view_provider_configuration');
+    Route::get('/providers/{category}', [AdministratorOperationsController::class, 'providers'])->middleware('permission:view_provider_configuration');
+    Route::put('/providers/{category}', [AdministratorOperationsController::class, 'saveProvider'])->middleware('permission:manage_provider_configuration');
+    Route::post('/providers/{category}/rotate', fn (Request $request, string $category) => app(AdministratorOperationsController::class)->providerAction($request, $category, 'rotate'))->middleware('permission:rotate_provider_secrets');
+    Route::post('/providers/{category}/disable', fn (Request $request, string $category) => app(AdministratorOperationsController::class)->providerAction($request, $category, 'disable'))->middleware('permission:manage_provider_configuration');
+    Route::get('/providers/{category}/health', [AdministratorOperationsController::class, 'providerHealth'])->middleware('permission:view_provider_configuration');
+
+    Route::get('/queue', fn () => app(AdministratorOperationsController::class)->queue())->middleware('permission:view_queue_operations');
+    Route::get('/queue/jobs', fn () => app(AdministratorOperationsController::class)->queue('jobs'))->middleware('permission:view_queue_operations');
+    Route::get('/queue/failed', fn () => app(AdministratorOperationsController::class)->queue('failed'))->middleware('permission:view_queue_operations');
+    Route::get('/queue/failed/{job}', fn (string $job) => app(AdministratorOperationsController::class)->queue('failed', $job))->middleware('permission:view_queue_operations');
+    Route::post('/queue/failed/{job}/retry', fn (Request $request, string $job) => app(AdministratorOperationsController::class)->queueAction($request, $job, 'retry'))->middleware('permission:retry_failed_jobs');
+    Route::post('/queue/failed/{job}/forget', fn (Request $request, string $job) => app(AdministratorOperationsController::class)->queueAction($request, $job, 'forget'))->middleware('permission:forget_failed_jobs');
+
+    Route::get('/scheduler', fn () => app(AdministratorOperationsController::class)->scheduler())->middleware('permission:view_scheduler_operations');
+    Route::get('/scheduler/tasks', fn () => app(AdministratorOperationsController::class)->scheduler('tasks'))->middleware('permission:view_scheduler_operations');
+    Route::get('/scheduler/tasks/{task}', fn (string $task) => app(AdministratorOperationsController::class)->scheduler('tasks', $task))->middleware('permission:view_scheduler_operations');
+    Route::post('/scheduler/tasks/{task}/run', [AdministratorOperationsController::class, 'runTask'])->middleware('permission:run_allowlisted_scheduler_tasks');
+    Route::get('/cache', [AdministratorOperationsController::class, 'cache'])->middleware('permission:view_cache_operations');
+    Route::post('/cache/preview-clear', [AdministratorOperationsController::class, 'cachePreview'])->middleware('permission:clear_safe_cache_groups');
+    Route::post('/cache/clear', [AdministratorOperationsController::class, 'cacheClear'])->middleware('permission:clear_safe_cache_groups');
+
+    Route::get('/logs', [AdministratorOperationsController::class, 'logs'])->middleware('permission:view_application_logs');
+    Route::get('/logs/{log}', [AdministratorOperationsController::class, 'logs'])->middleware('permission:view_application_logs');
+    Route::get('/logs/{log}/entries', fn (Request $request, string $log) => app(AdministratorOperationsController::class)->logs($request, $log, true))->middleware('permission:view_application_logs');
+    Route::get('/storage', fn () => app(AdministratorOperationsController::class)->storage())->middleware('permission:view_storage_operations');
+    foreach (['disks', 'quarantine', 'orphans'] as $view) {
+        Route::get('/storage/'.$view, fn () => app(AdministratorOperationsController::class)->storage($view))->middleware('permission:view_storage_operations');
+    }
+    foreach (['release', 'reject'] as $action) {
+        Route::post('/storage/quarantine/{file}/'.$action, fn (Request $request, string $file) => app(AdministratorOperationsController::class)->storageAction($request, $file, $action))->middleware('permission:manage_quarantined_files');
+    }
+    Route::post('/storage/orphans/{file}/archive', fn (Request $request, string $file) => app(AdministratorOperationsController::class)->storageAction($request, $file, 'archive'))->middleware('permission:manage_quarantined_files');
+
+    Route::get('/backups', [AdministratorOperationsController::class, 'backups'])->middleware('permission:view_backup_operations');
+    Route::post('/backups/preview', [AdministratorOperationsController::class, 'backupPreview'])->middleware('permission:create_backups');
+    Route::post('/backups', [AdministratorOperationsController::class, 'createBackup'])->middleware('permission:create_backups');
+    Route::get('/backups/{backup}', [AdministratorOperationsController::class, 'backups'])->middleware('permission:view_backup_operations');
+    foreach (['verify', 'archive'] as $action) {
+        Route::post('/backups/{backup}/'.$action, fn (string $backup) => app(AdministratorOperationsController::class)->backupAction($backup, $action))->middleware('permission:'.($action === 'verify' ? 'verify_backups' : 'archive_backups'));
+    }
+    Route::get('/restores', [AdministratorOperationsController::class, 'restores'])->middleware('permission:view_restore_operations');
+    Route::post('/restores/preview', [AdministratorOperationsController::class, 'restorePreview'])->middleware('permission:create_restore_requests');
+    Route::post('/restores', [AdministratorOperationsController::class, 'createRestore'])->middleware('permission:create_restore_requests');
+    Route::get('/restores/{restore}', [AdministratorOperationsController::class, 'restores'])->middleware('permission:view_restore_operations');
+    Route::post('/restores/{restore}/cancel', [AdministratorOperationsController::class, 'cancelRestore'])->middleware('permission:create_restore_requests');
+
+    Route::get('/api-keys', [AdministratorOperationsController::class, 'apiKeys'])->middleware('permission:manage_api_keys');
+    Route::post('/api-keys', [AdministratorOperationsController::class, 'createApiKey'])->middleware('permission:manage_api_keys');
+    Route::get('/api-keys/{key}', [AdministratorOperationsController::class, 'apiKeys'])->middleware('permission:manage_api_keys');
+    foreach (['rotate', 'revoke'] as $action) {
+        Route::post('/api-keys/{key}/'.$action, fn (string $key) => app(AdministratorOperationsController::class)->apiKeyAction($key, $action))->middleware('permission:manage_api_keys');
+    }
+    Route::get('/webhooks', [AdministratorOperationsController::class, 'webhooks'])->middleware('permission:manage_webhooks');
+    Route::post('/webhooks', [AdministratorOperationsController::class, 'saveWebhook'])->middleware('permission:manage_webhooks');
+    Route::get('/webhooks/{webhook}', [AdministratorOperationsController::class, 'webhooks'])->middleware('permission:manage_webhooks');
+    Route::put('/webhooks/{webhook}', [AdministratorOperationsController::class, 'saveWebhook'])->middleware('permission:manage_webhooks');
+    Route::post('/webhooks/{webhook}/rotate-secret', fn (string $webhook) => app(AdministratorOperationsController::class)->webhookAction($webhook, 'rotate'))->middleware('permission:manage_webhooks');
+    Route::post('/webhooks/{webhook}/disable', fn (string $webhook) => app(AdministratorOperationsController::class)->webhookAction($webhook, 'disable'))->middleware('permission:manage_webhooks');
+    Route::get('/webhooks/{webhook}/deliveries', [AdministratorOperationsController::class, 'webhookDeliveries'])->middleware('permission:manage_webhooks');
+
+    Route::get('/diagnostics', [AdministratorOperationsController::class, 'diagnostics'])->middleware('permission:view_operational_diagnostics');
+    Route::post('/diagnostics/run', [AdministratorOperationsController::class, 'runDiagnostics'])->middleware('permission:run_operational_diagnostics');
+    Route::get('/diagnostics/{run}', [AdministratorOperationsController::class, 'diagnostics'])->middleware('permission:view_operational_diagnostics');
+    Route::get('/notices', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
+    Route::post('/notices', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
+    Route::put('/notices/{notice}', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
+    foreach (['publish', 'archive'] as $action) {
+        Route::post('/notices/{notice}/'.$action, fn (Request $request, string $notice) => app(AdministratorOperationsController::class)->notices($request, $notice, $action))->middleware('permission:manage_system_notices');
+    }
+    Route::get('/releases', [AdministratorOperationsController::class, 'releases'])->middleware('permission:view_release_metadata');
+    Route::get('/releases/current', [AdministratorOperationsController::class, 'releases'])->middleware('permission:view_release_metadata')->name('admin.operations.releases.current');
+    Route::get('/platform-settings', [AdministratorOperationsController::class, 'settings'])->middleware('permission:manage_platform_settings');
+    Route::put('/platform-settings', [AdministratorOperationsController::class, 'settings'])->middleware('permission:manage_platform_settings');
+    Route::get('/disaster-recovery', [AdministratorOperationsController::class, 'disasterRecovery'])->middleware('permission:view_disaster_recovery_readiness');
 });
 
 Route::prefix('communications')->middleware($secure)->group(function () {
