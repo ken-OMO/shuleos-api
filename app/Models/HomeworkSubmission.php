@@ -10,7 +10,7 @@ class HomeworkSubmission extends TenantModel
 
     protected $keyType = 'string';
 
-    protected $casts = ['submitted_at' => 'datetime', 'is_late' => 'boolean'];
+    protected $casts = ['submitted_at' => 'datetime', 'autosaved_at' => 'datetime', 'withdrawn_at' => 'datetime', 'is_late' => 'boolean'];
 
     public function assignment()
     {

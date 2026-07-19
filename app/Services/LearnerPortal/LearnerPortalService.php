@@ -88,7 +88,7 @@ class LearnerPortalService
         $l = $this->a->learner($u);
         if (($s = $this->settings($u)) && ! $s->learner_portal_show_results) {
             throw new AuthorizationException('Results are disabled.');
-        }$q = DB::table('learning_area_results as r')->join('grading_scales as gs', 'gs.id', '=', 'r.grading_scale_id')->where('r.school_id', $u->school_id)->where('r.learner_id', $l->id)->where('r.processing_status', 'processed')->where('r.is_deleted', false)->when($f['exam_id'] ?? null, fn ($x, $v) => $x->where('r.exam_id', $v))->select('r.id', 'r.exam_id', 'r.learning_area_id', 'r.marks_obtained', 'r.maximum_marks', 'r.percentage', 'gs.grade_code', 'gs.grade_description', 'gs.points');
+        }$q = DB::table('learning_area_results as r')->join('grading_scales as gs', 'gs.id', '=', 'r.grading_scale_id')->join('exams as e', 'e.id', '=', 'r.exam_id')->where('r.school_id', $u->school_id)->where('r.learner_id', $l->id)->where('r.processing_status', 'processed')->where('r.is_deleted', false)->where('e.status', 'published')->where('e.is_deleted', false)->when($f['exam_id'] ?? null, fn ($x, $v) => $x->where('r.exam_id', $v))->select('r.id', 'r.exam_id', 'r.learning_area_id', 'r.marks_obtained', 'r.maximum_marks', 'r.percentage', 'gs.grade_code', 'gs.grade_description', 'gs.points');
 
         return $q->get();
     }

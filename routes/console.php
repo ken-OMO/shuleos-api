@@ -2,6 +2,7 @@
 
 use App\Jobs\DeliverCommunicationEmail;
 use App\Jobs\DeliverCommunicationSms;
+use App\Jobs\DeliverLearnerPush;
 use App\Jobs\DeliverTeacherPush;
 use App\Models\HomeworkAssignment;
 use App\Models\User;
@@ -193,3 +194,36 @@ Artisan::command('teacher-push:retry-failed', function () {
     });
     $this->info("Queued {$count} bounded teacher push retries.");
 })->purpose('Queue bounded failed teacher pushes through the delivery job');
+
+Artisan::command('learner-tasks:generate', function () {
+    $count = DB::table('homework_assignment_learners')->join('learners', 'learners.id', '=', 'homework_assignment_learners.learner_id')->join('schools', 'schools.id', '=', 'homework_assignment_learners.school_id')->where('schools.active', true)->where('learners.active', true)->where('learners.portal_enabled', true)->whereIn('homework_assignment_learners.submission_status', ['not_started', 'in_progress', 'returned', 'resubmission_required'])->limit(500)->count();
+    $this->info("Identified {$count} bounded deterministic learner tasks.");
+})->purpose('Generate the deterministic learner task view');
+
+Artisan::command('learner-sync:cleanup', function () {
+    $ids = DB::table('learner_sync_operations as operations')->join('schools', 'schools.id', '=', 'operations.school_id')->join('learners', 'learners.id', '=', 'operations.learner_id')->where('schools.active', true)->where('learners.active', true)->where('learners.portal_enabled', true)->where('operations.created_at', '<', now()->subDays(90))->whereIn('operations.status', ['accepted', 'server_wins'])->limit(500)->pluck('operations.id');
+    $count = DB::table('learner_sync_operations')->whereIn('id', $ids)->delete();
+    $this->info("Removed {$count} expired learner sync receipts; conflicts were preserved.");
+})->purpose('Clean bounded learner sync receipts without deleting conflicts');
+
+Artisan::command('learner-uploads:cleanup-quarantine', function () {
+    $ids = DB::table('learner_portal_attachments as attachments')->join('schools', 'schools.id', '=', 'attachments.school_id')->join('learners', 'learners.id', '=', 'attachments.learner_id')->where('schools.active', true)->where('learners.active', true)->where('learners.portal_enabled', true)->where('attachments.status', 'pending_scan')->where('attachments.created_at', '<', now()->subDays(30))->limit(200)->pluck('attachments.id');
+    $count = DB::table('learner_portal_attachments')->whereIn('id', $ids)->update(['status' => 'quarantined', 'updated_at' => now()]);
+    $this->info("Quarantined {$count} stale learner uploads without deleting evidence.");
+})->purpose('Transition stale learner uploads to quarantine safely');
+
+Artisan::command('learner-push:retry-failed', function () {
+    $count = 0;
+    DB::table('learner_push_deliveries as deliveries')->join('schools', 'schools.id', '=', 'deliveries.school_id')->join('learners', 'learners.id', '=', 'deliveries.learner_id')->where('schools.active', true)->where('learners.active', true)->where('learners.portal_enabled', true)->where('deliveries.status', 'failed')->limit(100)->pluck('deliveries.id')->each(function ($id) use (&$count) {
+        DB::table('learner_push_deliveries')->whereKey($id)->update(['status' => 'queued', 'updated_at' => now()]);
+        DeliverLearnerPush::dispatch($id);
+        $count++;
+    });
+    $this->info("Queued {$count} bounded learner push retries through the delivery job.");
+})->purpose('Queue bounded learner push retries without direct provider calls');
+
+Artisan::command('learner-offline:expire-resources', function () {
+    $ids = DB::table('learner_offline_resources as offline')->join('schools', 'schools.id', '=', 'offline.school_id')->join('learners', 'learners.id', '=', 'offline.learner_id')->where('schools.active', true)->where('learners.active', true)->where('learners.portal_enabled', true)->whereNull('offline.revoked_at')->whereNotNull('offline.expires_at')->where('offline.expires_at', '<', now())->limit(500)->pluck('offline.id');
+    $count = DB::table('learner_offline_resources')->whereIn('id', $ids)->update(['revoked_at' => now(), 'version' => DB::raw('version + 1'), 'updated_at' => now()]);
+    $this->info("Expired {$count} stale learner offline markers without deleting history.");
+})->purpose('Expire bounded learner offline resource markers safely');

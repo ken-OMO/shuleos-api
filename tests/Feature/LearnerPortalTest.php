@@ -128,4 +128,52 @@ class LearnerPortalTest extends TestCase
         $this->expectException(AuthorizationException::class);
         app(LearnerPortalService::class)->updatePreferences($u, ['show_fees' => true]);
     }
+
+    public function test_non_learner_cross_school_and_other_learner_idor_are_denied(): void
+    {
+        $result = app(LearnerAccountService::class)->create($this->id['school'], $this->id['learner'], []);
+        $user = User::with('role')->find($result['user']['id']);
+        $access = app(LearnerPortalAccessService::class);
+
+        try {
+            $access->assertLearner($user, $this->id['learner2']);
+            $this->fail('Another learner ID must be denied.');
+        } catch (AuthorizationException) {
+            $this->assertTrue(true);
+        }
+
+        DB::table('learners')->where('id', $this->id['learner'])->update(['school_id' => $this->id['other']]);
+        try {
+            $access->learner($user);
+            $this->fail('Cross-school learner links must be denied.');
+        } catch (AuthorizationException) {
+            $this->assertTrue(true);
+        }
+
+        DB::table('learners')->where('id', $this->id['learner'])->update(['school_id' => $this->id['school']]);
+        DB::table('roles')->where('id', $this->id['role'])->update(['role_name' => 'Teacher']);
+        $user->unsetRelation('role')->load('role');
+        $this->expectException(AuthorizationException::class);
+        $access->learner($user);
+    }
+
+    public function test_inactive_user_and_disabled_school_policy_are_denied(): void
+    {
+        $result = app(LearnerAccountService::class)->create($this->id['school'], $this->id['learner'], []);
+        $user = User::with('role')->find($result['user']['id']);
+        $access = app(LearnerPortalAccessService::class);
+
+        $user->active = false;
+        try {
+            $access->learner($user);
+            $this->fail('Inactive users must be denied.');
+        } catch (AuthorizationException) {
+            $this->assertTrue(true);
+        }
+
+        $user->active = true;
+        DB::table('school_settings')->where('school_id', $this->id['school'])->update(['learner_portal_enabled' => false]);
+        $this->expectException(AuthorizationException::class);
+        $access->learner($user);
+    }
 }
