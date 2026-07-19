@@ -17,7 +17,7 @@ class HomeworkMarkingService
     {
         return DB::transaction(function () use ($u, $assignment, $submission, $data) {
             $a = $this->assignments->ownQuery($u)->whereKey($assignment)->firstOrFail();
-            $s = HomeworkSubmission::whereKey($submission)->where('school_id', $u->school_id)->where('assignment_id', $a->id)->where('submission_status', 'submitted')->firstOrFail();
+            $s = HomeworkSubmission::whereKey($submission)->where('school_id', $u->school_id)->where('assignment_id', $a->id)->whereIn('submission_status', ['submitted', 'late', 'resubmitted'])->firstOrFail();
             $existing = HomeworkSubmissionMark::where('submission_id', $s->id)->lockForUpdate()->first();
             if ($existing?->status === 'released' && empty($data['revision_reason'])) {
                 throw ValidationException::withMessages(['revision_reason' => 'A revision reason is required after release.']);

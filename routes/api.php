@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
 use App\Http\Controllers\Api\LearnerPortalAdminController;
 use App\Http\Controllers\Api\LearnerPortalController;
+use App\Http\Controllers\Api\LearnerPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearningAreaAllocationController;
 use App\Http\Controllers\Api\LearningAreaController;
 use App\Http\Controllers\Api\LearningAreaResultController;
@@ -664,21 +665,25 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/behaviour', [BehaviourLearnerController::class, 'index'])->middleware('permission:view_own_behaviour');
     Route::get('/behaviour/recognitions', [BehaviourLearnerController::class, 'recognitions'])->middleware('permission:view_own_recognitions');
     Route::get('/behaviour/actions', [BehaviourLearnerController::class, 'actions'])->middleware('permission:view_own_behaviour');
-    Route::get('/homework', [HomeworkLearnerController::class, 'index']);
-    Route::get('/homework/{assignment}', [HomeworkLearnerController::class, 'show']);
-    Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view']);
-    Route::post('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
-    Route::put('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'draft']);
-    Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload']);
-    Route::get('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'submission']);
-    Route::get('/homework/{assignment}/submission/files/{file}/download', [HomeworkLearnerController::class, 'download']);
-    Route::delete('/homework/{assignment}/submission/files/{file}', [HomeworkLearnerController::class, 'deleteFile']);
-    Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit']);
-    Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback']);
-    Route::get('/resources', [LearningResourceLearnerController::class, 'index']);
-    Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show']);
-    Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download']);
-    Route::get('/resources/{resource}/open', [LearningResourceLearnerController::class, 'open']);
+    Route::get('/homework', [LearnerPortalPhaseTwoController::class, 'homeworkIndex'])->middleware('permission:submit_own_homework');
+    Route::get('/homework/{homework}', [LearnerPortalPhaseTwoController::class, 'homeworkShow'])->middleware('permission:submit_own_homework');
+    Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view'])->middleware('permission:submit_own_homework');
+    Route::post('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts');
+    Route::put('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts');
+    Route::post('/homework/{homework}/submission/submit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'submit'))->middleware('permission:submit_own_homework');
+    Route::post('/homework/{homework}/submission/withdraw', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'withdraw'))->middleware('permission:withdraw_own_homework_submission');
+    Route::post('/homework/{homework}/submission/resubmit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'resubmit'))->middleware('permission:resubmit_own_homework');
+    Route::get('/homework/{homework}/submission/history', [LearnerPortalPhaseTwoController::class, 'submissionHistory'])->middleware('permission:view_own_submission_history');
+    Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload'])->middleware('permission:upload_learner_portal_files');
+    Route::get('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'submission'])->middleware('permission:submit_own_homework');
+    Route::get('/homework/{assignment}/submission/files/{file}/download', [HomeworkLearnerController::class, 'download'])->middleware('permission:download_learner_portal_files');
+    Route::delete('/homework/{assignment}/submission/files/{file}', [HomeworkLearnerController::class, 'deleteFile'])->middleware('permission:edit_own_homework_drafts');
+    Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit'])->middleware('permission:submit_own_homework');
+    Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback'])->middleware('permission:view_own_submission_history');
+    Route::get('/resources', [LearningResourceLearnerController::class, 'index'])->middleware('permission:view_published_learning_resources');
+    Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show'])->middleware('permission:view_published_learning_resources');
+    Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download'])->middleware('permission:view_published_learning_resources');
+    Route::get('/resources/{resource}/open', [LearningResourceLearnerController::class, 'open'])->middleware('permission:view_published_learning_resources');
     Route::post('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'bookmark']);
     Route::delete('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'unbookmark']);
     Route::put('/resources/{resource}/rating', [LearningResourceLearnerController::class, 'rate']);
@@ -688,21 +693,28 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::post('/elections/{election}/positions/{position}/vote', [StudentElectionLearnerController::class, 'vote']);
     Route::get('/elections/{election}/results', [StudentElectionLearnerController::class, 'results']);
     Route::get('/student-leaders', [StudentElectionLearnerController::class, 'leaders']);
-    Route::get('/me', [LearnerPortalController::class, 'me']);
-    Route::get('/dashboard', [LearnerPortalController::class, 'dashboard']);
-    Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences']);
-    Route::patch('/dashboard-preferences', [LearnerPortalController::class, 'updatePreferences']);
-    Route::get('/timetable', [LearnerPortalController::class, 'timetable']);
-    Route::get('/timetable/today', [LearnerPortalController::class, 'timetableToday']);
-    Route::get('/timetable/week', [LearnerPortalController::class, 'timetableWeek']);
-    Route::get('/timetable/current-period', [SmartTimetableController::class, 'currentPeriod']);
-    Route::get('/attendance', [AttendanceLearnerController::class, 'index']);
-    Route::get('/attendance/summary', [AttendanceLearnerController::class, 'summary']);
-    Route::get('/attendance/history', [AttendanceLearnerController::class, 'history']);
-    Route::get('/results', [LearnerPortalController::class, 'results']);
-    Route::get('/report-cards', [LearnerPortalController::class, 'reportCards']);
-    Route::get('/report-cards/{reportCard}/pdf', [LearnerPortalController::class, 'pdf']);
-    Route::get('/report-cards/{reportCard}', [LearnerPortalController::class, 'reportCard']);
+    Route::get('/me', [LearnerPortalController::class, 'me'])->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/dashboard', [LearnerPortalPhaseTwoController::class, 'dashboard'])->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/tasks', [LearnerPortalPhaseTwoController::class, 'tasks'])->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/analytics', [LearnerPortalPhaseTwoController::class, 'analytics'])->middleware('permission:view_own_learner_analytics');
+    Route::get('/dashboard-preferences', [LearnerPortalController::class, 'preferences'])->middleware('permission:manage_own_learner_preferences');
+    Route::patch('/dashboard-preferences', [LearnerPortalController::class, 'updatePreferences'])->middleware('permission:manage_own_learner_preferences');
+    Route::get('/timetable', [LearnerPortalController::class, 'timetable'])->middleware('permission:view_own_timetable');
+    Route::get('/timetable/today', [LearnerPortalController::class, 'timetableToday'])->middleware('permission:view_own_timetable');
+    Route::get('/timetable/week', [LearnerPortalController::class, 'timetableWeek'])->middleware('permission:view_own_timetable');
+    Route::get('/timetable/current-period', [SmartTimetableController::class, 'currentPeriod'])->middleware('permission:view_own_timetable');
+    Route::get('/attendance', [AttendanceLearnerController::class, 'index'])->middleware('permission:view_own_attendance');
+    Route::get('/attendance/summary', [AttendanceLearnerController::class, 'summary'])->middleware('permission:view_own_attendance');
+    Route::get('/attendance/history', [AttendanceLearnerController::class, 'history'])->middleware('permission:view_own_attendance');
+    Route::get('/attendance/calendar', [LearnerPortalPhaseTwoController::class, 'attendanceCalendar'])->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/calendar', fn () => app(LearnerPortalPhaseTwoController::class)->calendar())->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/calendar/upcoming', fn () => app(LearnerPortalPhaseTwoController::class)->calendar(true))->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/results', [LearnerPortalPhaseTwoController::class, 'results'])->middleware('permission:view_own_results');
+    Route::get('/results/{exam}', [LearnerPortalPhaseTwoController::class, 'results'])->middleware('permission:view_own_results');
+    Route::get('/report-cards', [LearnerPortalController::class, 'reportCards'])->middleware('permission:view_own_report_cards');
+    Route::get('/report-cards/{reportCard}/pdf', [LearnerPortalController::class, 'pdf'])->middleware('permission:download_own_report_cards');
+    Route::get('/report-cards/{reportCard}/download', [LearnerPortalController::class, 'pdf'])->middleware('permission:download_own_report_cards');
+    Route::get('/report-cards/{reportCard}', [LearnerPortalController::class, 'reportCard'])->middleware('permission:view_own_report_cards');
     Route::get('/fees', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
     Route::get('/fees/summary', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
     Route::get('/fees/invoices', [FinancePortalController::class, 'learner'])->middleware('permission:view_own_fees');
@@ -712,9 +724,56 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     foreach (['discounts', 'payment-plans', 'installments', 'refunds', 'arrears', 'statement', 'clearance'] as $benefit) {
         Route::get('/fees/'.$benefit, [FinancePortalController::class, 'learnerBenefits'])->middleware('permission:view_own_fee_benefits');
     }
-    Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams']);
-    Route::get('/announcements', [LearnerPortalController::class, 'announcements']);
-    Route::get('/notifications', [LearnerPortalController::class, 'notifications']);
+    Route::get('/upcoming-exams', [LearnerPortalController::class, 'exams'])->middleware('permission:view_own_results');
+    Route::get('/progress', [LearnerPortalPhaseTwoController::class, 'progress'])->middleware('permission:view_own_academic_progress');
+    Route::get('/progress/learning-areas', [LearnerPortalPhaseTwoController::class, 'progress'])->middleware('permission:view_own_academic_progress');
+    Route::get('/progress/learning-areas/{learningArea}', [LearnerPortalPhaseTwoController::class, 'progress'])->middleware('permission:view_own_academic_progress');
+    Route::get('/progress/trends', [LearnerPortalPhaseTwoController::class, 'trends'])->middleware('permission:view_own_academic_progress');
+
+    Route::post('/uploads', [LearnerPortalPhaseTwoController::class, 'upload'])->middleware('permission:upload_learner_portal_files');
+    Route::get('/uploads/{attachment}/download', [LearnerPortalPhaseTwoController::class, 'attachmentDownload'])->middleware('permission:download_learner_portal_files');
+    Route::get('/uploads/{attachment}', [LearnerPortalPhaseTwoController::class, 'attachment'])->middleware('permission:download_learner_portal_files');
+    Route::delete('/uploads/{attachment}', [LearnerPortalPhaseTwoController::class, 'attachmentDelete'])->middleware('permission:upload_learner_portal_files');
+
+    Route::get('/learning-resources', [LearnerPortalPhaseTwoController::class, 'resources'])->middleware('permission:view_published_learning_resources');
+    Route::get('/learning-resources/{resource}/download', [LearnerPortalPhaseTwoController::class, 'resourceDownload'])->middleware('permission:view_published_learning_resources');
+    Route::post('/learning-resources/{resource}/offline', fn (string $resource) => app(LearnerPortalPhaseTwoController::class)->offline($resource))->middleware('permission:manage_own_offline_resources');
+    Route::delete('/learning-resources/{resource}/offline', fn (string $resource) => app(LearnerPortalPhaseTwoController::class)->offline($resource, true))->middleware('permission:manage_own_offline_resources');
+    Route::get('/learning-resources/{resource}', [LearnerPortalPhaseTwoController::class, 'resource'])->middleware('permission:view_published_learning_resources');
+    Route::get('/offline-resources', [LearnerPortalPhaseTwoController::class, 'offlineIndex'])->middleware('permission:manage_own_offline_resources');
+
+    Route::post('/sync/push', [LearnerPortalPhaseTwoController::class, 'syncPush'])->middleware('permission:use_learner_offline_sync');
+    Route::get('/sync/pull', [LearnerPortalPhaseTwoController::class, 'syncPull'])->middleware('permission:use_learner_offline_sync');
+    Route::get('/sync/status', [LearnerPortalPhaseTwoController::class, 'syncStatus'])->middleware('permission:use_learner_offline_sync');
+    Route::get('/sync/conflicts', [LearnerPortalPhaseTwoController::class, 'syncConflicts'])->middleware('permission:use_learner_offline_sync');
+    Route::post('/sync/conflicts/{conflict}/resolve', [LearnerPortalPhaseTwoController::class, 'syncResolve'])->middleware('permission:resolve_own_learner_sync_conflicts');
+
+    Route::get('/devices', [LearnerPortalPhaseTwoController::class, 'devices'])->middleware('permission:manage_own_learner_devices');
+    Route::post('/devices', [LearnerPortalPhaseTwoController::class, 'registerDevice'])->middleware('permission:manage_own_learner_devices');
+    Route::delete('/devices/{device}', [LearnerPortalPhaseTwoController::class, 'revokeDevice'])->middleware('permission:manage_own_learner_devices');
+    Route::post('/devices/{device}/push-token', fn (Request $request, string $device) => app(LearnerPortalPhaseTwoController::class)->pushToken($request, $device))->middleware('permission:manage_own_learner_push_token');
+    Route::delete('/devices/{device}/push-token', fn (Request $request, string $device) => app(LearnerPortalPhaseTwoController::class)->pushToken($request, $device, true))->middleware('permission:manage_own_learner_push_token');
+    Route::get('/push/deliveries', [LearnerPortalPhaseTwoController::class, 'pushDeliveries'])->middleware('permission:view_own_push_delivery_status');
+
+    Route::get('/communications', [LearnerPortalPhaseTwoController::class, 'communications'])->middleware('permission:access_learner_portal_phase_two');
+    Route::get('/communications/{communication}', [LearnerPortalPhaseTwoController::class, 'communications'])->middleware('permission:access_learner_portal_phase_two');
+    Route::post('/help-requests', [LearnerPortalPhaseTwoController::class, 'createHelp'])->middleware(['permission:create_learner_help_requests', 'throttle:10,1']);
+    Route::get('/help-requests', [LearnerPortalPhaseTwoController::class, 'help'])->middleware('permission:view_own_help_requests');
+    Route::get('/help-requests/{help}', [LearnerPortalPhaseTwoController::class, 'help'])->middleware('permission:view_own_help_requests');
+
+    Route::get('/notifications/unread-count', [LearnerPortalPhaseTwoController::class, 'unread'])->middleware('permission:view_own_notifications');
+    Route::get('/notifications', [LearnerPortalPhaseTwoController::class, 'notifications'])->middleware('permission:view_own_notifications');
+    foreach (['read', 'unread', 'archive', 'dismiss'] as $state) {
+        Route::post('/notifications/{notification}/'.$state, fn (string $notification) => app(LearnerPortalPhaseTwoController::class)->notificationState($notification, $state === 'archive' ? 'archived' : ($state === 'dismiss' ? 'dismissed' : $state)))->middleware('permission:view_own_notifications');
+    }
+    Route::get('/announcements/{announcement}', [LearnerPortalPhaseTwoController::class, 'announcements'])->middleware('permission:view_learner_announcements');
+    Route::get('/announcements', [LearnerPortalPhaseTwoController::class, 'announcements'])->middleware('permission:view_learner_announcements');
+    Route::post('/announcements/{announcement}/read', [LearnerPortalPhaseTwoController::class, 'announcementRead'])->middleware('permission:view_learner_announcements');
+
+    Route::get('/profile', [LearnerPortalPhaseTwoController::class, 'profile'])->middleware('permission:update_own_learner_profile');
+    Route::put('/profile', [LearnerPortalPhaseTwoController::class, 'updatePreferences'])->middleware('permission:update_own_learner_profile');
+    Route::get('/preferences', [LearnerPortalPhaseTwoController::class, 'preferences'])->middleware('permission:manage_own_learner_preferences');
+    Route::put('/preferences', [LearnerPortalPhaseTwoController::class, 'updatePreferences'])->middleware('permission:manage_own_learner_preferences');
 });
 
 Route::prefix('learning-resources')->middleware($secure)->group(function () {

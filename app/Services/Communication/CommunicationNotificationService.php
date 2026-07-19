@@ -28,7 +28,10 @@ class CommunicationNotificationService
         }
         $notification = DB::table('notifications')->where('id', $id)->where('school_id', $user->school_id)->where('user_id', $user->id)->first();
         abort_unless($notification, 404);
-        $values = ['state' => $state, 'is_read' => $state !== 'unread', 'updated_at' => now()];
+        if ($notification->state === $state) {
+            return $notification;
+        }
+        $values = ['state' => $state, 'is_read' => $state !== 'unread', 'version' => ((int) ($notification->version ?? 1)) + 1, 'updated_at' => now()];
         if ($state === 'read') {
             $values['read_at'] = now();
         } elseif ($state === 'unread') {
@@ -66,7 +69,7 @@ class CommunicationNotificationService
     public function readAnnouncement(User $user, string $id): void
     {
         abort_unless(DB::table('communication_recipient_snapshots')->where('communication_id', $id)->where('school_id', $user->school_id)->where('user_id', $user->id)->exists(), 404);
-        DB::table('announcement_reads')->insertOrIgnore(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'communication_id' => $id, 'user_id' => $user->id, 'read_at' => now()]);
+        DB::table('announcement_reads')->insertOrIgnore(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'communication_id' => $id, 'user_id' => $user->id, 'read_at' => now(), 'version' => 2, 'updated_at' => now()]);
         $this->audit->record($user, 'announcement_read', 'communication', $id, $id);
     }
 }

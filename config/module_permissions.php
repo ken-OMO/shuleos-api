@@ -14,6 +14,7 @@ return [
     'academic-weeks' => 'manage_academics',
     'learners' => 'manage_learners',
     'learner' => 'access_learner_portal',
+    'learner-phase-two' => 'access_learner_portal_phase_two',
     'student-elections' => 'manage_student_elections',
     'student-election-candidates' => 'manage_election_candidates',
     'student-leadership-positions' => 'manage_student_leadership_positions',

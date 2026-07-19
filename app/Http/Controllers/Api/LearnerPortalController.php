@@ -4,15 +4,15 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseApiController;
 use App\Http\Resources\LearnerPortalProfileResource;
-use App\Services\LearnerPortal\LearnerPortalAccessService;
 use App\Services\LearnerPortal\LearnerPortalService;
+use App\Services\LearnerPortal\LearnerReportCardAccessService;
 use App\Services\Pdf\ReportCardPdfService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class LearnerPortalController extends BaseApiController
 {
-    public function __construct(private readonly LearnerPortalService $s, private readonly LearnerPortalAccessService $a, private readonly ReportCardPdfService $pdf) {}
+    public function __construct(private readonly LearnerPortalService $s, private readonly ReportCardPdfService $pdf, private readonly LearnerReportCardAccessService $reportCardAccess) {}
 
     private function u()
     {
@@ -78,13 +78,15 @@ class LearnerPortalController extends BaseApiController
 
     public function reportCard(string $reportCard)
     {
+        $this->reportCardAccess->requireView($this->u(), $reportCard);
+
         return $this->success($this->s->reportCard($this->u(), $reportCard));
     }
 
     public function pdf(string $reportCard): Response
     {
         $u = $this->u();
-        $this->a->requireReportCard($u, $reportCard);
+        $this->reportCardAccess->requireDownload($u, $reportCard);
         $d = $this->pdf->make($u->school_id, $reportCard);
 
         return $d['pdf']->stream($d['filename']);
