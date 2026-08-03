@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableGenerationRun;
 use App\Http\Resources\TimetableGenerationRunResource;
+use App\Models\TimetableGenerationRun;
 use Illuminate\Http\Request;
 
 class TimetableGenerationRunController extends Controller
@@ -14,8 +14,7 @@ class TimetableGenerationRunController extends Controller
         return TimetableGenerationRunResource::collection(
 
             TimetableGenerationRun::orderByDesc('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

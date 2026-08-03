@@ -172,7 +172,7 @@ final class ArchiveValidator extends AbstractFileValidator
             );
         }
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
 
         $openResult = $zip->open($path);
 

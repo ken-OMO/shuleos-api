@@ -13,17 +13,14 @@ final class Transaction
     /**
      * Prevent instantiation.
      */
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     /**
      * Execute a callback within a database transaction.
      *
      * @template T
      *
-     * @param Closure():T $callback
-     *
+     * @param  Closure():T  $callback
      * @return T
      *
      * @throws Throwable
@@ -46,8 +43,7 @@ final class Transaction
      *
      * @template T
      *
-     * @param Closure():T $callback
-     *
+     * @param  Closure():T  $callback
      * @return T
      */
     public static function withoutTransaction(

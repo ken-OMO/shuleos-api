@@ -13,8 +13,6 @@ class FeeCategoryResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'category_name' => $this->category_name,
 
             'description' => $this->description,

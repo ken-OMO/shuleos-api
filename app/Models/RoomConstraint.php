@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class RoomConstraint extends Model
+class RoomConstraint extends TenantModel
 {
     protected $fillable = [
 
@@ -21,25 +19,26 @@ class RoomConstraint extends Model
         'active',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function learningArea()
-{
-    return $this->belongsTo(
+    public function learningArea()
+    {
+        return $this->belongsTo(
 
-        LearningArea::class,
+            LearningArea::class,
 
-        'learning_area_id'
+            'learning_area_id'
 
-    );
-}
+        );
+    }
 }

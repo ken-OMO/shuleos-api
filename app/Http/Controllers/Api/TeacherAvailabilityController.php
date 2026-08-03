@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TeacherAvailability;
 use App\Http\Resources\TeacherAvailabilityResource;
+use App\Models\TeacherAvailability;
 use Illuminate\Http\Request;
 
 class TeacherAvailabilityController extends Controller
@@ -14,8 +14,7 @@ class TeacherAvailabilityController extends Controller
         return TeacherAvailabilityResource::collection(
 
             TeacherAvailability::orderBy('day_of_week')
-
-            ->get()
+                ->get()
 
         );
     }

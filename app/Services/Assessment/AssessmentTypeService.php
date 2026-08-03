@@ -1,4 +1,27 @@
 <?php
+
 namespace App\Services\Assessment;
-use App\Models\AssessmentType;use Illuminate\Support\Str;use Illuminate\Validation\ValidationException;
-class AssessmentTypeService{public function create(array$d,string$school):AssessmentType{$name=trim($d['assessment_type_name']);if(AssessmentType::current()->where('school_id',$school)->whereRaw('LOWER(assessment_type_name) = ?', [mb_strtolower($name)])->exists())throw ValidationException::withMessages(['assessment_type_name'=>'This assessment type already exists in the school.']);return AssessmentType::create(['id'=>(string)Str::uuid(),'school_id'=>$school,'assessment_type_name'=>$name,'active'=>$d['active']??true,'is_deleted'=>false,'created_at'=>now()]);}public function delete(AssessmentType$t,?string$user):void{if($t->exams()->exists())throw ValidationException::withMessages(['assessment_type'=>'Assessment types used by exams cannot be deleted.']);$t->update(['active'=>false,'is_deleted'=>true,'deleted_at'=>now(),'deleted_by'=>$user]);}}
+
+use App\Models\AssessmentType;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+
+class AssessmentTypeService
+{
+    public function create(array $d, string $school): AssessmentType
+    {
+        $name = trim($d['assessment_type_name']);
+        if (AssessmentType::current()->where('school_id', $school)->whereRaw('LOWER(assessment_type_name) = ?', [mb_strtolower($name)])->exists()) {
+            throw ValidationException::withMessages(['assessment_type_name' => 'This assessment type already exists in the school.']);
+        }
+
+return AssessmentType::create(['id' => (string) Str::uuid(), 'school_id' => $school, 'assessment_type_name' => $name, 'active' => $d['active'] ?? true, 'is_deleted' => false, 'created_at' => now()]);
+    }
+
+    public function delete(AssessmentType $t, ?string $user): void
+    {
+        if ($t->exams()->exists()) {
+            throw ValidationException::withMessages(['assessment_type' => 'Assessment types used by exams cannot be deleted.']);
+        }$t->update(['active' => false, 'is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => $user]);
+    }
+}

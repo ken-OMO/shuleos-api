@@ -2,192 +2,70 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\ReportCard;
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\ReportCardResource;
+use App\Models\ReportCard;
+use App\Services\Assessment\ReportCardService;
+use Illuminate\Http\Request;
 
-class ReportCardController extends Controller
+class ReportCardController extends BaseCrudController
 {
-    public function index()
+    private const RELATIONS = ['learner', 'exam', 'academicYear', 'term', 'meritList', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'pathwayRecommendation', 'generatedBy', 'publishedBy', 'learningAreas.learningArea', 'learningAreas.gradingScale'];
+
+    public function __construct(private readonly ReportCardService $service) {}
+
+    public function index(Request $r)
     {
-        return ReportCardResource::collection(
+        $v = $r->validate(['exam_id' => 'sometimes|uuid', 'learner_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $q = ReportCard::current()->where('school_id', $this->school($r))->with(self::RELATIONS);
+        foreach (['exam_id', 'learner_id', 'grade_id', 'stream_id', 'status'] as $f) {
+            $q->when(isset($v[$f]), fn ($x) => $x->where($f, $v[$f]));
+        }
 
-            ReportCard::with([
-
-                'school',
-
-                'learner',
-
-                'exam',
-
-                'academicYear',
-
-                'term',
-
-            ])->paginate(20)
-
-        );
+        return $this->success(ReportCardResource::collection($q->paginate($v['per_page'] ?? 20)), 'Report cards retrieved successfully.');
     }
 
-    public function show($id)
+    public function show(Request $r, string $id)
     {
-        return new ReportCardResource(
+        $x = ReportCard::current()->where('school_id', $this->school($r))->with(self::RELATIONS)->find($id);
 
-            ReportCard::with([
-
-                'school',
-
-                'learner',
-
-                'exam',
-
-                'academicYear',
-
-                'term',
-
-            ])->findOrFail($id)
-
-        );
+        return $x ? $this->success(new ReportCardResource($x), 'Report card retrieved successfully.') : $this->notFound('Report card not found.');
     }
 
-    public function store(
-        Request $request
-    )
+    public function generate(Request $r)
     {
-        $validated = $request->validate([
+        $v = $this->action($r);
+        $rows = $this->service->generate($this->school($r, $v), $v['exam_id'], $v['learner_id'] ?? null, $v['grade_id'] ?? null, $v['stream_id'] ?? null, (string) auth()->id(), $v);
 
-            'id' => 'required|uuid',
-
-            'school_id' => 'required|uuid',
-
-            'learner_id' => 'required|uuid',
-
-            'exam_id' => 'required|uuid',
-
-            'academic_year_id'
-                => 'required|uuid',
-
-            'term_id'
-                => 'required|uuid',
-
-            'overall_score'
-                => 'required|numeric',
-
-            'overall_grade'
-                => 'required|string|max:10',
-
-            'total_points'
-                => 'required|numeric',
-
-            'stream_position'
-                => 'required|integer',
-
-            'grade_position'
-                => 'required|integer',
-
-            'school_position'
-                => 'required|integer',
-
-            'total_learners'
-                => 'required|integer',
-
-            'attendance_percentage'
-                => 'required|numeric',
-
-            'class_teacher_comment'
-                => 'nullable|string',
-
-            'principal_comment'
-                => 'nullable|string',
-
-            'pathway_recommendation'
-                => 'nullable|string',
-
-        ]);
-
-        $validated['generated_at'] = now();
-
-        return new ReportCardResource(
-
-            ReportCard::create(
-
-                $validated
-
-            )
-
-        );
+        return $this->success(ReportCardResource::collection($rows), 'Report cards generated successfully.');
     }
 
-    public function update(
-        Request $request,
-        $id
-    )
+    public function updateComments(Request $r, string $id)
     {
-        $reportCard = ReportCard::findOrFail($id);
+        $v = $r->validate(['class_teacher_comment' => 'sometimes|nullable|string', 'principal_comment' => 'sometimes|nullable|string', 'learning_areas' => 'sometimes|array', 'learning_areas.*.id' => 'required|uuid', 'learning_areas.*.teacher_comment' => 'nullable|string']);
+        $x = $this->service->updateComments($this->school($r), $id, $v);
 
-        $validated = $request->validate([
-
-            'overall_score'
-                => 'sometimes|numeric',
-
-            'overall_grade'
-                => 'sometimes|string|max:10',
-
-            'total_points'
-                => 'sometimes|numeric',
-
-            'stream_position'
-                => 'sometimes|integer',
-
-            'grade_position'
-                => 'sometimes|integer',
-
-            'school_position'
-                => 'sometimes|integer',
-
-            'total_learners'
-                => 'sometimes|integer',
-
-            'attendance_percentage'
-                => 'sometimes|numeric',
-
-            'class_teacher_comment'
-                => 'sometimes|string',
-
-            'principal_comment'
-                => 'sometimes|string',
-
-            'pathway_recommendation'
-                => 'sometimes|string',
-
-        ]);
-
-        $reportCard->update(
-
-            $validated
-
-        );
-
-        return new ReportCardResource(
-
-            $reportCard
-
-        );
+        return $this->success(new ReportCardResource($x), 'Report card comments updated successfully.');
     }
 
-    public function destroy($id)
+    public function publish(Request $r)
     {
-        ReportCard::findOrFail($id)
+        $v = $this->action($r);
+        $rows = $this->service->publish($this->school($r, $v), $v['exam_id'], $v['learner_id'] ?? null, $v['grade_id'] ?? null, $v['stream_id'] ?? null, (string) auth()->id());
 
-            ->delete();
+        return $this->success(ReportCardResource::collection($rows), 'Report cards published successfully.');
+    }
 
-        return response()->json([
+    private function action(Request $r): array
+    {
+        return $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'exam_id' => 'required|uuid|exists:exams,id', 'learner_id' => 'sometimes|nullable|uuid|exists:learners,id', 'grade_id' => 'sometimes|nullable|uuid|exists:grades,id', 'stream_id' => 'sometimes|nullable|uuid|exists:streams,id', 'class_teacher_comment' => 'sometimes|nullable|string', 'principal_comment' => 'sometimes|nullable|string']);
+    }
 
-            'message'
+    private function school(Request $r, array $v = []): string
+    {
+        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
+        abort_if(! $id, 403, 'School context not found.');
 
-            => 'Report card deleted successfully'
-
-        ]);
+        return (string) $id;
     }
 }

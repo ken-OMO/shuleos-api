@@ -23,8 +23,7 @@ final class TeacherController extends BaseCrudController
         private readonly CreateTeacherAction $createTeacher,
         private readonly UpdateTeacherAction $updateTeacher,
         private readonly ArchiveTeacherAction $archiveTeacher
-    ) {
-    }
+    ) {}
 
     /**
      * Display teachers.
@@ -49,8 +48,7 @@ final class TeacherController extends BaseCrudController
      */
     public function show(
         string $id
-    )
-    {
+    ) {
         return $this->success(
 
             new TeacherResource(
@@ -73,8 +71,7 @@ final class TeacherController extends BaseCrudController
      */
     public function store(
         StoreTeacherRequest $request
-    )
-    {
+    ) {
         $teacher = $this->createTeacher->execute(
 
             $request->validated()
@@ -106,8 +103,7 @@ final class TeacherController extends BaseCrudController
     public function update(
         UpdateTeacherRequest $request,
         string $id
-    )
-    {
+    ) {
         $teacher = $this->updateTeacher->execute(
 
             $id,
@@ -140,8 +136,7 @@ final class TeacherController extends BaseCrudController
      */
     public function destroy(
         string $id
-    )
-    {
+    ) {
         $teacher = $this->archiveTeacher->execute(
 
             $id

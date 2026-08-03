@@ -13,7 +13,7 @@ return new class extends Migration
             $table->unique(
                 [
                     'teacher_assignment_id',
-                    'scheme_lesson_id'
+                    'scheme_lesson_id',
                 ],
                 'lesson_plans_assignment_lesson_unique'
             );

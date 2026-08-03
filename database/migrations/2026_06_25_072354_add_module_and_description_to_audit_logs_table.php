@@ -34,7 +34,7 @@ return new class extends Migration
 
                 'module',
 
-                'description'
+                'description',
 
             ]);
 

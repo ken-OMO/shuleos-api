@@ -29,7 +29,7 @@ class TenantService
     {
         return Auth::check()
 
-            && !empty(
+            && ! empty(
 
                 Auth::user()->school_id
 

@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class LearningAreaAllocation extends Model
+class LearningAreaAllocation extends TenantModel
 {
     protected $table = 'learning_area_allocations';
 

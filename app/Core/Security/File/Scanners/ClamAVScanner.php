@@ -19,7 +19,8 @@ final class ClamAVScanner implements VirusScannerInterface
      * Last detected threat.
      */
     private ?string $threat = null;
-        /**
+
+    /**
      * Determine whether ClamAV
      * is available.
      */
@@ -55,14 +56,16 @@ final class ClamAVScanner implements VirusScannerInterface
 
         return $status === 0;
     }
-        /**
+
+    /**
      * Scanner name.
      */
     public function name(): string
     {
         return 'ClamAV';
     }
-        /**
+
+    /**
      * Return the last detected threat.
      */
     public function detectedThreat(): ?string
@@ -70,7 +73,7 @@ final class ClamAVScanner implements VirusScannerInterface
         return $this->threat;
     }
 
-        /**
+    /**
      * Scan an uploaded file.
      */
     public function scan(
@@ -81,7 +84,7 @@ final class ClamAVScanner implements VirusScannerInterface
 
         if (
 
-            !$this->available()
+            ! $this->available()
 
         ) {
 
@@ -166,4 +169,3 @@ final class ClamAVScanner implements VirusScannerInterface
 
     }
 }
-

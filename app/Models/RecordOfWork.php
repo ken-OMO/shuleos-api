@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class RecordOfWork extends Model
+class RecordOfWork extends TenantModel
 {
     protected $table = 'records_of_work';
 
@@ -28,7 +26,7 @@ class RecordOfWork extends Model
         'status',
         'created_by',
         'created_at',
-        'is_deleted','deleted_at','deleted_by',
+        'is_deleted', 'deleted_at', 'deleted_by',
 
     ];
 
@@ -36,7 +34,7 @@ class RecordOfWork extends Model
 
         'date_taught' => 'date',
         'created_at' => 'datetime',
-        'is_deleted'=>'boolean','deleted_at'=>'datetime',
+        'is_deleted' => 'boolean', 'deleted_at' => 'datetime',
 
     ];
 
@@ -55,5 +53,9 @@ class RecordOfWork extends Model
             'record_of_work_id'
         );
     }
-    public function scopeCurrent($query){return $query->where('is_deleted',false);}
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
+    }
 }

@@ -14,8 +14,7 @@ final readonly class CreateTeacherAction
      */
     public function __construct(
         private TeacherService $teachers
-    ) {
-    }
+    ) {}
 
     /**
      * Execute the action.

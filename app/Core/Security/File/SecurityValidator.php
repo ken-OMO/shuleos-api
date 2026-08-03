@@ -30,15 +30,15 @@ enum SecurityValidator: string
 |--------------------------------------------------------------------------
 */
 
-case OFFICE_DOCUMENT = 'OfficeDocumentValidator';
+    case OFFICE_DOCUMENT = 'OfficeDocumentValidator';
 
-/*
-|--------------------------------------------------------------------------
-| Archive Validation
-|--------------------------------------------------------------------------
-*/
+    /*
+    |--------------------------------------------------------------------------
+    | Archive Validation
+    |--------------------------------------------------------------------------
+    */
 
-case ARCHIVE = 'ArchiveValidator';
+    case ARCHIVE = 'ArchiveValidator';
 
     case FILE_SIZE = 'FileSizeValidator';
 
@@ -198,19 +198,17 @@ case ARCHIVE = 'ArchiveValidator';
         return match ($this) {
 
             self::EXTENSION,
-self::FILE_SIZE,
-self::MIME,
-self::MAGIC_NUMBER,
-self::OFFICE_DOCUMENT,
-self::ARCHIVE,
-self::VIRUS_SCAN,
-self::HASH,
-self::AUTHORIZATION,
-self::SCHOOL_OWNERSHIP
-    => true,
+            self::FILE_SIZE,
+            self::MIME,
+            self::MAGIC_NUMBER,
+            self::OFFICE_DOCUMENT,
+            self::ARCHIVE,
+            self::VIRUS_SCAN,
+            self::HASH,
+            self::AUTHORIZATION,
+            self::SCHOOL_OWNERSHIP => true,
 
-            default
-                => false,
+            default => false,
 
         };
     }

@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class Payment extends Model
+class Payment extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'learner_id',
 
@@ -51,59 +55,62 @@ class Payment extends Model
 
         'posted_by',
 
+        'confirmed_at', 'confirmed_by', 'refunded_amount',
+
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function learner()
-{
-    return $this->belongsTo(
+    public function learner()
+    {
+        return $this->belongsTo(
 
-        Learner::class,
+            Learner::class,
 
-        'learner_id'
+            'learner_id'
 
-    );
-}
+        );
+    }
 
-public function invoice()
-{
-    return $this->belongsTo(
+    public function invoice()
+    {
+        return $this->belongsTo(
 
-        FeeInvoice::class,
+            FeeInvoice::class,
 
-        'invoice_id'
+            'invoice_id'
 
-    );
-}
+        );
+    }
 
-public function paymentMethod()
-{
-    return $this->belongsTo(
+    public function paymentMethod()
+    {
+        return $this->belongsTo(
 
-        PaymentMethod::class,
+            PaymentMethod::class,
 
-        'payment_method_id'
+            'payment_method_id'
 
-    );
-}
+        );
+    }
 
-public function allocations()
-{
-    return $this->hasMany(
+    public function allocations()
+    {
+        return $this->hasMany(
 
-        PaymentAllocation::class,
+            PaymentAllocation::class,
 
-        'payment_id'
+            'payment_id'
 
-    );
-}
+        );
+    }
 }

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\FeeInvoice;
 use App\Http\Resources\FeeInvoiceResource;
+use App\Models\FeeInvoice;
 use Illuminate\Http\Request;
 
 class FeeInvoiceController extends Controller
@@ -14,8 +14,7 @@ class FeeInvoiceController extends Controller
         return FeeInvoiceResource::collection(
 
             FeeInvoice::orderBy('invoice_date')
-
-            ->get()
+                ->get()
 
         );
     }

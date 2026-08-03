@@ -14,31 +14,25 @@ class ExamPaperResource extends JsonResource
             'id' => $this->id,
             'exam_learning_area_id' => $this->exam_learning_area_id,
 
-            'paper_name'
-                => $this->paper_name,
+            'paper_name' => $this->paper_name,
 
-            'paper_number'
-                => $this->paper_number,
+            'paper_number' => $this->paper_number,
 
-            'max_marks'
-                => $this->max_marks,
+            'max_marks' => $this->max_marks,
 
-            'exam_learning_area'
-                => $this->whenLoaded(
+            'exam_learning_area' => $this->whenLoaded(
 
-                    'examLearningArea'
+                'examLearningArea'
 
-                ),
+            ),
 
-            'results'
-                => $this->whenLoaded(
+            'results' => $this->whenLoaded(
 
-                    'results'
+                'results'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

@@ -3,13 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
 use App\Http\Resources\LearningAreaAllocationResource;
-
 use App\Models\LearningAreaAllocation;
-
 use Illuminate\Http\Request;
-
 use Illuminate\Support\Str;
 
 class LearningAreaAllocationController extends Controller
@@ -28,28 +24,24 @@ class LearningAreaAllocationController extends Controller
             'learningArea',
 
         ])
+            ->orderBy(
 
-        ->orderBy(
+                'created_at',
 
-            'created_at',
+                'desc'
 
-            'desc'
-
-        )
-
-        ->get();
+            )
+            ->get();
 
         return response()->json([
 
             'success' => true,
 
-            'data' =>
+            'data' => LearningAreaAllocationResource::collection(
 
-                LearningAreaAllocationResource::collection(
+                $allocations
 
-                    $allocations
-
-                ),
+            ),
 
         ]);
     }
@@ -68,18 +60,15 @@ class LearningAreaAllocationController extends Controller
             'learningArea',
 
         ])
+            ->find($id);
 
-        ->find($id);
-
-        if (!$allocation) {
+        if (! $allocation) {
 
             return response()->json([
 
                 'success' => false,
 
-                'message' =>
-
-                    'Allocation not found',
+                'message' => 'Allocation not found',
 
             ], 404);
         }
@@ -88,13 +77,11 @@ class LearningAreaAllocationController extends Controller
 
             'success' => true,
 
-            'data' =>
+            'data' => new LearningAreaAllocationResource(
 
-                new LearningAreaAllocationResource(
+                $allocation
 
-                    $allocation
-
-                ),
+            ),
 
         ]);
     }
@@ -104,25 +91,16 @@ class LearningAreaAllocationController extends Controller
      */
     public function store(
         Request $request
-    )
-    {
+    ) {
         $request->validate([
 
-            'school_id' =>
+            'school_id' => 'required|exists:schools,id',
 
-                'required|exists:schools,id',
+            'grade_id' => 'required|exists:grades,id',
 
-            'grade_id' =>
+            'learning_area_id' => 'required|exists:learning_areas,id',
 
-                'required|exists:grades,id',
-
-            'learning_area_id' =>
-
-                'required|exists:learning_areas,id',
-
-            'lessons_per_week' =>
-
-                'required|integer|min:1|max:20',
+            'lessons_per_week' => 'required|integer|min:1|max:20',
 
         ]);
 
@@ -135,16 +113,14 @@ class LearningAreaAllocationController extends Controller
                 $request->grade_id
 
             )
+                ->where(
 
-            ->where(
+                    'learning_area_id',
 
-                'learning_area_id',
+                    $request->learning_area_id
 
-                $request->learning_area_id
-
-            )
-
-            ->exists();
+                )
+                ->exists();
 
         if ($exists) {
 
@@ -152,9 +128,7 @@ class LearningAreaAllocationController extends Controller
 
                 'success' => false,
 
-                'message' =>
-
-                    'Learning Area already allocated to this grade',
+                'message' => 'Learning Area already allocated to this grade',
 
             ], 409);
         }
@@ -163,25 +137,15 @@ class LearningAreaAllocationController extends Controller
 
             LearningAreaAllocation::create([
 
-                'id' =>
+                'id' => (string) Str::uuid(),
 
-                    (string) Str::uuid(),
+                'school_id' => $request->school_id,
 
-                'school_id' =>
+                'grade_id' => $request->grade_id,
 
-                    $request->school_id,
+                'learning_area_id' => $request->learning_area_id,
 
-                'grade_id' =>
-
-                    $request->grade_id,
-
-                'learning_area_id' =>
-
-                    $request->learning_area_id,
-
-                'lessons_per_week' =>
-
-                    $request->lessons_per_week,
+                'lessons_per_week' => $request->lessons_per_week,
 
                 'active' => true,
 
@@ -193,31 +157,26 @@ class LearningAreaAllocationController extends Controller
 
             'success' => true,
 
-            'message' =>
+            'message' => 'Learning Area allocated successfully',
 
-                'Learning Area allocated successfully',
+            'data' => new LearningAreaAllocationResource(
 
-            'data' =>
+                LearningAreaAllocation::with([
 
-                new LearningAreaAllocationResource(
+                    'school',
 
-                    LearningAreaAllocation::with([
+                    'grade',
 
-                        'school',
+                    'learningArea',
 
-                        'grade',
-
-                        'learningArea',
-
-                    ])
-
+                ])
                     ->find(
 
                         $allocation->id
 
                     )
 
-                ),
+            ),
 
         ], 201);
     }
@@ -228,38 +187,31 @@ class LearningAreaAllocationController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $allocation =
 
             LearningAreaAllocation::find($id);
 
-        if (!$allocation) {
+        if (! $allocation) {
 
             return response()->json([
 
                 'success' => false,
 
-                'message' =>
-
-                    'Allocation not found',
+                'message' => 'Allocation not found',
 
             ], 404);
         }
 
         $allocation->update([
 
-            'lessons_per_week' =>
-
-                $request->lessons_per_week
+            'lessons_per_week' => $request->lessons_per_week
 
                 ??
 
                 $allocation->lessons_per_week,
 
-            'active' =>
-
-                $request->active
+            'active' => $request->active
 
                 ??
 
@@ -271,31 +223,26 @@ class LearningAreaAllocationController extends Controller
 
             'success' => true,
 
-            'message' =>
+            'message' => 'Allocation updated successfully',
 
-                'Allocation updated successfully',
+            'data' => new LearningAreaAllocationResource(
 
-            'data' =>
+                LearningAreaAllocation::with([
 
-                new LearningAreaAllocationResource(
+                    'school',
 
-                    LearningAreaAllocation::with([
+                    'grade',
 
-                        'school',
+                    'learningArea',
 
-                        'grade',
-
-                        'learningArea',
-
-                    ])
-
+                ])
                     ->find(
 
                         $allocation->id
 
                     )
 
-                ),
+            ),
 
         ]);
     }
@@ -309,15 +256,13 @@ class LearningAreaAllocationController extends Controller
 
             LearningAreaAllocation::find($id);
 
-        if (!$allocation) {
+        if (! $allocation) {
 
             return response()->json([
 
                 'success' => false,
 
-                'message' =>
-
-                    'Allocation not found',
+                'message' => 'Allocation not found',
 
             ], 404);
         }
@@ -328,9 +273,7 @@ class LearningAreaAllocationController extends Controller
 
             'success' => true,
 
-            'message' =>
-
-                'Allocation deleted successfully',
+            'message' => 'Allocation deleted successfully',
 
         ]);
     }

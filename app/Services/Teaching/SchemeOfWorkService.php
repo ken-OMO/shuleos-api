@@ -19,7 +19,7 @@ class SchemeOfWorkService
             && Term::whereKey($data['term_id'])->where('school_id', $schoolId)->where('academic_year_id', $data['academic_year_id'])->where('active', true)->exists()
             && LearningAreaAllocation::where('school_id', $schoolId)->where('grade_id', $data['grade_id'])->where('learning_area_id', $data['learning_area_id'])->where('active', true)->exists();
 
-        if (!$valid) {
+        if (! $valid) {
             throw ValidationException::withMessages(['scheme' => 'The scheme contains inactive, mismatched, or cross-school academic records.']);
         }
 

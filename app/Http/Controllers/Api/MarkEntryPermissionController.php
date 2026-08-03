@@ -81,7 +81,7 @@ class MarkEntryPermissionController extends BaseCrudController
     {
         $permission = $this->tenantQuery($request)->find($id);
 
-        if (!$permission) {
+        if (! $permission) {
             return $this->notFound('Mark entry permission not found.');
         }
 
@@ -103,7 +103,7 @@ class MarkEntryPermissionController extends BaseCrudController
     {
         $permission = $this->tenantQuery($request)->find($id);
 
-        if (!$permission) {
+        if (! $permission) {
             return $this->notFound('Mark entry permission not found.');
         }
 
@@ -130,7 +130,7 @@ class MarkEntryPermissionController extends BaseCrudController
             ?? $validated['school_id']
             ?? $request->input('school_id');
 
-        abort_if(!$schoolId, 403, 'School context not found.');
+        abort_if(! $schoolId, 403, 'School context not found.');
 
         return (string) $schoolId;
     }

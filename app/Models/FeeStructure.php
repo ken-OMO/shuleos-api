@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class FeeStructure extends Model
+class FeeStructure extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'academic_year_id',
 
@@ -33,92 +37,95 @@ class FeeStructure extends Model
 
         'active',
 
+        'status', 'revision', 'approved_by', 'approved_at', 'activated_at', 'archived_at', 'created_by', 'is_deleted',
+
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function academicYear()
-{
-    return $this->belongsTo(
+    public function academicYear()
+    {
+        return $this->belongsTo(
 
-        AcademicYear::class,
+            AcademicYear::class,
 
-        'academic_year_id'
+            'academic_year_id'
 
-    );
-}
+        );
+    }
 
-public function term()
-{
-    return $this->belongsTo(
+    public function term()
+    {
+        return $this->belongsTo(
 
-        Term::class,
+            Term::class,
 
-        'term_id'
+            'term_id'
 
-    );
-}
+        );
+    }
 
-public function grade()
-{
-    return $this->belongsTo(
+    public function grade()
+    {
+        return $this->belongsTo(
 
-        Grade::class,
+            Grade::class,
 
-        'grade_id'
+            'grade_id'
 
-    );
-}
+        );
+    }
 
-public function stream()
-{
-    return $this->belongsTo(
+    public function stream()
+    {
+        return $this->belongsTo(
 
-        Stream::class,
+            Stream::class,
 
-        'stream_id'
+            'stream_id'
 
-    );
-}
+        );
+    }
 
-public function feeCategory()
-{
-    return $this->belongsTo(
+    public function feeCategory()
+    {
+        return $this->belongsTo(
 
-        FeeCategory::class,
+            FeeCategory::class,
 
-        'fee_category_id'
+            'fee_category_id'
 
-    );
-}
+        );
+    }
 
-public function paymentPlan()
-{
-    return $this->belongsTo(
+    public function paymentPlan()
+    {
+        return $this->belongsTo(
 
-        PaymentPlan::class,
+            PaymentPlan::class,
 
-        'payment_plan_id'
+            'payment_plan_id'
 
-    );
-}
+        );
+    }
 
-public function invoices()
-{
-    return $this->hasMany(
+    public function invoices()
+    {
+        return $this->hasMany(
 
-        FeeInvoice::class,
+            FeeInvoice::class,
 
-        'fee_structure_id'
+            'fee_structure_id'
 
-    );
-}
+        );
+    }
 }

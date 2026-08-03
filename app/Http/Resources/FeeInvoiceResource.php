@@ -13,8 +13,6 @@ class FeeInvoiceResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'learner_id' => $this->learner_id,
 
             'academic_year_id' => $this->academic_year_id,
@@ -45,9 +43,9 @@ class FeeInvoiceResource extends JsonResource
 
             'cancelled_at' => $this->cancelled_at,
 
-            'generated_by' => $this->generated_by,
-
             'notes' => $this->notes,
+
+            'items' => FeeInvoiceItemResource::collection($this->whenLoaded('items')),
 
             'created_at' => $this->created_at,
 

@@ -119,8 +119,7 @@ final class MagicNumberValidator extends AbstractFileValidator
                 'file_name' => $file->getClientOriginalName(),
                 'detected_header' => $header,
                 'expected_signatures' => array_map(
-                    static fn ($magicNumber): string =>
-                        $magicNumber->signature(),
+                    static fn ($magicNumber): string => $magicNumber->signature(),
                     $signatures
                 ),
             ]

@@ -33,7 +33,7 @@ return new class extends Migration
 
                 'credit_limit',
 
-                'last_payment_date'
+                'last_payment_date',
 
             ]);
 

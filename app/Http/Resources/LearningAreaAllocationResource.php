@@ -12,47 +12,34 @@ class LearningAreaAllocationResource extends JsonResource
      */
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
-            'lessons_per_week' =>
+            'lessons_per_week' => $this->lessons_per_week,
 
-                $this->lessons_per_week,
+            'active' => $this->active,
 
-            'active' =>
+            'school' => $this->whenLoaded(
 
-                $this->active,
+                'school'
 
-            'school' =>
+            ),
 
-                $this->whenLoaded(
+            'grade' => $this->whenLoaded(
 
-                    'school'
+                'grade'
 
-                ),
+            ),
 
-            'grade' =>
+            'learning_area' => $this->whenLoaded(
 
-                $this->whenLoaded(
+                'learningArea'
 
-                    'grade'
+            ),
 
-                ),
-
-            'learning_area' =>
-
-                $this->whenLoaded(
-
-                    'learningArea'
-
-                ),
-
-            'created_at' =>
-
-                $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

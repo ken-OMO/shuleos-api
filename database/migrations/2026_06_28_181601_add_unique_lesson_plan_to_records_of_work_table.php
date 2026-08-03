@@ -12,7 +12,7 @@ return new class extends Migration
 
             $table->unique(
                 [
-                    'lesson_plan_id'
+                    'lesson_plan_id',
                 ],
                 'records_of_work_lesson_plan_unique'
             );

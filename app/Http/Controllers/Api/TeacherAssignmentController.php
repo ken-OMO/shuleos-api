@@ -15,9 +15,7 @@ class TeacherAssignmentController extends BaseCrudController
 
     private const RELATIONS = ['teacher', 'learningArea', 'grade', 'stream', 'academicYear', 'term'];
 
-    public function __construct(private readonly TeacherAssignmentService $service)
-    {
-    }
+    public function __construct(private readonly TeacherAssignmentService $service) {}
 
     public function index(Request $request)
     {
@@ -62,6 +60,7 @@ class TeacherAssignmentController extends BaseCrudController
         $assignment = DB::transaction(function () use ($request, $validated, $schoolId) {
             $assignment = $this->service->create($validated, $schoolId);
             $this->audit($request, self::MODULE, 'Create', $assignment, null, $assignment->toArray(), 'Created teacher assignment.');
+
             return $assignment;
         });
 
@@ -74,7 +73,7 @@ class TeacherAssignmentController extends BaseCrudController
     public function update(Request $request, string $id)
     {
         $assignment = TeacherAssignment::current()->where('school_id', $this->schoolId($request))->find($id);
-        if (!$assignment) {
+        if (! $assignment) {
             return $this->notFound('Teacher assignment not found.');
         }
 
@@ -88,6 +87,7 @@ class TeacherAssignmentController extends BaseCrudController
         $assignment = DB::transaction(function () use ($request, $assignment, $validated, $oldValues) {
             $assignment = $this->service->update($assignment, $validated);
             $this->audit($request, self::MODULE, 'Update', $assignment, $oldValues, $assignment->toArray(), 'Updated teacher assignment.');
+
             return $assignment;
         });
 
@@ -97,7 +97,7 @@ class TeacherAssignmentController extends BaseCrudController
     public function destroy(Request $request, string $id)
     {
         $assignment = TeacherAssignment::current()->where('school_id', $this->schoolId($request))->find($id);
-        if (!$assignment) {
+        if (! $assignment) {
             return $this->notFound('Teacher assignment not found.');
         }
 
@@ -113,7 +113,8 @@ class TeacherAssignmentController extends BaseCrudController
     private function schoolId(Request $request, array $validated = []): string
     {
         $schoolId = $request->attributes->get('tenant_school_id') ?? $validated['school_id'] ?? $request->input('school_id');
-        abort_if(!$schoolId, 403, 'School context not found.');
+        abort_if(! $schoolId, 403, 'School context not found.');
+
         return (string) $schoolId;
     }
 

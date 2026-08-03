@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TimetableGenerationRun extends Model
+class TimetableGenerationRun extends TenantModel
 {
     use HasFactory;
 
@@ -29,26 +28,31 @@ class TimetableGenerationRun extends Model
 
         'completed_at',
 
+        'parameters', 'random_seed', 'required_lessons', 'scheduled_lessons', 'unscheduled_lessons', 'hard_conflicts', 'soft_warnings', 'score', 'diagnostics', 'failed_reason',
+
     ];
+
+    protected $casts = ['parameters' => 'array', 'diagnostics' => 'array', 'started_at' => 'datetime', 'completed_at' => 'datetime'];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function timetable()
-{
-    return $this->belongsTo(
+    public function timetable()
+    {
+        return $this->belongsTo(
 
-        Timetable::class,
+            Timetable::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 }

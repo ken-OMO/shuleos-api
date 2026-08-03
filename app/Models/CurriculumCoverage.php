@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class CurriculumCoverage extends Model
+class CurriculumCoverage extends TenantModel
 {
     protected $table = 'curriculum_coverage';
 

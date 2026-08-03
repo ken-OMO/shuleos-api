@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\FinanceSetting;
 use App\Http\Resources\FinanceSettingResource;
+use App\Models\FinanceSetting;
 use Illuminate\Http\Request;
 
 class FinanceSettingController extends Controller
@@ -14,8 +14,7 @@ class FinanceSettingController extends Controller
         return FinanceSettingResource::collection(
 
             FinanceSetting::orderBy('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

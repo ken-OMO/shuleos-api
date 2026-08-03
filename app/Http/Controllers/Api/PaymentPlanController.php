@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PaymentPlan;
 use App\Http\Resources\PaymentPlanResource;
+use App\Models\PaymentPlan;
 use Illuminate\Http\Request;
 
 class PaymentPlanController extends Controller
@@ -14,8 +14,7 @@ class PaymentPlanController extends Controller
         return PaymentPlanResource::collection(
 
             PaymentPlan::orderBy('plan_name')
-
-            ->get()
+                ->get()
 
         );
     }

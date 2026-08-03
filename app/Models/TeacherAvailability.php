@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TeacherAvailability extends Model
+class TeacherAvailability extends TenantModel
 {
     use HasFactory;
 
@@ -24,36 +23,37 @@ class TeacherAvailability extends Model
         'remarks',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function teacher()
-{
-    return $this->belongsTo(
+    public function teacher()
+    {
+        return $this->belongsTo(
 
-        Teacher::class,
+            Teacher::class,
 
-        'teacher_id'
+            'teacher_id'
 
-    );
-}
+        );
+    }
 
-public function period()
-{
-    return $this->belongsTo(
+    public function period()
+    {
+        return $this->belongsTo(
 
-        TimetablePeriod::class,
+            TimetablePeriod::class,
 
-        'period_id'
+            'period_id'
 
-    );
-}
+        );
+    }
 }

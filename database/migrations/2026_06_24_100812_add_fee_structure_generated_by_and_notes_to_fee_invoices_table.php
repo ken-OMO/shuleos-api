@@ -41,7 +41,7 @@ return new class extends Migration
 
                 'generated_by',
 
-                'notes'
+                'notes',
 
             ]);
 

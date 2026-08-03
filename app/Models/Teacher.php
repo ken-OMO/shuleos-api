@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class Teacher extends Model
+class Teacher extends TenantModel
 {
     protected $table = 'teachers';
 
@@ -45,6 +43,8 @@ class Teacher extends Model
         'active',
 
         'is_deleted',
+
+        'professional_summary',
 
         'deleted_at',
 
@@ -95,74 +95,84 @@ class Teacher extends Model
 
         );
     }
-/**
- * Teacher Assignments
- */
-public function assignments()
-{
-    return $this->hasMany(
 
-        TeacherAssignment::class,
+    /**
+     * Teacher Assignments
+     */
+    public function assignments()
+    {
+        return $this->hasMany(
 
-        'teacher_id'
+            TeacherAssignment::class,
 
-    );
-}
+            'teacher_id'
 
-/**
- * Lesson Plans
- */
-public function lessonPlans()
-{
-    return $this->hasMany(
+        );
+    }
 
-        LessonPlan::class,
+    public function dashboardPreference()
+    {
+        return $this->hasOne(TeacherDashboardPreference::class);
+    }
 
-        'teacher_id'
+    public function scopeCurrent($q)
+    {
+        return $q->where('active', true)->where('is_deleted', false);
+    }
 
-    );
-}
+    /**
+     * Lesson Plans
+     */
+    public function lessonPlans()
+    {
+        return $this->hasMany(
 
-/**
- * Lesson Notes
- */
-public function lessonNotes()
-{
-    return $this->hasMany(
+            LessonPlan::class,
 
-        LessonNote::class,
+            'teacher_id'
 
-        'teacher_id'
+        );
+    }
 
-    );
-}
+    /**
+     * Lesson Notes
+     */
+    public function lessonNotes()
+    {
+        return $this->hasMany(
 
-/**
- * Records Of Work
- */
-public function recordsOfWork()
-{
-    return $this->hasMany(
+            LessonNote::class,
 
-        RecordOfWork::class,
+            'teacher_id'
 
-        'teacher_id'
+        );
+    }
 
-    );
-}
+    /**
+     * Records Of Work
+     */
+    public function recordsOfWork()
+    {
+        return $this->hasMany(
 
-/**
- * Curriculum Coverage
- */
-public function curriculumCoverage()
-{
-    return $this->hasMany(
+            RecordOfWork::class,
 
-        CurriculumCoverage::class,
+            'teacher_id'
 
-        'teacher_id'
+        );
+    }
 
-    );
-}
+    /**
+     * Curriculum Coverage
+     */
+    public function curriculumCoverage()
+    {
+        return $this->hasMany(
 
+            CurriculumCoverage::class,
+
+            'teacher_id'
+
+        );
+    }
 }

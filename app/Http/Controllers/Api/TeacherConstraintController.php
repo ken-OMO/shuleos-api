@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TeacherConstraint;
 use App\Http\Resources\TeacherConstraintResource;
+use App\Models\TeacherConstraint;
 use Illuminate\Http\Request;
 
 class TeacherConstraintController extends Controller
@@ -14,8 +14,7 @@ class TeacherConstraintController extends Controller
         return TeacherConstraintResource::collection(
 
             TeacherConstraint::orderBy('teacher_id')
-
-            ->get()
+                ->get()
 
         );
     }

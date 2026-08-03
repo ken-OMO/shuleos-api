@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableConstraint;
 use App\Http\Resources\TimetableConstraintResource;
+use App\Models\TimetableConstraint;
 use Illuminate\Http\Request;
 
 class TimetableConstraintController extends Controller
@@ -14,8 +14,7 @@ class TimetableConstraintController extends Controller
         return TimetableConstraintResource::collection(
 
             TimetableConstraint::orderBy('constraint_name')
-
-            ->get()
+                ->get()
 
         );
     }

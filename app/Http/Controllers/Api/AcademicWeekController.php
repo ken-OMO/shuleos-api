@@ -3,13 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
 use App\Http\Resources\AcademicWeekResource;
-
 use App\Models\AcademicWeek;
-
 use Illuminate\Http\Request;
-
 use Illuminate\Support\Str;
 
 class AcademicWeekController extends Controller
@@ -25,10 +21,8 @@ class AcademicWeekController extends Controller
             'term',
 
         ])
-
-        ->orderBy('week_number')
-
-        ->get();
+            ->orderBy('week_number')
+            ->get();
 
         return response()->json([
 
@@ -54,8 +48,7 @@ class AcademicWeekController extends Controller
             'term',
 
         ])
-
-        ->findOrFail($id);
+            ->findOrFail($id);
 
         return response()->json([
 
@@ -114,10 +107,10 @@ class AcademicWeekController extends Controller
 
             ),
 
-        ],201);
+        ], 201);
     }
 
-    public function update(Request $request,$id)
+    public function update(Request $request, $id)
     {
         $week = AcademicWeek::findOrFail($id);
 

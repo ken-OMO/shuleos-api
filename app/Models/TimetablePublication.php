@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TimetablePublication extends Model
+class TimetablePublication extends TenantModel
 {
     use HasFactory;
 
@@ -24,25 +23,26 @@ class TimetablePublication extends Model
         'notes',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function timetable()
-{
-    return $this->belongsTo(
+    public function timetable()
+    {
+        return $this->belongsTo(
 
-        Timetable::class,
+            Timetable::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 }

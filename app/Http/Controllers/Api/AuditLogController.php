@@ -88,7 +88,7 @@ class AuditLogController extends Controller
 
             'success' => false,
 
-            'message' => 'Audit logs are created automatically by the system.'
+            'message' => 'Audit logs are created automatically by the system.',
 
         ], 405);
     }
@@ -102,7 +102,7 @@ class AuditLogController extends Controller
 
             'success' => false,
 
-            'message' => 'Audit logs cannot be updated.'
+            'message' => 'Audit logs cannot be updated.',
 
         ], 405);
     }
@@ -116,7 +116,7 @@ class AuditLogController extends Controller
 
             'success' => false,
 
-            'message' => 'Audit logs cannot be deleted.'
+            'message' => 'Audit logs cannot be deleted.',
 
         ], 405);
     }

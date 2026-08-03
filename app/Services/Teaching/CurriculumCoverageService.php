@@ -22,7 +22,7 @@ class CurriculumCoverageService
         $week = $lesson?->week;
 
         $consistent = $record && $plan && $assignment && $lesson && $scheme && $week
-            && !$plan->is_deleted && !$assignment->is_deleted && !$lesson->is_deleted && !$scheme->is_deleted
+            && ! $plan->is_deleted && ! $assignment->is_deleted && ! $lesson->is_deleted && ! $scheme->is_deleted
             && $assignment->school_id === $schoolId && $scheme->school_id === $schoolId
             && $assignment->learning_area_id === $scheme->learning_area_id
             && $assignment->grade_id === $scheme->grade_id
@@ -31,7 +31,7 @@ class CurriculumCoverageService
             && $week->academic_year_id === $scheme->academic_year_id
             && $week->term_id === $scheme->term_id;
 
-        if (!$consistent) {
+        if (! $consistent) {
             throw ValidationException::withMessages(['record_of_work_id' => 'The record does not resolve to a consistent curriculum chain.']);
         }
 

@@ -30,9 +30,9 @@ class SchoolController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderBy('school_name')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderBy('school_name')
+            ->get();
 
         return $this->success(
 
@@ -57,8 +57,8 @@ class SchoolController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($school)) {
 
@@ -82,7 +82,8 @@ class SchoolController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created school.
      */
     public function store(Request $request)
@@ -229,7 +230,8 @@ class SchoolController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified school.
      */
     public function update(Request $request, string $id)
@@ -260,7 +262,7 @@ class SchoolController extends BaseCrudController
 
             'school_name' => 'sometimes|string|max:255',
 
-            'school_code' => 'sometimes|string|max:50|unique:schools,school_code,' . $id . ',id',
+            'school_code' => 'sometimes|string|max:50|unique:schools,school_code,'.$id.',id',
 
             'email' => 'nullable|email|max:255',
 
@@ -368,7 +370,8 @@ class SchoolController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified school.
      */
     public function destroy(Request $request, string $id)

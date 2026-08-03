@@ -33,7 +33,7 @@ return new class extends Migration
 
                 'allocated_amount',
 
-                'payment_channel'
+                'payment_channel',
 
             ]);
 

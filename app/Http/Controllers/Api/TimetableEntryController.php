@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableEntry;
 use App\Http\Resources\TimetableEntryResource;
+use App\Models\TimetableEntry;
 use Illuminate\Http\Request;
 
 class TimetableEntryController extends Controller
@@ -14,8 +14,7 @@ class TimetableEntryController extends Controller
         return TimetableEntryResource::collection(
 
             TimetableEntry::orderBy('day_of_week')
-
-            ->get()
+                ->get()
 
         );
     }

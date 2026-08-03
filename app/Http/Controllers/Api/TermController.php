@@ -3,13 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-
 use App\Http\Resources\TermResource;
-
 use App\Models\Term;
-
 use Illuminate\Http\Request;
-
 use Illuminate\Support\Str;
 
 class TermController extends Controller
@@ -25,10 +21,8 @@ class TermController extends Controller
             'academicWeeks',
 
         ])
-
-        ->orderBy('term_name')
-
-        ->get();
+            ->orderBy('term_name')
+            ->get();
 
         return response()->json([
 
@@ -54,8 +48,7 @@ class TermController extends Controller
             'academicWeeks',
 
         ])
-
-        ->findOrFail($id);
+            ->findOrFail($id);
 
         return response()->json([
 
@@ -112,10 +105,10 @@ class TermController extends Controller
 
             ),
 
-        ],201);
+        ], 201);
     }
 
-    public function update(Request $request,$id)
+    public function update(Request $request, $id)
     {
         $term = Term::findOrFail($id);
 

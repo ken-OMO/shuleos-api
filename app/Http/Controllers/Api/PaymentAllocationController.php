@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PaymentAllocation;
 use App\Http\Resources\PaymentAllocationResource;
+use App\Models\PaymentAllocation;
 use Illuminate\Http\Request;
 
 class PaymentAllocationController extends Controller
@@ -14,8 +14,7 @@ class PaymentAllocationController extends Controller
         return PaymentAllocationResource::collection(
 
             PaymentAllocation::orderByDesc('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

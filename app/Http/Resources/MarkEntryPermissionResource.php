@@ -9,19 +9,16 @@ class MarkEntryPermissionResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
 
             'exam_id' => $this->exam_id,
 
-            'role_name'
-                => $this->role_name,
+            'role_name' => $this->role_name,
 
-            'active'
-                => $this->active,
+            'active' => $this->active,
 
             'opens_at' => $this->opens_at,
 
@@ -29,15 +26,13 @@ class MarkEntryPermissionResource extends JsonResource
 
             'is_open' => $this->isOpen(),
 
-            'exam'
-                => $this->whenLoaded(
+            'exam' => $this->whenLoaded(
 
-                    'exam'
+                'exam'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

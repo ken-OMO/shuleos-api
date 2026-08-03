@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\RoomConstraint;
 use App\Http\Resources\RoomConstraintResource;
+use App\Models\RoomConstraint;
 use Illuminate\Http\Request;
 
 class RoomConstraintController extends Controller
@@ -14,8 +14,7 @@ class RoomConstraintController extends Controller
         return RoomConstraintResource::collection(
 
             RoomConstraint::orderBy('constraint_type')
-
-            ->get()
+                ->get()
 
         );
     }

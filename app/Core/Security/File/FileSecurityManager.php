@@ -17,14 +17,13 @@ use Illuminate\Http\UploadedFile;
 final readonly class FileSecurityManager
 {
     /**
-     * @param iterable<FileValidator> $validators
+     * @param  iterable<FileValidator>  $validators
      */
     public function __construct(
 
         private iterable $validators
 
-    ) {
-    }
+    ) {}
 
     /**
      * Execute the security pipeline.
@@ -37,8 +36,8 @@ final readonly class FileSecurityManager
 
     ): FileSecurityReport {
 
-        $report = new FileSecurityReport();
-                /*
+        $report = new FileSecurityReport;
+        /*
         |--------------------------------------------------------------------------
         | Collect Validators
         |--------------------------------------------------------------------------
@@ -66,9 +65,7 @@ final readonly class FileSecurityManager
 
                 FileValidator $b
 
-            ) =>
-
-                $a->priority()
+            ) => $a->priority()
 
                 <=>
 
@@ -143,5 +140,4 @@ final readonly class FileSecurityManager
         return $report;
 
     }
-
 }

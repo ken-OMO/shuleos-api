@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class FinanceSetting extends Model
+class FinanceSetting extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'currency',
 
@@ -27,20 +31,27 @@ class FinanceSetting extends Model
 
         'require_fee_clearance_for_exams',
 
+        'clearance_threshold',
+
+        'reminder_due_soon_days',
+
+        'finance_reminders_enabled',
+
         'active',
 
     ];
+
     /**
- * School
- */
-public function school()
-{
-    return $this->belongsTo(
+     * School
+     */
+    public function school()
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 }

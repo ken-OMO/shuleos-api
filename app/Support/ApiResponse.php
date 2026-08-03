@@ -10,9 +10,9 @@ class ApiResponse
      * Success Response (200)
      */
     public static function success(
-    string $message = 'Success',
-    mixed $data = null
-): JsonResponse {
+        string $message = 'Success',
+        mixed $data = null
+    ): JsonResponse {
 
         return response()->json([
 

@@ -47,7 +47,9 @@ class SchemeOfWorkTest extends TestCase
 
     private function seedContext(): void
     {
-        foreach (['school', 'area', 'grade', 'year', 'term'] as $name) $this->ids[$name] = (string) Str::uuid();
+        foreach (['school', 'area', 'grade', 'year', 'term'] as $name) {
+            $this->ids[$name] = (string) Str::uuid();
+        }
         DB::table('schools')->insert(['id' => $this->ids['school']]);
         DB::table('learning_areas')->insert(['id' => $this->ids['area']]);
         DB::table('grades')->insert(['id' => $this->ids['grade'], 'school_id' => $this->ids['school'], 'active' => true]);
@@ -58,20 +60,53 @@ class SchemeOfWorkTest extends TestCase
 
     private function schema(): void
     {
-        foreach (['scheme_lessons', 'schemes_of_work', 'learning_area_allocations', 'terms', 'academic_years', 'grades', 'learning_areas', 'users', 'schools'] as $table) Schema::dropIfExists($table);
+        foreach (['scheme_lessons', 'schemes_of_work', 'learning_area_allocations', 'terms', 'academic_years', 'grades', 'learning_areas', 'users', 'schools'] as $table) {
+            Schema::dropIfExists($table);
+        }
         Schema::create('schools', fn (Blueprint $t) => $t->uuid('id')->primary());
         Schema::create('users', fn (Blueprint $t) => $t->uuid('id')->primary());
         Schema::create('learning_areas', fn (Blueprint $t) => $t->uuid('id')->primary());
-        Schema::create('grades', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->boolean('active'); });
-        Schema::create('academic_years', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->boolean('active'); });
-        Schema::create('terms', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('academic_year_id'); $t->boolean('active'); });
-        Schema::create('learning_area_allocations', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('grade_id'); $t->uuid('learning_area_id'); $t->boolean('active'); });
-        Schema::create('schemes_of_work', function (Blueprint $t) {
-            $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('learning_area_id'); $t->uuid('grade_id');
-            $t->uuid('academic_year_id'); $t->uuid('term_id'); $t->string('title'); $t->boolean('active');
-            $t->uuid('created_by')->nullable(); $t->timestamp('created_at')->nullable(); $t->boolean('is_deleted')->default(false);
-            $t->timestamp('deleted_at')->nullable(); $t->uuid('deleted_by')->nullable();
+        Schema::create('grades', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->boolean('active');
         });
-        Schema::create('scheme_lessons', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('scheme_id'); });
+        Schema::create('academic_years', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->boolean('active');
+        });
+        Schema::create('terms', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('academic_year_id');
+            $t->boolean('active');
+        });
+        Schema::create('learning_area_allocations', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('grade_id');
+            $t->uuid('learning_area_id');
+            $t->boolean('active');
+        });
+        Schema::create('schemes_of_work', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('learning_area_id');
+            $t->uuid('grade_id');
+            $t->uuid('academic_year_id');
+            $t->uuid('term_id');
+            $t->string('title');
+            $t->boolean('active');
+            $t->uuid('created_by')->nullable();
+            $t->timestamp('created_at')->nullable();
+            $t->boolean('is_deleted')->default(false);
+            $t->timestamp('deleted_at')->nullable();
+            $t->uuid('deleted_by')->nullable();
+        });
+        Schema::create('scheme_lessons', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('scheme_id');
+        });
     }
 }

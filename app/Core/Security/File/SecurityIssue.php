@@ -9,7 +9,7 @@ final readonly class SecurityIssue
     /**
      * Create a detected security issue.
      *
-     * @param array<string,mixed> $context
+     * @param  array<string,mixed>  $context
      */
     public function __construct(
 
@@ -17,8 +17,7 @@ final readonly class SecurityIssue
 
         public array $context = []
 
-    ) {
-    }
+    ) {}
 
     /**
      * Issue identifier.
@@ -55,7 +54,7 @@ final readonly class SecurityIssue
     /**
      * Issue category.
      */
-   public function category(): SecurityIssueCategory
+    public function category(): SecurityIssueCategory
     {
         return SecurityCatalog::category($this->code);
     }

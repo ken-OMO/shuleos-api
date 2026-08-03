@@ -28,8 +28,8 @@ final readonly class FilePolicy
     /**
      * Create a new immutable security policy.
      *
-     * @param list<string> $allowedExtensions
-     * @param list<string> $allowedMimeTypes
+     * @param  list<string>  $allowedExtensions
+     * @param  list<string>  $allowedMimeTypes
      *
      * @throws InvalidArgumentException
      */
@@ -41,7 +41,7 @@ final readonly class FilePolicy
         |--------------------------------------------------------------------------
         */
 
-        public string $policyName = 'Default',
+        public string $policyName,
 
         /*
         |--------------------------------------------------------------------------
@@ -140,7 +140,7 @@ final readonly class FilePolicy
         $this->validate();
 
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Validation
     |--------------------------------------------------------------------------
@@ -254,7 +254,6 @@ final readonly class FilePolicy
             ) {
 
                 throw new InvalidArgumentException(
-
                     "Invalid file extension [{$extension}]."
 
                 );
@@ -315,7 +314,6 @@ final readonly class FilePolicy
             ) {
 
                 throw new InvalidArgumentException(
-
                     "Invalid MIME type [{$mimeType}]."
 
                 );
@@ -340,7 +338,6 @@ final readonly class FilePolicy
         ) {
 
             throw new InvalidArgumentException(
-
                 'Macro-enabled documents require virus scanning.'
 
             );
@@ -356,7 +353,6 @@ final readonly class FilePolicy
         ) {
 
             throw new InvalidArgumentException(
-
                 'Malware sandbox requires virus scanning.'
 
             );
@@ -372,7 +368,6 @@ final readonly class FilePolicy
         ) {
 
             throw new InvalidArgumentException(
-
                 'Overwrite operations require audit logging.'
 
             );
@@ -388,7 +383,6 @@ final readonly class FilePolicy
         ) {
 
             throw new InvalidArgumentException(
-
                 'Digital signature validation requires audit logging.'
 
             );
@@ -404,7 +398,6 @@ final readonly class FilePolicy
         ) {
 
             throw new InvalidArgumentException(
-
                 'Encryption requires file hashing.'
 
             );
@@ -412,7 +405,7 @@ final readonly class FilePolicy
         }
 
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Policy Decisions
     |--------------------------------------------------------------------------
@@ -546,7 +539,7 @@ final readonly class FilePolicy
     {
         return $this->allowPasswordProtectedFiles;
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Security Requirements
     |--------------------------------------------------------------------------
@@ -625,9 +618,9 @@ final readonly class FilePolicy
     }
 
     public function scansForViruses(): bool
-{
-    return $this->scanForViruses;
-}
+    {
+        return $this->scanForViruses;
+    }
 
     /**
      * Whether malware sandbox analysis is required.
@@ -682,7 +675,7 @@ final readonly class FilePolicy
     {
         return $this->generateThumbnail;
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Export
     |--------------------------------------------------------------------------
@@ -711,61 +704,43 @@ final readonly class FilePolicy
 
             'require_virus_scan' => $this->requireVirusScan,
 
-            'require_magic_number_validation' =>
-                $this->requireMagicNumberValidation,
+            'require_magic_number_validation' => $this->requireMagicNumberValidation,
 
-            'require_mime_validation' =>
-                $this->requireMimeValidation,
+            'require_mime_validation' => $this->requireMimeValidation,
 
-            'require_hashing' =>
-                $this->requireHashing,
+            'require_hashing' => $this->requireHashing,
 
-            'require_quarantine' =>
-                $this->requireQuarantine,
+            'require_quarantine' => $this->requireQuarantine,
 
-            'encrypt_after_upload' =>
-                $this->encryptAfterUpload,
+            'encrypt_after_upload' => $this->encryptAfterUpload,
 
-            'delete_after_processing' =>
-                $this->deleteAfterProcessing,
+            'delete_after_processing' => $this->deleteAfterProcessing,
 
-            'audit_uploads' =>
-                $this->auditUploads,
+            'audit_uploads' => $this->auditUploads,
 
-            'scan_archives' =>
-                $this->scanArchives,
+            'scan_archives' => $this->scanArchives,
 
-                $this->scanForViruses,
+            $this->scanForViruses,
 
-            'require_malware_sandbox' =>
-                $this->requireMalwareSandbox,
+            'require_malware_sandbox' => $this->requireMalwareSandbox,
 
-            'require_digital_signature' =>
-                $this->requireDigitalSignature,
+            'require_digital_signature' => $this->requireDigitalSignature,
 
-            'require_school_ownership_validation' =>
-                $this->requireSchoolOwnershipValidation,
+            'require_school_ownership_validation' => $this->requireSchoolOwnershipValidation,
 
-            'allow_macros' =>
-                $this->allowMacros,
+            'allow_macros' => $this->allowMacros,
 
-            'allow_password_protected_files' =>
-                $this->allowPasswordProtectedFiles,
+            'allow_password_protected_files' => $this->allowPasswordProtectedFiles,
 
-            'fail_fast' =>
-                $this->failFast,
+            'fail_fast' => $this->failFast,
 
-            'allow_duplicate_files' =>
-                $this->allowDuplicateFiles,
+            'allow_duplicate_files' => $this->allowDuplicateFiles,
 
-            'allow_overwrite' =>
-                $this->allowOverwrite,
+            'allow_overwrite' => $this->allowOverwrite,
 
-            'keep_original_filename' =>
-                $this->keepOriginalFilename,
+            'keep_original_filename' => $this->keepOriginalFilename,
 
-            'generate_thumbnail' =>
-                $this->generateThumbnail,
+            'generate_thumbnail' => $this->generateThumbnail,
 
         ];
     }

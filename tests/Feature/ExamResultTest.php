@@ -18,7 +18,7 @@ class ExamResultTest extends TestCase
     {
         parent::setUp();
 
-        foreach (['exam_results', 'learners', 'exam_papers', 'exam_learning_areas', 'exams'] as $table) {
+        foreach (['exam_results', 'mark_entry_permissions', 'users', 'roles', 'learners', 'exam_papers', 'exam_learning_areas', 'exams'] as $table) {
             Schema::dropIfExists($table);
         }
 
@@ -50,6 +50,27 @@ class ExamResultTest extends TestCase
             $table->boolean('is_deleted');
         });
 
+        Schema::create('roles', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->string('role_name');
+        });
+
+        Schema::create('users', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('school_id');
+            $table->uuid('role_id');
+        });
+
+        Schema::create('mark_entry_permissions', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->uuid('exam_id');
+            $table->string('role_name');
+            $table->boolean('active');
+            $table->timestamp('opens_at')->nullable();
+            $table->timestamp('closes_at')->nullable();
+            $table->boolean('is_deleted');
+        });
+
         Schema::create('exam_results', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->uuid('exam_id');
@@ -64,7 +85,7 @@ class ExamResultTest extends TestCase
             $table->uuid('deleted_by')->nullable();
         });
 
-        foreach (['school', 'exam', 'area', 'exam_area', 'paper', 'learner'] as $name) {
+        foreach (['school', 'exam', 'area', 'exam_area', 'paper', 'learner', 'role', 'user'] as $name) {
             $this->ids[$name] = (string) Str::uuid();
         }
 
@@ -95,6 +116,27 @@ class ExamResultTest extends TestCase
             'active' => true,
             'is_deleted' => false,
         ]);
+
+        DB::table('roles')->insert([
+            'id' => $this->ids['role'],
+            'role_name' => 'Teacher',
+        ]);
+
+        DB::table('users')->insert([
+            'id' => $this->ids['user'],
+            'school_id' => $this->ids['school'],
+            'role_id' => $this->ids['role'],
+        ]);
+
+        DB::table('mark_entry_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'exam_id' => $this->ids['exam'],
+            'role_name' => 'teacher',
+            'active' => true,
+            'opens_at' => now()->subHour(),
+            'closes_at' => now()->addHour(),
+            'is_deleted' => false,
+        ]);
     }
 
     public function test_it_derives_exam_and_learning_area_from_the_paper(): void
@@ -103,7 +145,7 @@ class ExamResultTest extends TestCase
             'learner_id' => $this->ids['learner'],
             'paper_id' => $this->ids['paper'],
             'marks' => 78,
-        ], $this->ids['school'], null);
+        ], $this->ids['school'], $this->ids['user']);
 
         $this->assertSame($this->ids['exam'], $result->exam_id);
         $this->assertSame($this->ids['area'], $result->learning_area_id);
@@ -118,7 +160,7 @@ class ExamResultTest extends TestCase
             'learner_id' => $this->ids['learner'],
             'paper_id' => $this->ids['paper'],
             'marks' => 101,
-        ], $this->ids['school'], null);
+        ], $this->ids['school'], $this->ids['user']);
     }
 
     public function test_it_rejects_duplicate_learner_paper_results(): void
@@ -130,10 +172,10 @@ class ExamResultTest extends TestCase
             'marks' => 70,
         ];
 
-        $service->create($data, $this->ids['school'], null);
+        $service->create($data, $this->ids['school'], $this->ids['user']);
 
         $this->expectException(ValidationException::class);
-        $service->create($data, $this->ids['school'], null);
+        $service->create($data, $this->ids['school'], $this->ids['user']);
     }
 
     public function test_it_rejects_cross_school_learners(): void
@@ -148,6 +190,22 @@ class ExamResultTest extends TestCase
             'learner_id' => $this->ids['learner'],
             'paper_id' => $this->ids['paper'],
             'marks' => 65,
-        ], $this->ids['school'], null);
+        ], $this->ids['school'], $this->ids['user']);
+    }
+
+    public function test_it_rejects_results_when_the_permission_window_is_closed(): void
+    {
+        DB::table('mark_entry_permissions')->update([
+            'opens_at' => now()->subHours(2),
+            'closes_at' => now()->subHour(),
+        ]);
+
+        $this->expectException(ValidationException::class);
+
+        app(ExamResultService::class)->create([
+            'learner_id' => $this->ids['learner'],
+            'paper_id' => $this->ids['paper'],
+            'marks' => 65,
+        ], $this->ids['school'], $this->ids['user']);
     }
 }

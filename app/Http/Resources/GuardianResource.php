@@ -12,8 +12,7 @@ class GuardianResource extends JsonResource
      */
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,

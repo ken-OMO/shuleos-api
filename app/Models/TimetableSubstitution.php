@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class TimetableSubstitution extends Model
+class TimetableSubstitution extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'timetable_entry_id',
 
@@ -25,37 +29,42 @@ class TimetableSubstitution extends Model
 
         'approved_by',
 
+        'status', 'approved_at', 'cancelled_at', 'cancelled_by', 'cancellation_reason',
+
     ];
+
+    protected $casts = ['substitution_date' => 'date', 'approved_at' => 'datetime', 'cancelled_at' => 'datetime'];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function absentTeacher()
-{
-    return $this->belongsTo(
+    public function absentTeacher()
+    {
+        return $this->belongsTo(
 
-        Teacher::class,
+            Teacher::class,
 
-        'absent_teacher_id'
+            'absent_teacher_id'
 
-    );
-}
+        );
+    }
 
-public function substituteTeacher()
-{
-    return $this->belongsTo(
+    public function substituteTeacher()
+    {
+        return $this->belongsTo(
 
-        Teacher::class,
+            Teacher::class,
 
-        'substitute_teacher_id'
+            'substitute_teacher_id'
 
-    );
-}
+        );
+    }
 }

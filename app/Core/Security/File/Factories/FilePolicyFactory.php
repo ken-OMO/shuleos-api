@@ -33,10 +33,8 @@ final class FilePolicyFactory
     /**
      * Prevent instantiation.
      */
-    private function __construct()
-    {
-    }
-        /*
+    private function __construct() {}
+    /*
     |--------------------------------------------------------------------------
     | Base Policy Builder
     |--------------------------------------------------------------------------
@@ -48,8 +46,8 @@ final class FilePolicyFactory
      * All ShuleOS upload policies inherit from
      * this configuration unless explicitly overridden.
      *
-     * @param list<string> $allowedExtensions
-     * @param list<string> $allowedMimeTypes
+     * @param  list<string>  $allowedExtensions
+     * @param  list<string>  $allowedMimeTypes
      */
     private static function basePolicy(
 
@@ -81,9 +79,7 @@ final class FilePolicyFactory
 
             allowedExtensions: array_map(
 
-                static fn (string $extension): string =>
-
-                    strtolower(trim($extension)),
+                static fn (string $extension): string => strtolower(trim($extension)),
 
                 $allowedExtensions
 
@@ -91,9 +87,7 @@ final class FilePolicyFactory
 
             allowedMimeTypes: array_map(
 
-                static fn (string $mime): string =>
-
-                    strtolower(trim($mime)),
+                static fn (string $mime): string => strtolower(trim($mime)),
 
                 $allowedMimeTypes
 
@@ -184,86 +178,86 @@ final class FilePolicyFactory
 |--------------------------------------------------------------------------
 */
 
-/**
- * Create a policy with optional overrides.
- *
- * @param list<string> $allowedExtensions
- * @param list<string> $allowedMimeTypes
- */
-private static function createPolicy(
-    string $policyName,
-    array $allowedExtensions,
-    array $allowedMimeTypes,
-    int $maximumFileSize,
-    ?int $maximumImportRows = null,
-    ?int $maximumImportColumns = null,
-    bool $generateThumbnail = false,
-    bool $allowMacros = false,
-    bool $allowPasswordProtectedFiles = false,
-    bool $requireDigitalSignature = false
-): FilePolicy {
+    /**
+     * Create a policy with optional overrides.
+     *
+     * @param  list<string>  $allowedExtensions
+     * @param  list<string>  $allowedMimeTypes
+     */
+    private static function createPolicy(
+        string $policyName,
+        array $allowedExtensions,
+        array $allowedMimeTypes,
+        int $maximumFileSize,
+        ?int $maximumImportRows = null,
+        ?int $maximumImportColumns = null,
+        bool $generateThumbnail = false,
+        bool $allowMacros = false,
+        bool $allowPasswordProtectedFiles = false,
+        bool $requireDigitalSignature = false
+    ): FilePolicy {
 
-    return new FilePolicy(
+        return new FilePolicy(
 
-        policyName: $policyName,
+            policyName: $policyName,
 
-        allowedExtensions: array_map(
-            static fn (string $extension): string => strtolower(trim($extension)),
-            $allowedExtensions
-        ),
+            allowedExtensions: array_map(
+                static fn (string $extension): string => strtolower(trim($extension)),
+                $allowedExtensions
+            ),
 
-        allowedMimeTypes: array_map(
-            static fn (string $mime): string => strtolower(trim($mime)),
-            $allowedMimeTypes
-        ),
+            allowedMimeTypes: array_map(
+                static fn (string $mime): string => strtolower(trim($mime)),
+                $allowedMimeTypes
+            ),
 
-        maximumFileSize: $maximumFileSize,
+            maximumFileSize: $maximumFileSize,
 
-        maximumImportRows: $maximumImportRows,
+            maximumImportRows: $maximumImportRows,
 
-        maximumImportColumns: $maximumImportColumns,
+            maximumImportColumns: $maximumImportColumns,
 
-        requireVirusScan: true,
+            requireVirusScan: true,
 
-        requireMagicNumberValidation: true,
+            requireMagicNumberValidation: true,
 
-        requireMimeValidation: true,
+            requireMimeValidation: true,
 
-        requireHashing: true,
+            requireHashing: true,
 
-        requireQuarantine: true,
+            requireQuarantine: true,
 
-        encryptAfterUpload: true,
+            encryptAfterUpload: true,
 
-        deleteAfterProcessing: true,
+            deleteAfterProcessing: true,
 
-        auditUploads: true,
+            auditUploads: true,
 
-        scanArchives: true,
+            scanArchives: true,
 
-        requireMalwareSandbox: false,
+            requireMalwareSandbox: false,
 
-        requireDigitalSignature: $requireDigitalSignature,
+            requireDigitalSignature: $requireDigitalSignature,
 
-        requireSchoolOwnershipValidation: true,
+            requireSchoolOwnershipValidation: true,
 
-        allowMacros: $allowMacros,
+            allowMacros: $allowMacros,
 
-        allowPasswordProtectedFiles: $allowPasswordProtectedFiles,
+            allowPasswordProtectedFiles: $allowPasswordProtectedFiles,
 
-        failFast: true,
+            failFast: true,
 
-        allowDuplicateFiles: false,
+            allowDuplicateFiles: false,
 
-        allowOverwrite: false,
+            allowOverwrite: false,
 
-        keepOriginalFilename: false,
+            keepOriginalFilename: false,
 
-        generateThumbnail: $generateThumbnail
+            generateThumbnail: $generateThumbnail
 
-    );
+        );
 
-}
+    }
     /*
     |--------------------------------------------------------------------------
     | Core Academic Policies
@@ -485,7 +479,7 @@ private static function createPolicy(
 
         );
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Document Policies
     |--------------------------------------------------------------------------
@@ -760,7 +754,7 @@ private static function createPolicy(
 
         );
     }
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Finance Policies
     |--------------------------------------------------------------------------
@@ -995,6 +989,26 @@ private static function createPolicy(
 
             maximumFileSize: 50 * self::MB
 
+        );
+    }
+
+    public static function learningResource(): FilePolicy
+    {
+        return self::createPolicy(
+            policyName: 'Learning Resource',
+            allowedExtensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'mp3', 'm4a', 'mp4', 'webm'],
+            allowedMimeTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'video/webm'],
+            maximumFileSize: 250 * self::MB
+        );
+    }
+
+    public static function homeworkSubmission(): FilePolicy
+    {
+        return self::createPolicy(
+            policyName: 'Homework Submission',
+            allowedExtensions: ['pdf', 'docx', 'pptx', 'xlsx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'mp3', 'm4a', 'mp4', 'webm'],
+            allowedMimeTypes: ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/plain', 'image/jpeg', 'image/png', 'image/webp', 'audio/mpeg', 'audio/mp4', 'video/mp4', 'video/webm'],
+            maximumFileSize: 50 * self::MB
         );
     }
 }

@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetablePeriod;
 use App\Http\Resources\TimetablePeriodResource;
+use App\Models\TimetablePeriod;
 use Illuminate\Http\Request;
 
 class TimetablePeriodController extends Controller
@@ -14,8 +14,7 @@ class TimetablePeriodController extends Controller
         return TimetablePeriodResource::collection(
 
             TimetablePeriod::orderBy('period_order')
-
-            ->get()
+                ->get()
 
         );
     }

@@ -41,7 +41,7 @@ return new class extends Migration
 
                 'is_reconciled',
 
-                'reconciled_at'
+                'reconciled_at',
 
             ]);
 

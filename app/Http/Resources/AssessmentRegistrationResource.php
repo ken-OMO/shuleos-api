@@ -9,52 +9,42 @@ class AssessmentRegistrationResource extends JsonResource
 {
     public function toArray(
         Request $request
-    ): array
-    {
+    ): array {
         return [
 
             'id' => $this->id,
             'school_id' => $this->school_id,
             'learner_id' => $this->learner_id,
 
-            'assessment_type'
-                => $this->assessment_type,
+            'assessment_type' => $this->assessment_type,
 
-            'assessment_year'
-                => $this->assessment_year,
+            'assessment_year' => $this->assessment_year,
 
-            'candidate_number'
-                => $this->candidate_number,
+            'candidate_number' => $this->candidate_number,
 
-            'registration_number'
-                => $this->registration_number,
+            'registration_number' => $this->registration_number,
 
-            'status'
-                => $this->status,
+            'status' => $this->status,
 
-            'school'
-                => $this->whenLoaded(
+            'school' => $this->whenLoaded(
 
-                    'school'
+                'school'
 
-                ),
+            ),
 
-            'learner'
-                => $this->whenLoaded(
+            'learner' => $this->whenLoaded(
 
-                    'learner'
+                'learner'
 
-                ),
+            ),
 
-            'creator'
-                => $this->whenLoaded(
+            'creator' => $this->whenLoaded(
 
-                    'creator'
+                'creator'
 
-                ),
+            ),
 
-            'created_at'
-                => $this->created_at,
+            'created_at' => $this->created_at,
 
         ];
     }

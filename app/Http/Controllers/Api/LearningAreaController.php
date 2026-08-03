@@ -36,9 +36,9 @@ class LearningAreaController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderBy('learning_area_name')
-        ->get();
+            ->where('is_deleted', false)
+            ->orderBy('learning_area_name')
+            ->get();
 
         return $this->success(
 
@@ -63,8 +63,8 @@ class LearningAreaController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->find($id);
 
         if ($this->modelNotFound($area)) {
 
@@ -88,7 +88,8 @@ class LearningAreaController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created learning area.
      */
     public function store(Request $request)

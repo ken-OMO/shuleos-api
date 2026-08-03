@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class LearnerFeeAccount extends Model
+class LearnerFeeAccount extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'learner_id',
 
@@ -28,25 +32,26 @@ class LearnerFeeAccount extends Model
         'active',
 
     ];
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function learner()
-{
-    return $this->belongsTo(
+    public function learner()
+    {
+        return $this->belongsTo(
 
-        Learner::class,
+            Learner::class,
 
-        'learner_id'
+            'learner_id'
 
-    );
-}
+        );
+    }
 }

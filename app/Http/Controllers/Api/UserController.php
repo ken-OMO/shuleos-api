@@ -6,8 +6,8 @@ use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class UserController extends BaseCrudController
@@ -38,9 +38,10 @@ class UserController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->orderBy('first_name')
-        ->get();
+            ->where('is_deleted', false)
+            ->where('school_id', auth()->user()->school_id)
+            ->orderBy('first_name')
+            ->get();
 
         return $this->success(
 
@@ -65,8 +66,9 @@ class UserController extends BaseCrudController
             self::RELATIONS
 
         )
-        ->where('is_deleted', false)
-        ->find($id);
+            ->where('is_deleted', false)
+            ->where('school_id', auth()->user()->school_id)
+            ->find($id);
 
         if ($this->modelNotFound($user)) {
 
@@ -90,7 +92,8 @@ class UserController extends BaseCrudController
 
         );
     }
-        /**
+
+    /**
      * Store a newly created user.
      */
     public function store(Request $request)
@@ -215,7 +218,8 @@ class UserController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Update the specified user.
      */
     public function update(Request $request, string $id)
@@ -246,7 +250,7 @@ class UserController extends BaseCrudController
 
             'role_id' => 'sometimes|exists:roles,id',
 
-            'username' => 'sometimes|string|max:100|unique:users,username,' . $id . ',id',
+            'username' => 'sometimes|string|max:100|unique:users,username,'.$id.',id',
 
             'first_name' => 'sometimes|string|max:100',
 
@@ -340,7 +344,8 @@ class UserController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Soft delete the specified user.
      */
     public function destroy(Request $request, string $id)
@@ -435,7 +440,8 @@ class UserController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Reset user password.
      */
     public function resetPassword(Request $request, string $id)
@@ -540,7 +546,8 @@ class UserController extends BaseCrudController
 
         }
     }
-        /**
+
+    /**
      * Assign an additional role to the user.
      */
     public function assignRole(Request $request, string $id)

@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Middleware\JwtMiddleware;
+use App\Http\Middleware\ModulePermissionMiddleware;
+use App\Http\Middleware\PermissionMiddleware;
+use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\TenantMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,10 +19,11 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
 
         $middleware->alias([
-            'jwt'        => \App\Http\Middleware\JwtMiddleware::class,
-            'tenant' => \App\Http\Middleware\TenantMiddleware::class,
-            'role'       => \App\Http\Middleware\RoleMiddleware::class,
-            'permission' => \App\Http\Middleware\PermissionMiddleware::class,
+            'jwt' => JwtMiddleware::class,
+            'tenant' => TenantMiddleware::class,
+            'role' => RoleMiddleware::class,
+            'permission' => PermissionMiddleware::class,
+            'module.permission' => ModulePermissionMiddleware::class,
         ]);
 
     })

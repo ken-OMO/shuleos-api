@@ -2,154 +2,63 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\MeritList;
-use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\MeritListResource;
+use App\Models\MeritList;
+use App\Services\Assessment\MeritListService;
+use Illuminate\Http\Request;
 
-class MeritListController extends Controller
+class MeritListController extends BaseCrudController
 {
-    public function index()
+    private const RELATIONS = ['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy'];
+
+    public function __construct(private readonly MeritListService $service) {}
+
+    public function index(Request $request)
     {
-        return MeritListResource::collection(
+        $validated = $request->validate(['exam_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $query = MeritList::current()->where('school_id', $this->school($request))->with(self::RELATIONS);
+        foreach (['exam_id', 'grade_id', 'stream_id', 'status'] as $field) {
+            $query->when(isset($validated[$field]), fn ($q) => $q->where($field, $validated[$field]));
+        }
+        $query->orderBy('school_position')->orderBy('learner_id');
 
-            MeritList::with([
-
-                'school',
-
-                'exam',
-
-                'learner',
-
-                'grade',
-
-                'stream',
-
-            ])->paginate(20)
-
-        );
+        return $this->success(MeritListResource::collection($query->paginate($validated['per_page'] ?? 20)), 'Merit lists retrieved successfully.');
     }
 
-    public function show($id)
+    public function show(Request $request, string $id)
     {
-        return new MeritListResource(
+        $row = MeritList::current()->where('school_id', $this->school($request))->with(self::RELATIONS)->find($id);
 
-            MeritList::with([
-
-                'school',
-
-                'exam',
-
-                'learner',
-
-                'grade',
-
-                'stream',
-
-            ])->findOrFail($id)
-
-        );
+        return $row ? $this->success(new MeritListResource($row), 'Merit-list row retrieved successfully.') : $this->notFound('Merit-list row not found.');
     }
 
-    public function store(
-        Request $request
-    )
+    public function generate(Request $request)
     {
-        $validated = $request->validate([
+        $data = $this->validatedAction($request);
+        $rows = $this->service->generate($this->school($request, $data), $data['exam_id'], $data['grade_id'] ?? null, $data['stream_id'] ?? null, (string) auth()->id());
 
-            'id' => 'required|uuid',
-
-            'school_id' => 'required|uuid',
-
-            'exam_id' => 'required|uuid',
-
-            'learner_id' => 'required|uuid',
-
-            'grade_id' => 'required|uuid',
-
-            'stream_id' => 'required|uuid',
-
-            'total_score'
-                => 'required|numeric',
-
-            'total_points'
-                => 'required|numeric',
-
-            'stream_position'
-                => 'required|integer',
-
-            'grade_position'
-                => 'required|integer',
-
-            'school_position'
-                => 'required|integer',
-
-        ]);
-
-        $validated['created_at'] = now();
-
-        return new MeritListResource(
-
-            MeritList::create(
-
-                $validated
-
-            )
-
-        );
+        return $this->success(MeritListResource::collection($rows), 'Merit list generated successfully.');
     }
 
-    public function update(
-        Request $request,
-        $id
-    )
+    public function publish(Request $request)
     {
-        $meritList = MeritList::findOrFail($id);
+        $data = $this->validatedAction($request);
+        $rows = $this->service->publish($this->school($request, $data), $data['exam_id'], $data['grade_id'] ?? null, $data['stream_id'] ?? null);
 
-        $validated = $request->validate([
-
-            'total_score'
-                => 'sometimes|numeric',
-
-            'total_points'
-                => 'sometimes|numeric',
-
-            'stream_position'
-                => 'sometimes|integer',
-
-            'grade_position'
-                => 'sometimes|integer',
-
-            'school_position'
-                => 'sometimes|integer',
-
-        ]);
-
-        $meritList->update(
-
-            $validated
-
-        );
-
-        return new MeritListResource(
-
-            $meritList
-
-        );
+        return $this->success(MeritListResource::collection($rows), 'Merit list published successfully.');
     }
 
-    public function destroy($id)
+    private function validatedAction(Request $request): array
     {
-        MeritList::findOrFail($id)
+        return $request->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'exam_id' => 'required|uuid|exists:exams,id', 'grade_id' => 'sometimes|nullable|uuid|exists:grades,id', 'stream_id' => 'sometimes|nullable|uuid|exists:streams,id']);
+    }
 
-            ->delete();
+    private function school(Request $request, array $data = []): string
+    {
+        $id = $request->attributes->get('tenant_school_id') ?? $data['school_id'] ?? $request->input('school_id');
+        abort_if(! $id, 403, 'School context not found.');
 
-        return response()->json([
-
-            'message'
-
-            => 'Merit list deleted successfully'
-
-        ]);
+        return (string) $id;
     }
 }

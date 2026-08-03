@@ -36,25 +36,26 @@ class TimetablePeriod extends Model
         'active',
 
     ];
+
     public function profile()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        TimetableProfile::class,
+            TimetableProfile::class,
 
-        'timetable_profile_id'
+            'timetable_profile_id'
 
-    );
-}
+        );
+    }
 
-public function teacherAvailabilities()
-{
-    return $this->hasMany(
+    public function teacherAvailabilities()
+    {
+        return $this->hasMany(
 
-        TeacherAvailability::class,
+            TeacherAvailability::class,
 
-        'period_id'
+            'period_id'
 
-    );
-}
+        );
+    }
 }

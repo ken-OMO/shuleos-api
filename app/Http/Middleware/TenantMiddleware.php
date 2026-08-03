@@ -18,9 +18,9 @@ class TenantMiddleware
 
         if (
 
-            !$user
+            ! $user
 
-            || !$user->school_id
+            || ! $user->school_id
 
         ) {
 
@@ -28,7 +28,7 @@ class TenantMiddleware
 
                 'success' => false,
 
-                'message' => 'School context not found.'
+                'message' => 'School context not found.',
 
             ], 403);
         }
@@ -40,6 +40,10 @@ class TenantMiddleware
             $user->school_id
 
         );
+
+        $request->merge([
+            'school_id' => $user->school_id,
+        ]);
 
         return $next($request);
     }

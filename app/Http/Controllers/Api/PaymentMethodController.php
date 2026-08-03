@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\PaymentMethod;
 use App\Http\Resources\PaymentMethodResource;
+use App\Models\PaymentMethod;
 use Illuminate\Http\Request;
 
 class PaymentMethodController extends Controller
@@ -14,8 +14,7 @@ class PaymentMethodController extends Controller
         return PaymentMethodResource::collection(
 
             PaymentMethod::orderBy('method_name')
-
-            ->get()
+                ->get()
 
         );
     }

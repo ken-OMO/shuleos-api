@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetablePublication;
 use App\Http\Resources\TimetablePublicationResource;
+use App\Models\TimetablePublication;
 use Illuminate\Http\Request;
 
 class TimetablePublicationController extends Controller
@@ -14,8 +14,7 @@ class TimetablePublicationController extends Controller
         return TimetablePublicationResource::collection(
 
             TimetablePublication::orderByDesc('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

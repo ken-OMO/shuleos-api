@@ -3,9 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class Timetable extends Model
+class Timetable extends TenantModel
 {
     use HasFactory;
 
@@ -27,81 +26,93 @@ class Timetable extends Model
 
         'created_by',
 
+        'version', 'approved_by', 'approved_at', 'published_by', 'published_at', 'archived_at', 'validation_summary', 'validated_at', 'is_deleted', 'deleted_at', 'deleted_by',
+
+        'parent_timetable_id', 'copied_from_timetable_id', 'revision_reason', 'effective_from', 'effective_to',
+
     ];
+
+    protected $casts = ['validation_summary' => 'array', 'approved_at' => 'datetime', 'published_at' => 'datetime', 'archived_at' => 'datetime', 'validated_at' => 'datetime', 'is_deleted' => 'boolean', 'effective_from' => 'date', 'effective_to' => 'date'];
+
+    public function entries()
+    {
+        return $this->hasMany(TimetableEntry::class);
+    }
+
     public function school()
-{
-    return $this->belongsTo(
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-public function profile()
-{
-    return $this->belongsTo(
+    public function profile()
+    {
+        return $this->belongsTo(
 
-        TimetableProfile::class,
+            TimetableProfile::class,
 
-        'timetable_profile_id'
+            'timetable_profile_id'
 
-    );
-}
+        );
+    }
 
-public function academicYear()
-{
-    return $this->belongsTo(
+    public function academicYear()
+    {
+        return $this->belongsTo(
 
-        AcademicYear::class,
+            AcademicYear::class,
 
-        'academic_year_id'
+            'academic_year_id'
 
-    );
-}
+        );
+    }
 
-public function term()
-{
-    return $this->belongsTo(
+    public function term()
+    {
+        return $this->belongsTo(
 
-        Term::class,
+            Term::class,
 
-        'term_id'
+            'term_id'
 
-    );
-}
+        );
+    }
 
-public function conflicts()
-{
-    return $this->hasMany(
+    public function conflicts()
+    {
+        return $this->hasMany(
 
-        TimetableConflict::class,
+            TimetableConflict::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 
-public function publications()
-{
-    return $this->hasMany(
+    public function publications()
+    {
+        return $this->hasMany(
 
-        TimetablePublication::class,
+            TimetablePublication::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 
-public function generationRuns()
-{
-    return $this->hasMany(
+    public function generationRuns()
+    {
+        return $this->hasMany(
 
-        TimetableGenerationRun::class,
+            TimetableGenerationRun::class,
 
-        'timetable_id'
+            'timetable_id'
 
-    );
-}
+        );
+    }
 }

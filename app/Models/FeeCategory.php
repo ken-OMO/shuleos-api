@@ -2,16 +2,20 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 
-class FeeCategory extends Model
+class FeeCategory extends TenantModel
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
+
+    public $incrementing = false;
+
+    protected $keyType = 'string';
 
     protected $fillable = [
 
-        'school_id',
+        'id', 'school_id',
 
         'category_name',
 
@@ -21,32 +25,35 @@ class FeeCategory extends Model
 
         'active',
 
+        'is_deleted', 'deleted_at', 'deleted_by',
+
     ];
+
     /**
- * School
- */
-public function school()
-{
-    return $this->belongsTo(
+     * School
+     */
+    public function school()
+    {
+        return $this->belongsTo(
 
-        School::class,
+            School::class,
 
-        'school_id'
+            'school_id'
 
-    );
-}
+        );
+    }
 
-/**
- * Fee Structures
- */
-public function feeStructures()
-{
-    return $this->hasMany(
+    /**
+     * Fee Structures
+     */
+    public function feeStructures()
+    {
+        return $this->hasMany(
 
-        FeeStructure::class,
+            FeeStructure::class,
 
-        'fee_category_id'
+            'fee_category_id'
 
-    );
-}
+        );
+    }
 }

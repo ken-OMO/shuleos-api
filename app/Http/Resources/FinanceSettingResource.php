@@ -13,8 +13,6 @@ class FinanceSettingResource extends JsonResource
 
             'id' => $this->id,
 
-            'school_id' => $this->school_id,
-
             'currency' => $this->currency,
 
             'allow_partial_payments' => $this->allow_partial_payments,
@@ -29,9 +27,17 @@ class FinanceSettingResource extends JsonResource
 
             'require_fee_clearance_for_exams' => $this->require_fee_clearance_for_exams,
 
+            'clearance_threshold' => $this->clearance_threshold,
+
+            'reminder_due_soon_days' => $this->reminder_due_soon_days,
+
+            'finance_reminders_enabled' => $this->finance_reminders_enabled,
+
             'active' => $this->active,
 
             'created_at' => $this->created_at,
+
+            'updated_at' => $this->updated_at,
 
         ];
     }

@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class LearnerAttendance extends Model
+class LearnerAttendance extends TenantModel
 {
     protected $table = 'learner_attendance';
 
@@ -35,6 +33,7 @@ class LearnerAttendance extends Model
         'remarks',
 
         'marked_by',
+        'attendance_register_id', 'marked_at', 'updated_by', 'correction_reason', 'is_late_minutes', 'source', 'finalized',
 
     ];
 
@@ -45,6 +44,7 @@ class LearnerAttendance extends Model
         'created_at' => 'datetime',
 
         'updated_at' => 'datetime',
+        'marked_at' => 'datetime', 'finalized' => 'boolean',
 
     ];
 
@@ -134,5 +134,10 @@ class LearnerAttendance extends Model
             'attendance_id'
 
         );
+    }
+
+    public function register()
+    {
+        return $this->belongsTo(AttendanceRegister::class, 'attendance_register_id');
     }
 }

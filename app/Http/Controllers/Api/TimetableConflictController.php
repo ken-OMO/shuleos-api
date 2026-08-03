@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\TimetableConflict;
 use App\Http\Resources\TimetableConflictResource;
+use App\Models\TimetableConflict;
 use Illuminate\Http\Request;
 
 class TimetableConflictController extends Controller
@@ -14,8 +14,7 @@ class TimetableConflictController extends Controller
         return TimetableConflictResource::collection(
 
             TimetableConflict::orderBy('created_at')
-
-            ->get()
+                ->get()
 
         );
     }

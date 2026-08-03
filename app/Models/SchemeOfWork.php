@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class SchemeOfWork extends Model
+class SchemeOfWork extends TenantModel
 {
     protected $table = 'schemes_of_work';
 

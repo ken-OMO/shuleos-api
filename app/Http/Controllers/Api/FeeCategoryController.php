@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\FeeCategory;
 use App\Http\Resources\FeeCategoryResource;
+use App\Models\FeeCategory;
 use Illuminate\Http\Request;
 
 class FeeCategoryController extends Controller
@@ -14,8 +14,7 @@ class FeeCategoryController extends Controller
         return FeeCategoryResource::collection(
 
             FeeCategory::orderBy('category_name')
-
-            ->get()
+                ->get()
 
         );
     }

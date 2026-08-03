@@ -33,7 +33,7 @@ return new class extends Migration
 
                 'ip_address',
 
-                'user_agent'
+                'user_agent',
 
             ]);
 

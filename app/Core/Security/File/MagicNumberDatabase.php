@@ -16,9 +16,7 @@ final class MagicNumberDatabase
     /**
      * Prevent instantiation.
      */
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     /**
      * Get all known signatures for an extension.
@@ -129,7 +127,7 @@ final class MagicNumberDatabase
                 ),
 
             ],
-                        /*
+            /*
             |--------------------------------------------------------------------------
             | GIF
             |--------------------------------------------------------------------------
@@ -320,7 +318,7 @@ final class MagicNumberDatabase
                 ),
 
             ],
-                        /*
+            /*
             |--------------------------------------------------------------------------
             | Archives
             |--------------------------------------------------------------------------
@@ -527,7 +525,7 @@ final class MagicNumberDatabase
                 ),
 
             ],
-                    ];
+        ];
 
     }
 
@@ -600,9 +598,7 @@ final class MagicNumberDatabase
 
             array_map(
 
-                static fn (array $signatures): int =>
-
-                    count($signatures),
+                static fn (array $signatures): int => count($signatures),
 
                 self::database()
 

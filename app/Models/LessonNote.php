@@ -2,9 +2,7 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-
-class LessonNote extends Model
+class LessonNote extends TenantModel
 {
     protected $table = 'lesson_notes';
 
@@ -45,5 +43,9 @@ class LessonNote extends Model
             'lesson_plan_id'
         );
     }
-    public function scopeCurrent($query){return $query->where('is_deleted',false);}
+
+    public function scopeCurrent($query)
+    {
+        return $query->where('is_deleted', false);
+    }
 }

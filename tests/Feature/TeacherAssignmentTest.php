@@ -94,18 +94,62 @@ class TeacherAssignmentTest extends TestCase
         }
 
         Schema::create('schools', fn (Blueprint $t) => $t->uuid('id')->primary());
-        Schema::create('teachers', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('user_id'); $t->boolean('active'); $t->boolean('is_deleted'); });
-        Schema::create('learning_areas', function (Blueprint $t) { $t->uuid('id')->primary(); $t->string('learning_area_name'); });
-        Schema::create('grades', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->boolean('active'); });
-        Schema::create('streams', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('grade_id'); $t->boolean('active'); });
-        Schema::create('academic_years', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->boolean('active'); });
-        Schema::create('terms', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('academic_year_id'); $t->boolean('active'); });
-        Schema::create('learning_area_allocations', function (Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('grade_id'); $t->uuid('learning_area_id'); $t->boolean('active'); });
+        Schema::create('teachers', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('user_id');
+            $t->boolean('active');
+            $t->boolean('is_deleted');
+        });
+        Schema::create('learning_areas', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->string('learning_area_name');
+        });
+        Schema::create('grades', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->boolean('active');
+        });
+        Schema::create('streams', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('grade_id');
+            $t->boolean('active');
+        });
+        Schema::create('academic_years', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->boolean('active');
+        });
+        Schema::create('terms', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('academic_year_id');
+            $t->boolean('active');
+        });
+        Schema::create('learning_area_allocations', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('grade_id');
+            $t->uuid('learning_area_id');
+            $t->boolean('active');
+        });
         Schema::create('teacher_assignments', function (Blueprint $t) {
-            $t->uuid('id')->primary(); $t->uuid('school_id'); $t->uuid('teacher_id'); $t->uuid('learning_area_id');
-            $t->uuid('grade_id'); $t->uuid('stream_id')->nullable(); $t->uuid('academic_year_id'); $t->uuid('term_id');
-            $t->boolean('is_class_teacher')->default(false); $t->integer('lessons_per_week'); $t->boolean('active')->default(true);
-            $t->boolean('is_deleted')->default(false); $t->timestamp('created_at')->nullable(); $t->timestamp('deleted_at')->nullable(); $t->uuid('deleted_by')->nullable();
+            $t->uuid('id')->primary();
+            $t->uuid('school_id');
+            $t->uuid('teacher_id');
+            $t->uuid('learning_area_id');
+            $t->uuid('grade_id');
+            $t->uuid('stream_id')->nullable();
+            $t->uuid('academic_year_id');
+            $t->uuid('term_id');
+            $t->boolean('is_class_teacher')->default(false);
+            $t->integer('lessons_per_week');
+            $t->boolean('active')->default(true);
+            $t->boolean('is_deleted')->default(false);
+            $t->timestamp('created_at')->nullable();
+            $t->timestamp('deleted_at')->nullable();
+            $t->uuid('deleted_by')->nullable();
         });
     }
 }

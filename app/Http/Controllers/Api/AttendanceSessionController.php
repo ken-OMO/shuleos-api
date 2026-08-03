@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Models\AttendanceSession;
-use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AttendanceSessionResource;
+use App\Models\AttendanceSession;
+use Illuminate\Http\Request;
 
 class AttendanceSessionController extends Controller
 {
@@ -45,17 +45,13 @@ class AttendanceSessionController extends Controller
 
             'id' => 'required|uuid',
 
-            'school_id'
-                => 'required|uuid',
+            'school_id' => 'required|uuid',
 
-            'session_name'
-                => 'required|string|max:100',
+            'session_name' => 'required|string|max:100',
 
-            'session_order'
-                => 'required|integer',
+            'session_order' => 'required|integer',
 
-            'active'
-                => 'boolean',
+            'active' => 'boolean',
 
         ]);
 
@@ -75,20 +71,16 @@ class AttendanceSessionController extends Controller
     public function update(
         Request $request,
         $id
-    )
-    {
+    ) {
         $session = AttendanceSession::findOrFail($id);
 
         $validated = $request->validate([
 
-            'session_name'
-                => 'sometimes|string|max:100',
+            'session_name' => 'sometimes|string|max:100',
 
-            'session_order'
-                => 'sometimes|integer',
+            'session_order' => 'sometimes|integer',
 
-            'active'
-                => 'sometimes|boolean',
+            'active' => 'sometimes|boolean',
 
         ]);
 
@@ -113,9 +105,7 @@ class AttendanceSessionController extends Controller
 
         return response()->json([
 
-            'message'
-
-            => 'Attendance session deleted successfully'
+            'message' => 'Attendance session deleted successfully',
 
         ]);
     }

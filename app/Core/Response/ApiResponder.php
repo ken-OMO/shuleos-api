@@ -13,9 +13,7 @@ final class ApiResponder
     /**
      * Prevent instantiation.
      */
-    private function __construct()
-    {
-    }
+    private function __construct() {}
 
     /**
      * Build a standardized payload.
@@ -314,26 +312,19 @@ final class ApiResponder
 
                 'pagination' => [
 
-                    'current_page'
-                        => $paginator->currentPage(),
+                    'current_page' => $paginator->currentPage(),
 
-                    'last_page'
-                        => $paginator->lastPage(),
+                    'last_page' => $paginator->lastPage(),
 
-                    'per_page'
-                        => $paginator->perPage(),
+                    'per_page' => $paginator->perPage(),
 
-                    'total'
-                        => $paginator->total(),
+                    'total' => $paginator->total(),
 
-                    'from'
-                        => $paginator->firstItem(),
+                    'from' => $paginator->firstItem(),
 
-                    'to'
-                        => $paginator->lastItem(),
+                    'to' => $paginator->lastItem(),
 
-                    'has_more_pages'
-                        => $paginator->hasMorePages(),
+                    'has_more_pages' => $paginator->hasMorePages(),
 
                 ],
 
