@@ -23,6 +23,6 @@ class RecordOfWorkService
             throw ValidationException::withMessages(['lesson_plan_id' => 'A record of work already exists for this lesson plan.']);
         }
 
-return RecordOfWork::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'created_by' => $user ?? $d['created_by'] ?? null, 'status' => $d['status'] ?? 'completed', 'is_deleted' => false, 'created_at' => now()]);
+        return RecordOfWork::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'created_by' => $user ?? $d['created_by'] ?? null, 'status' => $d['status'] ?? 'completed', 'is_deleted' => false, 'created_at' => now()]);
     }
 }

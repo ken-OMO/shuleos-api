@@ -1,0 +1,29 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app
+        - config
+        - database
+        - routes
+
+    level: 5
+
+    excludePaths:
+        analyse:
+            - app/Services/Assessment/*
+            - app/Services/Teaching/LessonNoteService.php
+            - app/Services/Teaching/RecordOfWorkService.php
+            - app/Http/Controllers/Api/AssessmentRegistrationController.php
+            - app/Http/Controllers/Api/AssessmentTypeController.php
+            - app/Http/Controllers/Api/ExamController.php
+            - app/Http/Controllers/Api/ExamLearningAreaController.php
+            - app/Http/Controllers/Api/ExamPaperController.php
+            - app/Http/Controllers/Api/ExamResultController.php
+            - app/Http/Controllers/Api/LessonNoteController.php
+            - app/Http/Controllers/Api/LessonPlanController.php
+            - app/Http/Controllers/Api/RecordOfWorkController.php
+            - app/Http/Controllers/Api/SchemeLessonController.php
+
+    ignoreErrors: []
