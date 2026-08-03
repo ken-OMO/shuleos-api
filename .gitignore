@@ -22,3 +22,9 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Temporary engineering audit reports
+boarding-transport-code-audit.txt
+learner-core-relationship-audit.txt
+learner-vertical-audit.txt
+stage0-pint-report.txt
