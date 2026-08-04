@@ -18,6 +18,6 @@ class LessonNoteService
             throw ValidationException::withMessages(['lesson_plan_id' => 'A lesson note already exists for this lesson plan.']);
         }
 
-return LessonNote::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
+        return LessonNote::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
     }
 }

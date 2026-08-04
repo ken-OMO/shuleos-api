@@ -24,7 +24,7 @@ class ExamController extends BaseCrudController
             $q->when(array_key_exists($f, $v), fn ($x) => $x->where($f, $v[$f]));
         }
 
-return $this->success(ExamResource::collection($q->orderByDesc('start_date')->paginate($v['per_page'] ?? 20)), 'Exams retrieved successfully.');
+        return $this->success(ExamResource::collection($q->orderByDesc('start_date')->paginate($v['per_page'] ?? 20)), 'Exams retrieved successfully.');
     }
 
     public function show(Request $r, string $id)
@@ -80,7 +80,7 @@ return $this->success(ExamResource::collection($q->orderByDesc('start_date')->pa
     private function school(Request $r, array $v = []): string
     {
         $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
-        abort_if(! $id,403,'School context not found.');
+        abort_if(! $id, 403, 'School context not found.');
 
         return (string) $id;
     }

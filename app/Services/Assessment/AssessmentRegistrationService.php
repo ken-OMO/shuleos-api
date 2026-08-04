@@ -24,6 +24,6 @@ class AssessmentRegistrationService
             throw ValidationException::withMessages(['registration_number' => 'This registration number is already in use.']);
         }
 
-return AssessmentRegistration::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'assessment_type' => $type, 'status' => $d['status'] ?? 'pending', 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
+        return AssessmentRegistration::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'assessment_type' => $type, 'status' => $d['status'] ?? 'pending', 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
     }
 }
