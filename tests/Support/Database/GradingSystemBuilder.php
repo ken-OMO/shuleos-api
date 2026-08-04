@@ -5,11 +5,11 @@ namespace Tests\Support\Database;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
-final class GradeBuilder
+final class GradingSystemBuilder
 {
     public static function create(
         object $school,
-        ?object $educationLevel = null,
+        object $educationLevel,
         array $attributes = []
     ): object {
         $id = (string) Str::uuid();
@@ -18,13 +18,14 @@ final class GradeBuilder
         $record = array_merge([
             'id' => $id,
             'school_id' => $school->id,
-            'grade_name' => 'Test Grade '.$suffix,
-            'grade_order' => 1,
+            'grading_name' => 'Test Grading System '.$suffix,
+            'education_level_id' => $educationLevel->id,
+            'uses_points' => false,
+            'uses_marks' => true,
             'active' => true,
-            'education_level_id' => $educationLevel?->id,
         ], $attributes);
 
-        DB::table('grades')->insert($record);
+        DB::table('grading_systems')->insert($record);
 
         return (object) $record;
     }
