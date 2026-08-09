@@ -10,11 +10,9 @@ use App\Services\LeadershipPortal\LeadershipPortalAccessService;
 use App\Services\LeadershipPortal\LeadershipPortalPhaseTwoService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
@@ -26,9 +24,7 @@ class LeadershipPortalPhaseTwoTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->createSchema();
-        DB::beginTransaction();
-        foreach (['school', 'other_school', 'principal_role', 'hod_role', 'teacher_role', 'principal', 'hod', 'ordinary', 'other_principal', 'hod_teacher', 'department_teacher', 'other_teacher', 'year', 'term', 'grade', 'stream', 'area', 'assignment'] as $key) {
+        foreach (['school', 'other_school', 'principal_role', 'hod_role', 'teacher_role', 'principal', 'hod', 'ordinary', 'other_principal', 'hod_teacher', 'department_teacher', 'other_teacher', 'year', 'term', 'grade', 'stream', 'area', 'assignment', 'attendance_session_two'] as $key) {
             $this->ids[$key] = (string) Str::uuid();
         }
 
@@ -80,12 +76,6 @@ class LeadershipPortalPhaseTwoTest extends TestCase
             'manage_leadership_preferences', 'manage_leadership_devices', 'view_hod_department_analytics',
             'view_leadership_reports', 'generate_leadership_reports', 'review_cross_module_approvals',
         ]);
-    }
-
-    protected function tearDown(): void
-    {
-        DB::rollBack();
-        parent::tearDown();
     }
 
     public function test_phase_two_routes_are_explicitly_permissioned(): void
@@ -146,14 +136,17 @@ class LeadershipPortalPhaseTwoTest extends TestCase
         $status = DB::table('attendance_statuses')->whereIn('status_code', ['P', 'PRESENT'])->value('id') ?: (string) Str::uuid();
         $learner = (string) Str::uuid();
         $session = (string) Str::uuid();
-        if (! DB::table('attendance_statuses')->whereKey($status)->exists()) {
+        if (! DB::table('attendance_statuses')->where('id', $status)->exists()) {
             DB::table('attendance_statuses')->insert(['id' => $status, 'status_name' => 'Present L2', 'status_code' => 'P']);
         }
-        DB::table('attendance_sessions')->insert(['id' => $session, 'school_id' => $this->ids['school'], 'session_name' => 'Morning L2', 'active' => true]);
+        DB::table('attendance_sessions')->insert([
+            ['id' => $session, 'school_id' => $this->ids['school'], 'session_name' => 'Morning L2', 'active' => true],
+            ['id' => $this->ids['attendance_session_two'], 'school_id' => $this->ids['school'], 'session_name' => 'Afternoon L2', 'active' => true],
+        ]);
         DB::table('learners')->insert(['id' => $learner, 'school_id' => $this->ids['school'], 'admission_no' => 'L2-'.Str::random(6), 'first_name' => 'Safe', 'last_name' => 'Learner', 'grade_id' => $this->ids['grade'], 'stream_id' => $this->ids['stream'], 'active' => true, 'is_deleted' => false]);
         DB::table('learner_attendance')->insert([
             ['id' => (string) Str::uuid(), 'school_id' => $this->ids['school'], 'learner_id' => $learner, 'grade_id' => $this->ids['grade'], 'stream_id' => $this->ids['stream'], 'attendance_session_id' => $session, 'attendance_status_id' => $status, 'attendance_date' => today(), 'finalized' => true],
-            ['id' => (string) Str::uuid(), 'school_id' => $this->ids['school'], 'learner_id' => $learner, 'grade_id' => $this->ids['grade'], 'stream_id' => $this->ids['stream'], 'attendance_session_id' => $session, 'attendance_status_id' => $status, 'attendance_date' => today(), 'finalized' => false],
+            ['id' => (string) Str::uuid(), 'school_id' => $this->ids['school'], 'learner_id' => $learner, 'grade_id' => $this->ids['grade'], 'stream_id' => $this->ids['stream'], 'attendance_session_id' => $this->ids['attendance_session_two'], 'attendance_status_id' => $status, 'attendance_date' => today(), 'finalized' => false],
         ]);
 
         $summary = app(LeadershipPortalPhaseTwoService::class)->attendance($this->userModel('principal'), 'today');
@@ -234,164 +227,5 @@ class LeadershipPortalPhaseTwoTest extends TestCase
     private function userModel(string $key): User
     {
         return User::with('role')->findOrFail($this->ids[$key]);
-    }
-
-    private function createSchema(): void
-    {
-        if (Schema::hasTable('schools')) {
-            return;
-        }
-        Schema::create('schools', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('school_name');
-            $table->string('school_code')->unique();
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('roles', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('role_name')->unique();
-        });
-        Schema::create('users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('role_id');
-            $table->string('username')->unique();
-            $table->string('password_hash');
-            $table->string('first_name')->nullable();
-            $table->string('last_name')->nullable();
-            $table->boolean('active')->default(true);
-            $table->boolean('is_deleted')->default(false);
-            $table->timestamps();
-        });
-        Schema::create('permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('permission_name')->unique();
-        });
-        Schema::create('role_permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('role_id');
-            $table->uuid('permission_id');
-            $table->unique(['role_id', 'permission_id']);
-        });
-        Schema::create('academic_years', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('year_name');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('terms', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('academic_year_id');
-            $table->string('term_name');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('grades', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('grade_name');
-            $table->integer('grade_order');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('streams', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('grade_id');
-            $table->string('stream_name');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('learning_areas', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('learning_area_name');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('teachers', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('user_id');
-            $table->string('designation')->nullable();
-            $table->string('employment_type')->nullable();
-            $table->boolean('active')->default(true);
-            $table->boolean('is_deleted')->default(false);
-        });
-        Schema::create('hod_assignments', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('teacher_id');
-            $table->uuid('learning_area_id');
-            $table->uuid('academic_year_id');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('teacher_assignments', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('teacher_id');
-            $table->uuid('learning_area_id');
-            $table->uuid('grade_id');
-            $table->uuid('stream_id')->nullable();
-            $table->uuid('academic_year_id');
-            $table->uuid('term_id');
-            $table->integer('lessons_per_week')->default(0);
-            $table->boolean('active')->default(true);
-            $table->boolean('is_deleted')->default(false);
-        });
-        Schema::create('attendance_statuses', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('status_name');
-            $table->string('status_code');
-        });
-        Schema::create('attendance_sessions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('session_name');
-            $table->boolean('active')->default(true);
-        });
-        Schema::create('learners', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('admission_no');
-            $table->string('first_name');
-            $table->string('last_name');
-            $table->uuid('grade_id');
-            $table->uuid('stream_id');
-            $table->boolean('active')->default(true);
-            $table->boolean('is_deleted')->default(false);
-        });
-        Schema::create('learner_attendance', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('learner_id');
-            $table->uuid('grade_id');
-            $table->uuid('stream_id');
-            $table->uuid('attendance_session_id');
-            $table->uuid('attendance_status_id');
-            $table->date('attendance_date');
-            $table->boolean('finalized')->default(false);
-        });
-        Schema::create('leadership_portal_devices', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('user_id');
-            $table->string('device_identifier_hash');
-            $table->text('push_token_encrypted')->nullable();
-            $table->string('platform');
-            $table->string('device_name')->nullable();
-            $table->string('app_version')->nullable();
-            $table->boolean('push_enabled')->default(false);
-            $table->timestamp('last_seen_at')->nullable();
-            $table->timestamp('revoked_at')->nullable();
-            $table->timestamps();
-            $table->unique(['school_id', 'user_id', 'device_identifier_hash']);
-        });
-        Schema::create('leadership_portal_audit_logs', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('actor_user_id');
-            $table->string('action');
-            $table->string('entity_type')->nullable();
-            $table->uuid('entity_id')->nullable();
-            $table->json('safe_metadata')->nullable();
-            $table->timestamp('created_at');
-        });
     }
 }

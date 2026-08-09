@@ -34,6 +34,11 @@ class LeadershipDeviceService
         $hash = hash('sha256', trim($data['device_identifier']));
 
         return DB::transaction(function () use ($user, $data, $hash) {
+            User::withoutGlobalScopes()
+                ->whereKey($user->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $device = LeadershipPortalDevice::withoutGlobalScopes()
                 ->where('school_id', $user->school_id)
                 ->where('user_id', $user->id)
@@ -46,7 +51,6 @@ class LeadershipDeviceService
                     ->where('school_id', $user->school_id)
                     ->where('user_id', $user->id)
                     ->whereNull('revoked_at')
-                    ->lockForUpdate()
                     ->count();
                 if ($count >= config('leadership_portal_phase_two.device_limit', 5)) {
                     throw ValidationException::withMessages(['device' => 'The leadership device limit has been reached.']);
