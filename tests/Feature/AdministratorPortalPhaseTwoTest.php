@@ -9,24 +9,23 @@ use App\Services\Administrator\Operations\AdministratorOperationsAccessService;
 use App\Services\Administrator\Operations\AdministratorProviderConfigurationService;
 use App\Services\Administrator\Operations\AdministratorRecoveryService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class AdministratorPortalPhaseTwoTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private array $ids = [];
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->schema();
-        DB::beginTransaction();
         foreach (['school', 'other_school', 'admin_role', 'platform_role', 'support_role', 'admin', 'platform', 'support'] as $key) {
             $this->ids[$key] = (string) Str::uuid();
         }
@@ -40,12 +39,6 @@ class AdministratorPortalPhaseTwoTest extends TestCase
         $this->grant('admin_role', $schoolPermissions);
         $this->grant('platform_role', $platformPermissions);
         $this->grant('support_role', ['access_administrator_portal']);
-    }
-
-    protected function tearDown(): void
-    {
-        DB::rollBack();
-        parent::tearDown();
     }
 
     public function test_school_platform_support_and_restore_authority_are_strictly_separated(): void
@@ -159,102 +152,6 @@ class AdministratorPortalPhaseTwoTest extends TestCase
                 $id = (string) Str::uuid();
                 DB::table('permissions')->insert(['id' => $id, 'permission_name' => $name, 'module_name' => 'administrator_operations', 'created_at' => now()]);
             } DB::table('role_permissions')->insertOrIgnore(['id' => (string) Str::uuid(), 'role_id' => $this->ids[$role], 'permission_id' => $id, 'created_at' => now()]);
-        }
-    }
-
-    private function schema(): void
-    {
-        if (! Schema::hasTable('schools')) {
-            Schema::create('schools', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->string('school_name');
-                $t->string('school_code');
-                $t->boolean('active')->default(true);
-                $t->boolean('is_deleted')->default(false);
-                $t->string('lifecycle_state')->default('active');
-                $t->timestamps();
-            });
-        }
-        if (! Schema::hasTable('roles')) {
-            Schema::create('roles', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->string('role_name');
-                $t->uuid('school_id')->nullable();
-                $t->boolean('system_role')->default(true);
-                $t->boolean('active')->default(true);
-                $t->timestamp('created_at')->nullable();
-                $t->timestamp('updated_at')->nullable();
-            });
-        }
-        if (! Schema::hasTable('users')) {
-            Schema::create('users', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->uuid('school_id');
-                $t->uuid('role_id');
-                $t->string('username');
-                $t->string('password_hash');
-                $t->string('email')->nullable();
-                $t->string('phone')->nullable();
-                $t->string('first_name');
-                $t->string('middle_name')->nullable();
-                $t->string('last_name');
-                $t->boolean('active')->default(true);
-                $t->boolean('first_login')->default(false);
-                $t->boolean('is_deleted')->default(false);
-                $t->unsignedInteger('auth_generation')->default(1);
-                $t->timestamp('last_login')->nullable();
-                $t->timestamp('account_locked_until')->nullable();
-                $t->timestamps();
-            });
-        }
-        if (! Schema::hasTable('permissions')) {
-            Schema::create('permissions', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->string('permission_name')->unique();
-                $t->string('module_name')->nullable();
-                $t->text('description')->nullable();
-                $t->timestamp('created_at')->nullable();
-            });
-        }
-        if (! Schema::hasTable('role_permissions')) {
-            Schema::create('role_permissions', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->uuid('role_id');
-                $t->uuid('permission_id');
-                $t->timestamp('created_at')->nullable();
-                $t->unique(['role_id', 'permission_id']);
-            });
-        }
-        if (! Schema::hasTable('audit_logs')) {
-            Schema::create('audit_logs', function (Blueprint $t) {
-                $t->uuid('id')->primary();
-                $t->uuid('school_id')->nullable();
-                $t->uuid('user_id');
-                $t->string('module');
-                $t->string('action');
-                $t->string('table_name');
-                $t->uuid('record_id')->nullable();
-                $t->text('description')->nullable();
-                $t->json('old_values')->nullable();
-                $t->json('new_values')->nullable();
-                $t->string('ip_address')->nullable();
-                $t->text('user_agent')->nullable();
-                $t->timestamp('created_at');
-            });
-        }
-        if (! Schema::hasTable('failed_jobs')) {
-            Schema::create('failed_jobs', function (Blueprint $t) {
-                $t->id();
-                $t->string('uuid')->unique();
-                $t->text('connection');
-                $t->text('queue');
-                $t->longText('payload');
-                $t->longText('exception');
-                $t->timestamp('failed_at');
-            });
-        }
-        if (! Schema::hasTable('administrator_operation_previews')) {
-            (require database_path('migrations/2026_07_19_030001_create_administrator_operations_phase_two_tables.php'))->up();
         }
     }
 }
