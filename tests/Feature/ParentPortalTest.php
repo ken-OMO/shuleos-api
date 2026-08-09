@@ -7,190 +7,252 @@ use App\Services\ParentPortal\ParentPortalAccessService;
 use App\Services\ParentPortal\ParentPortalService;
 use App\Services\ParentPortal\ParentReportCardAccessService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\RoleBuilder;
+use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\StreamBuilder;
+use Tests\Support\Database\TermBuilder;
+use Tests\Support\Database\UserBuilder;
 use Tests\TestCase;
 
 class ParentPortalTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private array $id = [];
 
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['report_card_access_overrides', 'fee_invoices', 'report_cards', 'notifications', 'broadcasts', 'learner_parents', 'parents', 'learners', 'streams', 'grades', 'school_settings', 'user_roles', 'users', 'roles', 'schools'] as $t) {
-            Schema::dropIfExists($t);
-        }Schema::create('schools', fn (Blueprint $t) => $t->uuid('id')->primary());
-        Schema::create('roles', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->string('role_name');
-        });
-        Schema::create('users', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('role_id');
-            $t->boolean('active');
-            $t->timestamps();
-        });
-        Schema::create('user_roles', function (Blueprint $t) {
-            $t->uuid('user_id');
-            $t->uuid('role_id');
-        });
-        Schema::create('school_settings', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->boolean('parent_portal_enabled');
-            $t->string('report_card_fee_policy');
-            $t->decimal('report_card_balance_threshold', 12, 2);
-            $t->text('report_card_restriction_message')->nullable();
-            $t->boolean('report_card_allow_admin_override');
-            $t->boolean('parent_portal_show_fees');
-            $t->boolean('parent_portal_show_attendance');
-            $t->boolean('parent_portal_show_announcements');
-            $t->boolean('parent_portal_show_pathway');
-            $t->boolean('pathway_enabled');
-            $t->timestamps();
-        });
-        Schema::create('grades', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-        });
-        Schema::create('streams', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('grade_id');
-        });
-        Schema::create('learners', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('grade_id');
-            $t->uuid('stream_id');
-            $t->boolean('active');
-            $t->boolean('is_deleted');
-            $t->timestamps();
-        });
-        Schema::create('parents', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('user_id');
-            $t->string('first_name');
-            $t->string('last_name');
-            $t->boolean('active');
-            $t->boolean('is_deleted');
-        });
-        Schema::create('learner_parents', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('learner_id');
-            $t->uuid('parent_id');
-            $t->string('relationship')->nullable();
-            $t->boolean('is_primary_contact');
-            $t->boolean('active');
-            $t->boolean('portal_enabled');
-            $t->boolean('is_deleted');
-            $t->timestamps();
-        });
-        Schema::create('report_cards', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('learner_id');
-            $t->uuid('exam_id');
-            $t->uuid('academic_year_id');
-            $t->uuid('term_id');
-            $t->string('status');
-            $t->timestamp('published_at')->nullable();
-            $t->boolean('is_deleted');
-            $t->timestamps();
-        });
-        Schema::create('fee_invoices', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('learner_id');
-            $t->uuid('academic_year_id');
-            $t->uuid('term_id');
-            $t->decimal('total_amount', 12, 2);
-            $t->decimal('amount_paid', 12, 2);
-            $t->decimal('balance', 12, 2);
-            $t->string('status');
-            $t->timestamp('cancelled_at')->nullable();
-            $t->date('invoice_date');
-        });
-        Schema::create('report_card_access_overrides', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('learner_id');
-            $t->uuid('exam_id')->nullable();
-            $t->uuid('report_card_id')->nullable();
-            $t->string('access_scope');
-            $t->boolean('access_allowed');
-            $t->uuid('approved_by');
-            $t->timestamp('expires_at')->nullable();
-            $t->boolean('is_deleted');
-            $t->timestamps();
-        });
-        Schema::create('notifications', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('user_id');
-            $t->string('title');
-            $t->text('message');
-            $t->boolean('is_read');
-            $t->timestamp('created_at');
-        });
-        Schema::create('broadcasts', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->string('title');
-            $t->text('message_body');
-            $t->string('target_group')->nullable();
-            $t->string('status');
-            $t->timestamp('sent_at')->nullable();
-        });
-        foreach (['school', 'other', 'role', 'user', 'parent', 'grade', 'stream', 'learner1', 'learner2', 'unlinked', 'exam', 'year', 'term', 'card', 'draft'] as $k) {
-            $this->id[$k] = (string) Str::uuid();
-        }DB::table('schools')->insert([['id' => $this->id['school']], ['id' => $this->id['other']]]);
-        DB::table('roles')->insert(['id' => $this->id['role'], 'role_name' => 'Parent']);
-        DB::table('users')->insert(['id' => $this->id['user'], 'school_id' => $this->id['school'], 'role_id' => $this->id['role'], 'active' => 1]);
-        DB::table('school_settings')->insert(['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'parent_portal_enabled' => 1, 'report_card_fee_policy' => 'open', 'report_card_balance_threshold' => 0, 'report_card_allow_admin_override' => 1, 'parent_portal_show_fees' => 1, 'parent_portal_show_attendance' => 1, 'parent_portal_show_announcements' => 1, 'parent_portal_show_pathway' => 1, 'pathway_enabled' => 1]);
-        DB::table('grades')->insert(['id' => $this->id['grade'], 'school_id' => $this->id['school']]);
-        DB::table('streams')->insert(['id' => $this->id['stream'], 'school_id' => $this->id['school'], 'grade_id' => $this->id['grade']]);
-        foreach (['learner1', 'learner2', 'unlinked'] as $l) {
-            DB::table('learners')->insert(['id' => $this->id[$l], 'school_id' => $this->id['school'], 'grade_id' => $this->id['grade'], 'stream_id' => $this->id['stream'], 'active' => 1, 'is_deleted' => 0]);
-        }DB::table('parents')->insert(['id' => $this->id['parent'], 'school_id' => $this->id['school'], 'user_id' => $this->id['user'], 'first_name' => 'Parent', 'last_name' => 'One', 'active' => 1, 'is_deleted' => 0]);
-        foreach (['learner1', 'learner2'] as $l) {
-            DB::table('learner_parents')->insert(['id' => (string) Str::uuid(), 'learner_id' => $this->id[$l], 'parent_id' => $this->id['parent'], 'relationship' => 'Parent', 'is_primary_contact' => 1, 'active' => 1, 'portal_enabled' => 1, 'is_deleted' => 0]);
-        }DB::table('report_cards')->insert([['id' => $this->id['card'], 'school_id' => $this->id['school'], 'learner_id' => $this->id['learner1'], 'exam_id' => $this->id['exam'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'status' => 'published', 'published_at' => now(), 'is_deleted' => 0], ['id' => $this->id['draft'], 'school_id' => $this->id['school'], 'learner_id' => $this->id['learner1'], 'exam_id' => $this->id['exam'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'status' => 'generated', 'published_at' => null, 'is_deleted' => 0]]);
+
+        $school = SchoolBuilder::create();
+        $otherSchool = SchoolBuilder::create();
+
+        $role = RoleBuilder::create([
+            'role_name' => 'Parent',
+        ]);
+
+        $user = UserBuilder::create($school, $role);
+
+        $grade = GradeBuilder::create($school);
+        $stream = StreamBuilder::create($school, $grade);
+
+        $learner1 = LearnerBuilder::create($school, $grade, $stream);
+        $learner2 = LearnerBuilder::create($school, $grade, $stream);
+        $unlinked = LearnerBuilder::create($school, $grade, $stream);
+
+        $year = AcademicYearBuilder::create($school);
+        $term = TermBuilder::create($school, $year);
+
+        $parentId = (string) Str::uuid();
+
+        DB::table('parents')->insert([
+            'id' => $parentId,
+            'school_id' => $school->id,
+            'user_id' => $user->id,
+            'first_name' => 'Parent',
+            'last_name' => 'One',
+            'phone' => '+254700000001',
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        foreach ([$learner1->id, $learner2->id] as $learnerId) {
+            DB::table('learner_parents')->insert([
+                'id' => (string) Str::uuid(),
+                'learner_id' => $learnerId,
+                'parent_id' => $parentId,
+                'relationship' => 'Parent',
+                'is_primary_contact' => true,
+                'active' => true,
+                'portal_enabled' => true,
+                'is_deleted' => false,
+            ]);
+        }
+
+        DB::table('school_settings')
+            ->where('school_id', $school->id)
+            ->update([
+                'parent_portal_enabled' => true,
+                'report_card_fee_policy' => 'open',
+                'report_card_balance_threshold' => 0,
+                'report_card_allow_admin_override' => true,
+                'parent_portal_show_fees' => true,
+                'parent_portal_show_attendance' => true,
+                'parent_portal_show_announcements' => true,
+                'parent_portal_show_pathway' => true,
+                'pathway_enabled' => true,
+            ]);
+
+        if (! DB::table('school_settings')
+            ->where('school_id', $school->id)
+            ->exists()) {
+            DB::table('school_settings')->insert([
+                'id' => (string) Str::uuid(),
+                'school_id' => $school->id,
+                'parent_portal_enabled' => true,
+                'report_card_fee_policy' => 'open',
+                'report_card_balance_threshold' => 0,
+                'report_card_allow_admin_override' => true,
+                'parent_portal_show_fees' => true,
+                'parent_portal_show_attendance' => true,
+                'parent_portal_show_announcements' => true,
+                'parent_portal_show_pathway' => true,
+                'pathway_enabled' => true,
+            ]);
+        }
+
+        $assessmentType = (string) Str::uuid();
+
+        DB::table('assessment_types')->insert([
+            'id' => $assessmentType,
+            'school_id' => $school->id,
+            'assessment_type_name' => 'Parent Portal Test',
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $exam = (string) Str::uuid();
+        $draftExam = (string) Str::uuid();
+
+        DB::table('exams')->insert([
+            [
+                'id' => $exam,
+                'school_id' => $school->id,
+                'exam_name' => 'Published Parent Portal Exam',
+                'assessment_type_id' => $assessmentType,
+                'academic_year_id' => $year->id,
+                'term_id' => $term->id,
+                'active' => true,
+                'status' => 'published',
+                'is_deleted' => false,
+            ],
+            [
+                'id' => $draftExam,
+                'school_id' => $school->id,
+                'exam_name' => 'Generated Parent Portal Exam',
+                'assessment_type_id' => $assessmentType,
+                'academic_year_id' => $year->id,
+                'term_id' => $term->id,
+                'active' => true,
+                'status' => 'draft',
+                'is_deleted' => false,
+            ],
+        ]);
+
+        $card = (string) Str::uuid();
+        $draft = (string) Str::uuid();
+
+        DB::table('report_cards')->insert([
+            [
+                'id' => $card,
+                'school_id' => $school->id,
+                'learner_id' => $learner1->id,
+                'exam_id' => $exam,
+                'academic_year_id' => $year->id,
+                'term_id' => $term->id,
+                'status' => 'published',
+                'published_at' => now(),
+                'is_deleted' => false,
+            ],
+            [
+                'id' => $draft,
+                'school_id' => $school->id,
+                'learner_id' => $learner1->id,
+                'exam_id' => $draftExam,
+                'academic_year_id' => $year->id,
+                'term_id' => $term->id,
+                'status' => 'generated',
+                'published_at' => null,
+                'is_deleted' => false,
+            ],
+        ]);
+
+        $this->id = [
+            'school' => $school->id,
+            'other' => $otherSchool->id,
+            'role' => $role->id,
+            'user' => $user->id,
+            'parent' => $parentId,
+            'grade' => $grade->id,
+            'stream' => $stream->id,
+            'learner1' => $learner1->id,
+            'learner2' => $learner2->id,
+            'unlinked' => $unlinked->id,
+            'exam' => $exam,
+            'draft_exam' => $draftExam,
+            'year' => $year->id,
+            'term' => $term->id,
+            'card' => $card,
+            'draft' => $draft,
+        ];
     }
 
     private function user(): User
     {
-        return User::with('role')->find($this->id['user']);
+        return User::with('role')->findOrFail($this->id['user']);
     }
 
-    private function invoice(float $b, ?string $term = null): void
+    private function invoice(float $balance, ?string $term = null): void
     {
-        DB::table('fee_invoices')->insert(['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'learner_id' => $this->id['learner1'], 'academic_year_id' => $this->id['year'], 'term_id' => $term ?? $this->id['term'], 'total_amount' => $b, 'amount_paid' => 0, 'balance' => $b, 'status' => 'UNPAID', 'invoice_date' => now()]);
+        $id = (string) Str::uuid();
+
+        DB::table('fee_invoices')->insert([
+            'id' => $id,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'academic_year_id' => $this->id['year'],
+            'term_id' => $term ?? $this->id['term'],
+            'invoice_number' => 'INV-'.strtoupper(substr(str_replace('-', '', $id), 0, 12)),
+            'total_amount' => $balance,
+            'amount_paid' => 0,
+            'balance' => $balance,
+            'status' => 'UNPAID',
+            'invoice_date' => now()->toDateString(),
+        ]);
     }
 
     public function test_parent_resolves_and_sees_multiple_active_links(): void
     {
-        $a = app(ParentPortalAccessService::class);
-        $this->assertSame($this->id['parent'], $a->parent($this->user())->id);
-        $this->assertCount(2, $a->links($this->user()));
+        $access = app(ParentPortalAccessService::class);
+
+        $this->assertSame(
+            $this->id['parent'],
+            $access->parent($this->user())->id
+        );
+
+        $this->assertCount(2, $access->links($this->user()));
     }
 
     public function test_unlinked_inactive_disabled_and_cross_school_are_rejected(): void
     {
-        $a = app(ParentPortalAccessService::class);
+        $access = app(ParentPortalAccessService::class);
+
         foreach (['unlinked', 'learner1', 'learner2'] as $i => $key) {
             if ($i === 1) {
-                DB::table('learner_parents')->where('learner_id', $this->id[$key])->update(['active' => 0]);
-            }if ($i === 2) {
-                DB::table('learner_parents')->where('learner_id', $this->id[$key])->update(['portal_enabled' => 0]);
-            }try {
-                $a->requireLinkedLearner($this->user(), $this->id[$key]);
-                $this->fail();
+                DB::table('learner_parents')
+                    ->where('learner_id', $this->id[$key])
+                    ->update(['active' => false]);
+            }
+
+            if ($i === 2) {
+                DB::table('learner_parents')
+                    ->where('learner_id', $this->id[$key])
+                    ->update(['portal_enabled' => false]);
+            }
+
+            try {
+                $access->requireLinkedLearner(
+                    $this->user(),
+                    $this->id[$key]
+                );
+
+                $this->fail('Unauthorized learner access succeeded.');
             } catch (AuthorizationException) {
                 $this->assertTrue(true);
             }
@@ -199,45 +261,197 @@ class ParentPortalTest extends TestCase
 
     public function test_only_published_cards_are_listed(): void
     {
-        $rows = app(ParentPortalService::class)->reportCards($this->user(), $this->id['learner1']);
+        $rows = app(ParentPortalService::class)->reportCards(
+            $this->user(),
+            $this->id['learner1']
+        );
+
         $this->assertCount(1, $rows);
-        $this->assertSame($this->id['card'], $rows->first()['report_card']->id);
+        $this->assertSame(
+            $this->id['card'],
+            $rows->first()['report_card']->id
+        );
     }
 
     public function test_fee_policies_and_term_specific_balance(): void
     {
         $this->invoice(100);
-        $this->invoice(999, (string) Str::uuid());
-        $s = app(ParentReportCardAccessService::class);
-        $open = $s->decision($this->user(), $this->id['learner1'], $this->id['card']);
+
+        $otherTerm = TermBuilder::create(
+            (object) ['id' => $this->id['school']],
+            (object) ['id' => $this->id['year']],
+            [
+                'term_name' => 'Other Test Term',
+                'start_date' => '2026-08-02',
+                'end_date' => '2026-10-31',
+            ]
+        );
+
+        $this->invoice(999, $otherTerm->id);
+
+        $service = app(ParentReportCardAccessService::class);
+
+        $open = $service->decision(
+            $this->user(),
+            $this->id['learner1'],
+            $this->id['card']
+        );
+
         $this->assertSame(100.0, $open['outstanding_balance']);
-        DB::table('school_settings')->update(['report_card_fee_policy' => 'download_only_when_cleared']);
-        $d = $s->decision($this->user(), $this->id['learner1'], $this->id['card']);
-        $this->assertTrue($d['can_view']);
-        $this->assertFalse($d['can_download']);
-        DB::table('school_settings')->update(['report_card_fee_policy' => 'fully_restricted_when_balance']);
-        $d = $s->decision($this->user(), $this->id['learner1'], $this->id['card']);
-        $this->assertFalse($d['can_view']);
+
+        DB::table('school_settings')
+            ->where('school_id', $this->id['school'])
+            ->update([
+                'report_card_fee_policy' => 'download_only_when_cleared',
+            ]);
+
+        $decision = $service->decision(
+            $this->user(),
+            $this->id['learner1'],
+            $this->id['card']
+        );
+
+        $this->assertTrue($decision['can_view']);
+        $this->assertFalse($decision['can_download']);
+
+        DB::table('school_settings')
+            ->where('school_id', $this->id['school'])
+            ->update([
+                'report_card_fee_policy' => 'fully_restricted_when_balance',
+            ]);
+
+        $decision = $service->decision(
+            $this->user(),
+            $this->id['learner1'],
+            $this->id['card']
+        );
+
+        $this->assertFalse($decision['can_view']);
     }
 
     public function test_threshold_and_override_expiry(): void
     {
         $this->invoice(50);
-        DB::table('school_settings')->update(['report_card_fee_policy' => 'balance_threshold', 'report_card_balance_threshold' => 40]);
-        $s = app(ParentReportCardAccessService::class);
-        $this->assertFalse($s->decision($this->user(), $this->id['learner1'], $this->id['card'])['can_view']);
-        DB::table('report_card_access_overrides')->insert(['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'learner_id' => $this->id['learner1'], 'report_card_id' => $this->id['card'], 'access_scope' => 'both', 'access_allowed' => 1, 'approved_by' => $this->id['user'], 'expires_at' => now()->addDay(), 'is_deleted' => 0]);
-        $this->assertTrue($s->decision($this->user(), $this->id['learner1'], $this->id['card'])['can_download']);
-        DB::table('report_card_access_overrides')->update(['expires_at' => now()->subDay()]);
-        $this->assertFalse($s->decision($this->user(), $this->id['learner1'], $this->id['card'])['can_download']);
+
+        DB::table('school_settings')
+            ->where('school_id', $this->id['school'])
+            ->update([
+                'report_card_fee_policy' => 'balance_threshold',
+                'report_card_balance_threshold' => 40,
+            ]);
+
+        $service = app(ParentReportCardAccessService::class);
+
+        $this->assertFalse(
+            $service->decision(
+                $this->user(),
+                $this->id['learner1'],
+                $this->id['card']
+            )['can_view']
+        );
+
+        $override = (string) Str::uuid();
+
+        DB::table('report_card_access_overrides')->insert([
+            'id' => $override,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'report_card_id' => $this->id['card'],
+            'access_scope' => 'both',
+            'access_allowed' => true,
+            'approved_by' => $this->id['user'],
+            'expires_at' => now()->addDay(),
+            'is_deleted' => false,
+        ]);
+
+        $this->assertTrue(
+            $service->decision(
+                $this->user(),
+                $this->id['learner1'],
+                $this->id['card']
+            )['can_download']
+        );
+
+        DB::table('report_card_access_overrides')
+            ->where('id', $override)
+            ->update([
+                'expires_at' => now()->subDay(),
+            ]);
+
+        $this->assertFalse(
+            $service->decision(
+                $this->user(),
+                $this->id['learner1'],
+                $this->id['card']
+            )['can_download']
+        );
     }
 
     public function test_notifications_and_announcements_are_tenant_and_user_scoped(): void
     {
-        DB::table('notifications')->insert([['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'user_id' => $this->id['user'], 'title' => 'Mine', 'message' => 'x', 'is_read' => 0, 'created_at' => now()], ['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'user_id' => (string) Str::uuid(), 'title' => 'Other', 'message' => 'x', 'is_read' => 0, 'created_at' => now()]]);
-        DB::table('broadcasts')->insert([['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'title' => 'Sent', 'message_body' => 'x', 'target_group' => 'parents', 'status' => 'SENT', 'sent_at' => now()], ['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'title' => 'Draft', 'message_body' => 'x', 'target_group' => 'parents', 'status' => 'DRAFT', 'sent_at' => null]]);
-        $p = app(ParentPortalService::class);
-        $this->assertSame(1, $p->notifications($this->user())->total());
-        $this->assertCount(1, $p->announcements($this->user()));
+        DB::table('notifications')->insert([
+            [
+                'id' => (string) Str::uuid(),
+                'school_id' => $this->id['school'],
+                'user_id' => $this->id['user'],
+                'title' => 'Mine',
+                'message' => 'x',
+                'is_read' => false,
+                'created_at' => now(),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'school_id' => $this->id['school'],
+                'user_id' => UserBuilder::create(
+                    (object) ['id' => $this->id['school']],
+                    (object) ['id' => $this->id['role']]
+                )->id,
+                'title' => 'Other',
+                'message' => 'x',
+                'is_read' => false,
+                'created_at' => now(),
+            ],
+        ]);
+
+        $communication = (string) Str::uuid();
+
+        DB::table('communications')->insert([
+            'id' => $communication,
+            'school_id' => $this->id['school'],
+            'sender_user_id' => $this->id['user'],
+            'communication_type' => 'announcement',
+            'category' => 'general',
+            'priority' => 'normal',
+            'subject' => 'Sent',
+            'body' => 'x',
+            'status' => 'sent',
+            'requires_approval' => false,
+            'risk_level' => 'low',
+            'recipient_count' => 1,
+            'sent_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('communication_recipient_snapshots')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $this->id['school'],
+            'communication_id' => $communication,
+            'user_id' => $this->id['user'],
+            'audience_type' => 'parent',
+            'resolved_at' => now(),
+        ]);
+
+        $portal = app(ParentPortalService::class);
+
+        $this->assertSame(
+            1,
+            $portal->notifications($this->user())->total()
+        );
+
+        $this->assertCount(
+            1,
+            $portal->announcements($this->user())
+        );
     }
 }
