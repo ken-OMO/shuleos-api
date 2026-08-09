@@ -3,15 +3,16 @@
 namespace Tests\Feature;
 
 use App\Services\Communication\CommunicationSandboxSmokeService;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class CommunicationSandboxSmokeTest extends TestCase
 {
+    use DatabaseTransactions;
+
     public function test_command_is_blocked_in_production(): void
     {
         $this->app->detectEnvironment(fn () => 'production');
@@ -56,19 +57,25 @@ class CommunicationSandboxSmokeTest extends TestCase
 
     public function test_cleanup_touches_only_the_owned_prefixed_school(): void
     {
-        Schema::create('schools', function (Blueprint $table) {
-            $table->string('id')->primary();
-            $table->string('school_name');
-            $table->boolean('active')->default(true);
-            $table->timestamp('updated_at')->nullable();
-        });
 
         $owned = (string) Str::uuid();
         $unrelated = (string) Str::uuid();
         $prefix = 'SANDBOX-COMMUNICATION-SMOKE-20260718120000000-TEST';
         DB::table('schools')->insert([
-            ['id' => $owned, 'school_name' => $prefix],
-            ['id' => $unrelated, 'school_name' => 'Unrelated School'],
+            [
+                'id' => $owned,
+                'school_name' => $prefix,
+                'school_code' => 'SMOKE-'.strtoupper(Str::random(8)),
+                'active' => true,
+                'is_deleted' => false,
+            ],
+            [
+                'id' => $unrelated,
+                'school_name' => 'Unrelated School',
+                'school_code' => 'OTHER-'.strtoupper(Str::random(8)),
+                'active' => true,
+                'is_deleted' => false,
+            ],
         ]);
 
         $result = app(CommunicationSandboxSmokeService::class)->cleanup(['school_id' => $owned], $prefix);
