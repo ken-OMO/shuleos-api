@@ -4,15 +4,16 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class AuthenticationContractTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private array $ids = [];
 
     protected function setUp(): void
@@ -23,9 +24,6 @@ class AuthenticationContractTest extends TestCase
             'jwt.ttl' => 60,
             'jwt.blacklist_enabled' => true,
         ]);
-        $this->createSchema();
-        DB::beginTransaction();
-
         foreach (['school', 'other_school', 'user', 'primary_role', 'additional_role', 'other_role'] as $key) {
             $this->ids[$key] = (string) Str::uuid();
         }
@@ -60,12 +58,6 @@ class AuthenticationContractTest extends TestCase
         $this->grant('primary_role', ['view_dashboard', 'shared_permission']);
         $this->grant('additional_role', ['approve_lesson_plans', 'shared_permission']);
         $this->grant('other_role', ['manage_other_school']);
-    }
-
-    protected function tearDown(): void
-    {
-        DB::rollBack();
-        parent::tearDown();
     }
 
     public function test_valid_login_returns_compatible_token_and_safe_authoritative_context(): void
@@ -203,86 +195,5 @@ class AuthenticationContractTest extends TestCase
         DB::table('permissions')->insert(['id' => $id, 'permission_name' => $name, 'created_at' => now()]);
 
         return $id;
-    }
-
-    private function createSchema(): void
-    {
-        foreach (['audit_logs', 'role_permissions', 'user_roles', 'permissions', 'users', 'roles', 'schools'] as $table) {
-            Schema::dropIfExists($table);
-        }
-        Schema::create('schools', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('school_name');
-            $table->string('school_code')->unique();
-            $table->string('short_name')->nullable();
-            $table->boolean('active')->default(true);
-            $table->boolean('is_deleted')->default(false);
-            $table->string('lifecycle_state')->default('active');
-            $table->string('timezone')->default('Africa/Nairobi');
-            $table->string('locale')->default('en');
-            $table->timestamps();
-        });
-        Schema::create('roles', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('role_name');
-            $table->uuid('school_id')->nullable();
-            $table->boolean('active')->default(true);
-            $table->timestamps();
-        });
-        Schema::create('users', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->uuid('role_id');
-            $table->string('username')->unique();
-            $table->string('password_hash');
-            $table->string('email')->nullable();
-            $table->string('first_name');
-            $table->string('middle_name')->nullable();
-            $table->string('last_name');
-            $table->boolean('active')->default(true);
-            $table->boolean('first_login')->default(false);
-            $table->boolean('is_deleted')->default(false);
-            $table->unsignedInteger('auth_generation')->default(1);
-            $table->unsignedInteger('failed_login_attempts')->default(0);
-            $table->timestamp('last_failed_login')->nullable();
-            $table->timestamp('account_locked_until')->nullable();
-            $table->timestamp('suspended_at')->nullable();
-            $table->timestamp('force_password_reset_at')->nullable();
-            $table->timestamp('last_login')->nullable();
-            $table->text('password_reset_token')->nullable();
-            $table->timestamps();
-        });
-        Schema::create('user_roles', function (Blueprint $table) {
-            $table->uuid('user_id');
-            $table->uuid('role_id');
-            $table->unique(['user_id', 'role_id']);
-        });
-        Schema::create('permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('permission_name')->unique();
-            $table->timestamp('created_at')->nullable();
-        });
-        Schema::create('role_permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('role_id');
-            $table->uuid('permission_id');
-            $table->timestamp('created_at')->nullable();
-            $table->unique(['role_id', 'permission_id']);
-        });
-        Schema::create('audit_logs', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id')->nullable();
-            $table->uuid('user_id')->nullable();
-            $table->string('module');
-            $table->string('action');
-            $table->string('table_name');
-            $table->uuid('record_id')->nullable();
-            $table->text('description')->nullable();
-            $table->json('old_values')->nullable();
-            $table->json('new_values')->nullable();
-            $table->string('ip_address')->nullable();
-            $table->text('user_agent')->nullable();
-            $table->timestamp('created_at');
-        });
     }
 }
