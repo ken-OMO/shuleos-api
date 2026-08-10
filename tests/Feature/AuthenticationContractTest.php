@@ -40,8 +40,17 @@ class AuthenticationContractTest extends TestCase
                 'timezone' => 'Africa/Nairobi', 'locale' => 'en', 'created_at' => now(), 'updated_at' => now(),
             ],
         ]);
+        $teacherRoleId = DB::table('roles')
+            ->where('role_name', 'Teacher')
+            ->value('id');
+
+        if (! $teacherRoleId) {
+            throw new \RuntimeException('Required migrated Teacher role was not found.');
+        }
+
+        $this->ids['primary_role'] = $teacherRoleId;
+
         DB::table('roles')->insert([
-            ['id' => $this->ids['primary_role'], 'role_name' => 'Teacher', 'school_id' => null, 'active' => true, 'created_at' => now()],
             ['id' => $this->ids['additional_role'], 'role_name' => 'Academic Reviewer', 'school_id' => $this->ids['school'], 'active' => true, 'created_at' => now()],
             ['id' => $this->ids['other_role'], 'role_name' => 'Other School Administrator', 'school_id' => $this->ids['other_school'], 'active' => true, 'created_at' => now()],
         ]);

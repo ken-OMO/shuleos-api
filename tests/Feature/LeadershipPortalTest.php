@@ -40,7 +40,29 @@ class LeadershipPortalTest extends TestCase
                 'is_deleted' => false,
             ],
         ]);
-        DB::table('roles')->insert([['id' => $this->id['principal_role'], 'role_name' => 'Principal'], ['id' => $this->id['hod_role'], 'role_name' => 'HOD'], ['id' => $this->id['teacher_role'], 'role_name' => 'Teacher']]);
+        foreach ([
+            'principal_role' => 'Principal',
+            'hod_role' => 'HOD',
+            'teacher_role' => 'Teacher',
+        ] as $key => $roleName) {
+            $roleId = DB::table('roles')
+                ->where('role_name', $roleName)
+                ->value('id');
+
+            if (! $roleId) {
+                $roleId = (string) Str::uuid();
+
+                DB::table('roles')->insert([
+                    'id' => $roleId,
+                    'role_name' => $roleName,
+                    'school_id' => null,
+                    'system_role' => true,
+                    'active' => true,
+                ]);
+            }
+
+            $this->id[$key] = $roleId;
+        }
         foreach ([['principal', 'principal_role'], ['hod', 'hod_role'], ['ordinary', 'teacher_role']] as [$u,$r]) {
             DB::table('users')->insert(['id' => $this->id[$u], 'school_id' => $this->id['school'], 'role_id' => $this->id[$r], 'username' => 'leadership-'.$u.'-'.substr($this->id[$u], 0, 8), 'password_hash' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.', 'first_name' => $u, 'active' => 1]);
         }$permissions = ['access_school_leadership_portal', 'view_school_finance_summary', 'view_school_academic_summary', 'view_school_discipline_summary', 'view_leadership_approvals', 'manage_leadership_approvals'];

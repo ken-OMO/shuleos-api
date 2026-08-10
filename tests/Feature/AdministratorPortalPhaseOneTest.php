@@ -34,11 +34,30 @@ class AdministratorPortalPhaseOneTest extends TestCase
             ['id' => $this->ids['school'], 'school_name' => 'Administrator School', 'school_code' => 'ADMIN-1', 'active' => true, 'lifecycle_state' => 'active', 'is_deleted' => false, 'created_at' => now(), 'updated_at' => now()],
             ['id' => $this->ids['other_school'], 'school_name' => 'Other School', 'school_code' => 'ADMIN-2', 'active' => true, 'lifecycle_state' => 'active', 'is_deleted' => false, 'created_at' => now(), 'updated_at' => now()],
         ]);
-        DB::table('roles')->insert([
-            ['id' => $this->ids['school_role'], 'role_name' => 'School Admin', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-            ['id' => $this->ids['platform_role'], 'role_name' => 'Platform Super Administrator', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-            ['id' => $this->ids['teacher_role'], 'role_name' => 'Teacher', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-        ]);
+        foreach ([
+            'school_role' => 'School Admin',
+            'platform_role' => 'Platform Super Administrator',
+            'teacher_role' => 'Teacher',
+        ] as $key => $roleName) {
+            $roleId = DB::table('roles')
+                ->where('role_name', $roleName)
+                ->value('id');
+
+            if (! $roleId) {
+                $roleId = (string) Str::uuid();
+
+                DB::table('roles')->insert([
+                    'id' => $roleId,
+                    'role_name' => $roleName,
+                    'school_id' => null,
+                    'system_role' => true,
+                    'active' => true,
+                    'created_at' => now(),
+                ]);
+            }
+
+            $this->ids[$key] = $roleId;
+        }
         $this->makeUser('admin', 'school', 'school_role');
         $this->makeUser('other_admin', 'other_school', 'school_role');
         $this->makeUser('platform', 'school', 'platform_role');

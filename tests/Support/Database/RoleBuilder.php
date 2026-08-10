@@ -16,6 +16,14 @@ final class RoleBuilder
             'role_name' => 'test_role_'.strtolower(substr(str_replace('-', '', $id), 0, 8)),
         ], $attributes);
 
+        $existing = DB::table('roles')
+            ->where('role_name', $record['role_name'])
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
         DB::table('roles')->insert($record);
 
         return (object) $record;

@@ -18,7 +18,7 @@ class ReportCardPdfTest extends ReportCardTest
 
         DB::table('school_settings')->insert([
             'id' => (string) Str::uuid(),
-            'school_id' => DB::table('schools')->orderBy('created_at')->value('id'),
+            'school_id' => DB::table('exams')->where('exam_name', 'Report Card Exam')->value('school_id'),
             'school_motto' => 'Knowledge and Integrity',
             'principal_name' => 'Test Principal',
             'principal_signature_url' => null,
@@ -32,9 +32,13 @@ class ReportCardPdfTest extends ReportCardTest
     private function context(bool $primary = false): array
     {
         $exam = DB::table('exams')
+            ->where('exam_name', 'Report Card Exam')
             ->whereNotNull('start_date')
-            ->where('school_id', DB::table('school_settings')->value('school_id'))
             ->first();
+
+        if (! $exam) {
+            throw new \RuntimeException('Report Card Exam fixture was not found.');
+        }
 
         $learner = DB::table('learners as l')
             ->join('grades as g', 'g.id', '=', 'l.grade_id')
