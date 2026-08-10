@@ -5,17 +5,18 @@ namespace Tests\Feature;
 use App\Http\Middleware\ModulePermissionMiddleware;
 use App\Models\Grade;
 use App\Models\User;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class PlatformSecurityTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private string $schoolId;
 
     private string $otherSchoolId;
@@ -28,36 +29,32 @@ class PlatformSecurityTest extends TestCase
 
         Cache::flush();
 
-        foreach (['role_permissions', 'permissions', 'roles', 'grades'] as $table) {
-            Schema::dropIfExists($table);
-        }
-
-        Schema::create('roles', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('role_name');
-        });
-
-        Schema::create('permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->string('permission_name');
-        });
-
-        Schema::create('role_permissions', function (Blueprint $table) {
-            $table->uuid('role_id');
-            $table->uuid('permission_id');
-        });
-
-        Schema::create('grades', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('grade_name');
-        });
-
         $this->schoolId = (string) Str::uuid();
         $this->otherSchoolId = (string) Str::uuid();
-        $this->roleId = (string) Str::uuid();
+        DB::table('schools')->insert([
+            [
+                'id' => $this->schoolId,
+                'school_name' => 'Platform Security School',
+                'school_code' => 'PSS-'.strtoupper(Str::random(8)),
+                'active' => true,
+                'is_deleted' => false,
+            ],
+            [
+                'id' => $this->otherSchoolId,
+                'school_name' => 'Platform Security Other School',
+                'school_code' => 'PSO-'.strtoupper(Str::random(8)),
+                'active' => true,
+                'is_deleted' => false,
+            ],
+        ]);
 
-        DB::table('roles')->insert(['id' => $this->roleId, 'role_name' => 'Teacher']);
+        $this->roleId = DB::table('roles')
+            ->where('role_name', 'Teacher')
+            ->value('id');
+
+        if (! $this->roleId) {
+            throw new \RuntimeException('Required migrated Teacher role was not found.');
+        }
 
         Auth::setUser(new User([
             'id' => (string) Str::uuid(),
@@ -75,8 +72,8 @@ class PlatformSecurityTest extends TestCase
     public function test_tenant_models_hide_other_school_records(): void
     {
         DB::table('grades')->insert([
-            ['id' => (string) Str::uuid(), 'school_id' => $this->schoolId, 'grade_name' => 'Own grade'],
-            ['id' => (string) Str::uuid(), 'school_id' => $this->otherSchoolId, 'grade_name' => 'Foreign grade'],
+            ['id' => (string) Str::uuid(), 'school_id' => $this->schoolId, 'grade_name' => 'Own grade', 'grade_order' => 1],
+            ['id' => (string) Str::uuid(), 'school_id' => $this->otherSchoolId, 'grade_name' => 'Foreign grade', 'grade_order' => 2],
         ]);
 
         $this->assertSame(['Own grade'], Grade::pluck('grade_name')->all());
