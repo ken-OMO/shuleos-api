@@ -31,7 +31,20 @@ class StudentElectionTest extends TestCase
             'active' => true,
             'is_deleted' => false,
         ]);
-        DB::table('roles')->insert(['id' => $this->id['role'], 'role_name' => 'Learner']);
+        $learnerRoleId = DB::table('roles')
+            ->where('role_name', 'Learner')
+            ->whereNull('school_id')
+            ->where('system_role', true)
+            ->where('active', true)
+            ->value('id');
+
+        if (! $learnerRoleId) {
+            throw new \RuntimeException(
+                'Required migrated Learner role was not found.'
+            );
+        }
+
+        $this->id['role'] = $learnerRoleId;
         DB::table('users')->insert([
             'id' => $this->id['user'],
             'school_id' => $this->id['school'],

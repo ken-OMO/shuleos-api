@@ -82,7 +82,16 @@ class AuthenticationContractTest extends TestCase
             ->assertJsonPath('data.user.school.id', $this->ids['school'])
             ->assertJsonPath('data.user.school.name', 'Contract School')
             ->assertJsonPath('data.user.roles', ['Academic Reviewer', 'Teacher'])
-            ->assertJsonPath('data.user.permissions', ['approve_lesson_plans', 'shared_permission', 'view_dashboard'])
+            ->assertJsonPath('data.user.permissions', [
+                'access_teacher_portal',
+                'approve_lesson_plans',
+                'shared_permission',
+                'view_dashboard',
+                'view_teacher_analytics',
+                'view_teacher_classes',
+                'view_teacher_dashboard',
+                'view_teacher_learners',
+            ])
             ->assertJsonMissingPath('data.user.role_id')
             ->assertJsonMissingPath('data.user.password_hash')
             ->assertJsonMissingPath('data.user.password_reset_token')
@@ -122,7 +131,17 @@ class AuthenticationContractTest extends TestCase
 
         $refresh->assertOk()
             ->assertJsonPath('data.user.roles', ['Academic Reviewer', 'Senior Teacher', 'Teacher'])
-            ->assertJsonPath('data.user.permissions', ['approve_lesson_plans', 'shared_permission', 'view_dashboard', 'view_new_contract_permission']);
+            ->assertJsonPath('data.user.permissions', [
+                'access_teacher_portal',
+                'approve_lesson_plans',
+                'shared_permission',
+                'view_dashboard',
+                'view_new_contract_permission',
+                'view_teacher_analytics',
+                'view_teacher_classes',
+                'view_teacher_dashboard',
+                'view_teacher_learners',
+            ]);
         $this->assertNotSame($login->json('token'), $refresh->json('data.token'));
         $this->withToken($login->json('token'))->getJson('/api/auth/me')->assertUnauthorized();
         $this->withToken($refresh->json('data.token'))->getJson('/api/auth/me')->assertOk();

@@ -41,7 +41,20 @@ class LearnerPortalTest extends TestCase
                 'is_deleted' => false,
             ],
         ]);
-        DB::table('roles')->insert(['id' => $this->id['role'], 'role_name' => 'Learner']);
+        $learnerRoleId = DB::table('roles')
+            ->where('role_name', 'Learner')
+            ->whereNull('school_id')
+            ->where('system_role', true)
+            ->where('active', true)
+            ->value('id');
+
+        if (! $learnerRoleId) {
+            throw new \RuntimeException(
+                'Required migrated Learner role was not found.'
+            );
+        }
+
+        $this->id['role'] = $learnerRoleId;
         DB::table('school_settings')->insert(['id' => (string) Str::uuid(), 'school_id' => $this->id['school'], 'learner_portal_enabled' => 1, 'learner_portal_show_fees' => 0, 'learner_portal_show_positions' => 0, 'learner_portal_show_pathway' => 1, 'learner_portal_show_report_cards' => 1, 'learner_portal_show_attendance' => 1, 'learner_portal_show_results' => 1]);
         DB::table('grades')->insert([
             'id' => $this->id['grade'],

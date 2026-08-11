@@ -30,7 +30,26 @@ class AdministratorPortalPhaseTwoTest extends TestCase
             $this->ids[$key] = (string) Str::uuid();
         }
         DB::table('schools')->insert([['id' => $this->ids['school'], 'school_name' => 'Operations School', 'school_code' => 'OPS-'.Str::random(6), 'active' => true, 'is_deleted' => false, 'lifecycle_state' => 'active'], ['id' => $this->ids['other_school'], 'school_name' => 'Other Operations School', 'school_code' => 'OTHER-'.Str::random(6), 'active' => true, 'is_deleted' => false, 'lifecycle_state' => 'active']]);
-        DB::table('roles')->insert([['id' => $this->ids['admin_role'], 'role_name' => 'School Admin', 'active' => true], ['id' => $this->ids['platform_role'], 'role_name' => 'Platform Owner', 'active' => true], ['id' => $this->ids['support_role'], 'role_name' => 'Support Administrator', 'active' => true]]);
+        foreach ([
+            'admin_role' => 'School Admin',
+            'platform_role' => 'Platform Owner',
+            'support_role' => 'Support Administrator',
+        ] as $key => $roleName) {
+            $roleId = DB::table('roles')
+                ->where('role_name', $roleName)
+                ->whereNull('school_id')
+                ->where('system_role', true)
+                ->where('active', true)
+                ->value('id');
+
+            if (! $roleId) {
+                throw new \RuntimeException(
+                    "Required migrated system role [{$roleName}] was not found."
+                );
+            }
+
+            $this->ids[$key] = $roleId;
+        }
         $this->user('admin', 'admin_role');
         $this->user('platform', 'platform_role');
         $this->user('support', 'support_role');
