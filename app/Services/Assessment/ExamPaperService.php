@@ -23,6 +23,6 @@ class ExamPaperService
             throw ValidationException::withMessages(['max_marks' => 'Paper marks would exceed the learning area total marks.']);
         }
 
-return ExamPaper::create([...$d, 'id' => (string) Str::uuid(), 'paper_name' => trim($d['paper_name']), 'is_deleted' => false, 'created_at' => now()]);
+        return ExamPaper::create([...$d, 'id' => (string) Str::uuid(), 'paper_name' => trim($d['paper_name']), 'is_deleted' => false, 'created_at' => now()]);
     }
 }

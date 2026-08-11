@@ -20,6 +20,6 @@ class ExamLearningAreaService
             throw ValidationException::withMessages(['learning_area_id' => 'This learning area is already attached to the exam.']);
         }
 
-return ExamLearningArea::create([...$d, 'id' => (string) Str::uuid(), 'is_deleted' => false, 'created_at' => now()]);
+        return ExamLearningArea::create([...$d, 'id' => (string) Str::uuid(), 'is_deleted' => false, 'created_at' => now()]);
     }
 }

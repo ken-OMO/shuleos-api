@@ -74,7 +74,10 @@ class MeritListService
                 ])->save();
 
                 return $model->load(['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy']);
-            });
+            })->sortBy([
+                ['school_position', 'asc'],
+                ['learner_id', 'asc'],
+            ])->values();
         });
     }
 

@@ -10,24 +10,23 @@ use App\Services\Administrator\AdministratorUserService;
 use App\Services\Administrator\SchoolLifecycleAdministrationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class AdministratorPortalPhaseOneTest extends TestCase
 {
+    use DatabaseTransactions;
+
     private array $ids = [];
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->createSchema();
-        DB::beginTransaction();
         foreach (['school', 'other_school', 'school_role', 'platform_role', 'teacher_role', 'admin', 'other_admin', 'platform', 'teacher'] as $key) {
             $this->ids[$key] = (string) Str::uuid();
         }
@@ -35,23 +34,36 @@ class AdministratorPortalPhaseOneTest extends TestCase
             ['id' => $this->ids['school'], 'school_name' => 'Administrator School', 'school_code' => 'ADMIN-1', 'active' => true, 'lifecycle_state' => 'active', 'is_deleted' => false, 'created_at' => now(), 'updated_at' => now()],
             ['id' => $this->ids['other_school'], 'school_name' => 'Other School', 'school_code' => 'ADMIN-2', 'active' => true, 'lifecycle_state' => 'active', 'is_deleted' => false, 'created_at' => now(), 'updated_at' => now()],
         ]);
-        DB::table('roles')->insert([
-            ['id' => $this->ids['school_role'], 'role_name' => 'School Admin', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-            ['id' => $this->ids['platform_role'], 'role_name' => 'Platform Super Administrator', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-            ['id' => $this->ids['teacher_role'], 'role_name' => 'Teacher', 'school_id' => null, 'system_role' => true, 'active' => true, 'created_at' => now()],
-        ]);
+        foreach ([
+            'school_role' => 'School Admin',
+            'platform_role' => 'Platform Super Administrator',
+            'teacher_role' => 'Teacher',
+        ] as $key => $roleName) {
+            $roleId = DB::table('roles')
+                ->where('role_name', $roleName)
+                ->value('id');
+
+            if (! $roleId) {
+                $roleId = (string) Str::uuid();
+
+                DB::table('roles')->insert([
+                    'id' => $roleId,
+                    'role_name' => $roleName,
+                    'school_id' => null,
+                    'system_role' => true,
+                    'active' => true,
+                    'created_at' => now(),
+                ]);
+            }
+
+            $this->ids[$key] = $roleId;
+        }
         $this->makeUser('admin', 'school', 'school_role');
         $this->makeUser('other_admin', 'other_school', 'school_role');
         $this->makeUser('platform', 'school', 'platform_role');
         $this->makeUser('teacher', 'school', 'teacher_role');
         $this->grant('school_role', ['access_administrator_portal', 'view_school_users', 'create_school_users', 'update_school_users', 'view_roles_and_permissions', 'manage_school_roles', 'assign_school_permissions', 'revoke_school_user_sessions', 'revoke_school_user_devices']);
         $this->grant('platform_role', ['access_administrator_portal', 'access_platform_administration', 'manage_school_lifecycle', 'view_platform_dashboard']);
-    }
-
-    protected function tearDown(): void
-    {
-        DB::rollBack();
-        parent::tearDown();
     }
 
     public function test_administrator_access_strictly_separates_school_and_platform_scope(): void
@@ -155,104 +167,5 @@ class AdministratorPortalPhaseOneTest extends TestCase
     private function user(string $key): User
     {
         return User::with('role')->findOrFail($this->ids[$key]);
-    }
-
-    private function createSchema(): void
-    {
-        if (! Schema::hasTable('schools')) {
-            Schema::create('schools', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->string('school_name');
-                $table->string('school_code')->unique();
-                $table->boolean('active')->default(true);
-                $table->boolean('is_deleted')->default(false);
-                $table->string('lifecycle_state')->default('active');
-                $table->unsignedInteger('lifecycle_version')->default(1);
-                $table->timestamp('suspended_at')->nullable();
-                $table->timestamp('locked_at')->nullable();
-                $table->timestamp('archived_at')->nullable();
-                $table->timestamps();
-            });
-        }
-        if (! Schema::hasTable('roles')) {
-            Schema::create('roles', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->string('role_name');
-                $table->uuid('school_id')->nullable();
-                $table->boolean('system_role')->default(true);
-                $table->boolean('active')->default(true);
-                $table->timestamp('created_at')->nullable();
-                $table->timestamp('updated_at')->nullable();
-            });
-        }
-        if (! Schema::hasTable('users')) {
-            Schema::create('users', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->uuid('school_id');
-                $table->uuid('role_id');
-                $table->string('username')->unique();
-                $table->string('password_hash');
-                $table->string('email')->nullable();
-                $table->string('phone')->nullable();
-                $table->string('first_name');
-                $table->string('middle_name')->nullable();
-                $table->string('last_name');
-                $table->boolean('active')->default(true);
-                $table->boolean('first_login')->default(true);
-                $table->boolean('is_deleted')->default(false);
-                $table->unsignedInteger('auth_generation')->default(1);
-                $table->unsignedInteger('failed_login_attempts')->default(0);
-                $table->timestamp('account_locked_until')->nullable();
-                $table->timestamp('suspended_at')->nullable();
-                $table->timestamp('force_password_reset_at')->nullable();
-                $table->timestamps();
-            });
-        }
-        if (! Schema::hasTable('permissions')) {
-            Schema::create('permissions', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->string('permission_name')->unique();
-                $table->string('module_name')->nullable();
-                $table->text('description')->nullable();
-                $table->timestamp('created_at')->nullable();
-            });
-        }
-        if (! Schema::hasTable('role_permissions')) {
-            Schema::create('role_permissions', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->uuid('role_id');
-                $table->uuid('permission_id');
-                $table->timestamp('created_at')->nullable();
-                $table->unique(['role_id', 'permission_id']);
-            });
-        }
-        if (! Schema::hasTable('audit_logs')) {
-            Schema::create('audit_logs', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->uuid('school_id');
-                $table->uuid('user_id');
-                $table->string('module');
-                $table->string('action');
-                $table->string('table_name');
-                $table->uuid('record_id')->nullable();
-                $table->text('description')->nullable();
-                $table->json('old_values')->nullable();
-                $table->json('new_values')->nullable();
-                $table->string('ip_address')->nullable();
-                $table->text('user_agent')->nullable();
-                $table->timestamp('created_at');
-            });
-        }
-        if (! Schema::hasTable('school_lifecycle_history')) {
-            Schema::create('school_lifecycle_history', function (Blueprint $table) {
-                $table->uuid('id')->primary();
-                $table->uuid('school_id');
-                $table->string('from_state')->nullable();
-                $table->string('to_state');
-                $table->text('reason')->nullable();
-                $table->uuid('actor_user_id');
-                $table->timestamp('created_at');
-            });
-        }
     }
 }

@@ -3,82 +3,179 @@
 namespace Tests\Feature;
 
 use App\Services\Teaching\SchemeLessonService;
-use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\EducationLevelBuilder;
+use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearningAreaAllocationBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\TermBuilder;
 use Tests\TestCase;
 
 class SchemeLessonTest extends TestCase
 {
-    private array $id;
+    use DatabaseTransactions;
+
+    private object $school;
+
+    private object $academicYear;
+
+    private object $term;
+
+    private object $scheme;
+
+    private object $week;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->makeSchema();
-        foreach (['school', 'year', 'term', 'scheme', 'week'] as $n) {
-            $this->id[$n] = (string) Str::uuid();
-        }DB::table('schemes_of_work')->insert(['id' => $this->id['scheme'], 'school_id' => $this->id['school'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'active' => true, 'is_deleted' => false]);
-        DB::table('academic_weeks')->insert(['id' => $this->id['week'], 'school_id' => $this->id['school'], 'academic_year_id' => $this->id['year'], 'term_id' => $this->id['term'], 'active' => true]);
+
+        $this->school = SchoolBuilder::create();
+
+        $educationLevel = EducationLevelBuilder::create([
+            'level_name' => 'Junior School '.Str::random(8),
+            'level_order' => 3,
+        ]);
+
+        $grade = GradeBuilder::create(
+            $this->school,
+            $educationLevel,
+            [
+                'grade_name' => 'Grade 9',
+                'grade_order' => 9,
+            ]
+        );
+
+        $learningArea = LearningAreaBuilder::create([
+            'learning_area_name' => 'Kiswahili',
+            'short_name' => 'KIS',
+        ]);
+
+        LearningAreaAllocationBuilder::create(
+            $this->school,
+            $grade,
+            $learningArea
+        );
+
+        $this->academicYear = AcademicYearBuilder::create(
+            $this->school
+        );
+
+        $this->term = TermBuilder::create(
+            $this->school,
+            $this->academicYear,
+            [
+                'term_name' => 'Term 3',
+                'start_date' => '2026-09-01',
+                'end_date' => '2026-11-30',
+            ]
+        );
+
+        $this->scheme = (object) [
+            'id' => (string) Str::uuid(),
+        ];
+
+        DB::table('schemes_of_work')->insert([
+            'id' => $this->scheme->id,
+            'school_id' => $this->school->id,
+            'learning_area_id' => $learningArea->id,
+            'grade_id' => $grade->id,
+            'academic_year_id' => $this->academicYear->id,
+            'term_id' => $this->term->id,
+            'title' => 'Azimio la Kazi ya Kiswahili Gredi ya Tisa Muhula wa Tatu',
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $this->week = (object) [
+            'id' => (string) Str::uuid(),
+        ];
+
+        DB::table('academic_weeks')->insert([
+            'id' => $this->week->id,
+            'school_id' => $this->school->id,
+            'academic_year_id' => $this->academicYear->id,
+            'term_id' => $this->term->id,
+            'week_number' => 1,
+            'start_date' => '2026-09-01',
+            'end_date' => '2026-09-05',
+            'active' => true,
+        ]);
     }
 
     public function test_it_creates_a_lesson_in_the_scheme_period(): void
     {
-        $lesson = app(SchemeLessonService::class)->create($this->data(), $this->id['school']);
+        $lesson = app(SchemeLessonService::class)->create(
+            $this->data(),
+            $this->school->id
+        );
+
         $this->assertSame(1, $lesson->lesson_number);
-        $this->assertDatabaseHas('scheme_lessons', ['scheme_id' => $this->id['scheme'], 'lesson_number' => 1]);
+        $this->assertSame('Sarufi', $lesson->strand);
+        $this->assertSame('Nomino', $lesson->sub_strand);
+
+        $this->assertDatabaseHas('scheme_lessons', [
+            'scheme_id' => $this->scheme->id,
+            'lesson_number' => 1,
+            'strand' => 'Sarufi',
+            'sub_strand' => 'Nomino',
+        ]);
     }
 
     public function test_it_rejects_a_week_outside_the_scheme_period(): void
     {
-        $bad = (string) Str::uuid();
-        DB::table('academic_weeks')->insert(['id' => $bad, 'school_id' => $this->id['school'], 'academic_year_id' => $this->id['year'], 'term_id' => (string) Str::uuid(), 'active' => true]);
+        $otherTerm = TermBuilder::create(
+            $this->school,
+            $this->academicYear,
+            [
+                'term_name' => 'Term 2',
+                'start_date' => '2026-05-01',
+                'end_date' => '2026-08-01',
+            ]
+        );
+
+        $badWeek = (string) Str::uuid();
+
+        DB::table('academic_weeks')->insert([
+            'id' => $badWeek,
+            'school_id' => $this->school->id,
+            'academic_year_id' => $this->academicYear->id,
+            'term_id' => $otherTerm->id,
+            'week_number' => 1,
+            'start_date' => '2026-05-01',
+            'end_date' => '2026-05-05',
+            'active' => true,
+        ]);
+
         $this->expectException(ValidationException::class);
-        app(SchemeLessonService::class)->create($this->data(['week_id' => $bad]), $this->id['school']);
+
+        app(SchemeLessonService::class)->create(
+            $this->data([
+                'week_id' => $badWeek,
+            ]),
+            $this->school->id
+        );
     }
 
-    private function data(array $x = []): array
+    private function data(array $overrides = []): array
     {
-        return [...['scheme_id' => $this->id['scheme'], 'week_id' => $this->id['week'], 'lesson_number' => 1, 'strand' => 'Numbers', 'sub_strand' => 'Whole numbers', 'specific_learning_outcome' => 'Count objects', 'learning_experience' => 'Guided counting', 'resources' => null, 'assessment_method' => 'Observation'], ...$x];
-    }
-
-    private function makeSchema(): void
-    {
-        foreach (['scheme_lessons', 'academic_weeks', 'schemes_of_work'] as $t) {
-            Schema::dropIfExists($t);
-        }Schema::create('schemes_of_work', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('academic_year_id');
-            $t->uuid('term_id');
-            $t->boolean('active');
-            $t->boolean('is_deleted');
-        });
-        Schema::create('academic_weeks', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('academic_year_id');
-            $t->uuid('term_id');
-            $t->boolean('active');
-        });
-        Schema::create('scheme_lessons', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('scheme_id');
-            $t->uuid('week_id');
-            $t->integer('lesson_number');
-            $t->string('strand');
-            $t->string('sub_strand');
-            $t->text('specific_learning_outcome');
-            $t->text('learning_experience');
-            $t->text('resources')->nullable();
-            $t->text('assessment_method')->nullable();
-            $t->boolean('is_deleted');
-            $t->timestamp('created_at')->nullable();
-            $t->timestamp('deleted_at')->nullable();
-            $t->uuid('deleted_by')->nullable();
-            $t->unique(['scheme_id', 'lesson_number']);
-        });
+        return [
+            ...[
+                'scheme_id' => $this->scheme->id,
+                'week_id' => $this->week->id,
+                'lesson_number' => 1,
+                'strand' => 'Sarufi',
+                'sub_strand' => 'Nomino',
+                'specific_learning_outcome' => 'Mwanafunzi aweze kutambua na kutumia nomino kwa usahihi katika sentensi.',
+                'learning_experience' => 'Wanafunzi watatambua nomino katika sentensi, watajadili mifano kwa vikundi na kuunda sentensi zao wenyewe.',
+                'resources' => 'Kitabu cha Kiswahili, ubao, kadi za maneno na picha.',
+                'assessment_method' => 'Maswali ya mdomo, zoezi la kuandika na uchunguzi wa ushiriki wa mwanafunzi.',
+            ],
+            ...$overrides,
+        ];
     }
 }

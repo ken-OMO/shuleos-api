@@ -27,7 +27,7 @@ class ExamService
             throw ValidationException::withMessages(['exam_name' => 'An exam with this name already exists in the selected term.']);
         }
 
-return Exam::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'exam_name' => trim($d['exam_name']), 'active' => $d['active'] ?? true, 'status' => 'draft', 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
+        return Exam::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'exam_name' => trim($d['exam_name']), 'active' => $d['active'] ?? true, 'status' => 'draft', 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
     }
 
     public function transition(Exam $e, string $to): void

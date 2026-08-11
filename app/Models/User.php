@@ -24,16 +24,29 @@ class User extends Authenticatable implements JWTSubject
         'id',
         'school_id',
         'role_id',
+
         'username',
         'password_hash',
+
         'email',
+        'email_verified_at',
+
         'phone',
+
         'first_name',
         'middle_name',
         'last_name',
+
         'active',
         'first_login',
+
+        'temporary_password',
+        'temporary_password_expires_at',
+        'invitation_generation',
+        'activated_at',
+
         'auth_generation',
+
         'suspended_at',
         'force_password_reset_at',
     ];
@@ -47,22 +60,37 @@ class User extends Authenticatable implements JWTSubject
     protected $casts = [
         'active' => 'boolean',
         'first_login' => 'boolean',
+
+        'temporary_password' => 'boolean',
+
         'mfa_enabled' => 'boolean',
         'is_deleted' => 'boolean',
+
+        'email_verified_at' => 'datetime',
+        'temporary_password_expires_at' => 'datetime',
+        'activated_at' => 'datetime',
+
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+
         'last_login' => 'datetime',
         'password_changed_at' => 'datetime',
+
         'deleted_at' => 'datetime',
+
         'account_locked_until' => 'datetime',
         'password_reset_expires' => 'datetime',
         'last_failed_login' => 'datetime',
+
         'suspended_at' => 'datetime',
         'force_password_reset_at' => 'datetime',
+
+        'auth_generation' => 'integer',
+        'invitation_generation' => 'integer',
     ];
 
     /**
-     * Use password_hash column instead of password
+     * Use password_hash column instead of Laravel's default password column.
      */
     public function getAuthPassword()
     {
@@ -70,23 +98,31 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * School Relationship
+     * School relationship.
+     *
+     * Platform-level users may have school_id = null.
      */
     public function school()
     {
-        return $this->belongsTo(School::class, 'school_id');
+        return $this->belongsTo(
+            School::class,
+            'school_id'
+        );
     }
 
     /**
-     * Primary Role Relationship
+     * Primary role relationship.
      */
     public function role()
     {
-        return $this->belongsTo(Role::class, 'role_id');
+        return $this->belongsTo(
+            Role::class,
+            'role_id'
+        );
     }
 
     /**
-     * Additional Roles
+     * Additional roles.
      */
     public function roles()
     {
@@ -99,25 +135,103 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * Teacher Profile
+     * Teacher profile.
      */
     public function teacher()
     {
-        return $this->hasOne(Teacher::class, 'user_id');
-    }
-
-    public function learner()
-    {
-        return $this->hasOne(Learner::class);
-    }
-
-    public function guardian()
-    {
-        return $this->hasOne(Guardian::class, 'user_id');
+        return $this->hasOne(
+            Teacher::class,
+            'user_id'
+        );
     }
 
     /**
-     * JWT Identifier
+     * Learner profile.
+     */
+    public function learner()
+    {
+        return $this->hasOne(
+            Learner::class,
+            'user_id'
+        );
+    }
+
+    /**
+     * Guardian profile.
+     */
+    public function guardian()
+    {
+        return $this->hasOne(
+            Guardian::class,
+            'user_id'
+        );
+    }
+
+    /**
+     * Authentication challenges for OTP/MFA.
+     */
+    public function authenticationChallenges()
+    {
+        return $this->hasMany(
+            AuthenticationChallenge::class,
+            'user_id'
+        );
+    }
+
+    /**
+     * Authentication sessions/devices.
+     */
+    public function authenticationSessions()
+    {
+        return $this->hasMany(
+            AuthenticationSession::class,
+            'user_id'
+        );
+    }
+
+    /**
+     * Determine whether the current password is a temporary
+     * provisioning credential.
+     */
+    public function hasTemporaryPassword(): bool
+    {
+        return (bool) $this->temporary_password;
+    }
+
+    /**
+     * Determine whether the temporary password has expired.
+     */
+    public function temporaryPasswordExpired(): bool
+    {
+        return $this->temporary_password
+            && $this->temporary_password_expires_at
+            && $this->temporary_password_expires_at->isPast();
+    }
+
+    /**
+     * Determine whether the user must replace their password.
+     */
+    public function requiresPasswordReset(): bool
+    {
+        return (bool) (
+            $this->first_login
+            || $this->force_password_reset_at
+            || $this->temporary_password
+        );
+    }
+
+    /**
+     * Determine whether the email is verified and usable
+     * for OTP or account recovery.
+     */
+    public function hasVerifiedEmail(): bool
+    {
+        return filled($this->email)
+            && $this->email_verified_at !== null;
+    }
+
+    /**
+     * JWT identifier.
      */
     public function getJWTIdentifier()
     {
@@ -125,7 +239,7 @@ class User extends Authenticatable implements JWTSubject
     }
 
     /**
-     * JWT Custom Claims
+     * JWT custom claims.
      */
     public function getJWTCustomClaims()
     {

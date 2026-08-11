@@ -163,17 +163,11 @@ class LevelLearningAreaSeeder extends Seeder
 
                     )->insert([
 
-                        'id' =>
+                        'id' => (string) Str::uuid(),
 
-                            (string) Str::uuid(),
+                        'level_id' => $levels[$level],
 
-                        'level_id' =>
-
-                            $levels[$level],
-
-                        'learning_area_id' =>
-
-                            $areas[$area],
+                        'learning_area_id' => $areas[$area],
 
                         'created_at' => now(),
 
