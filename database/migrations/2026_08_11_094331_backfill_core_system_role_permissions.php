@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
@@ -338,7 +338,7 @@ return new class extends Migration
             ->value('id');
 
         if (! $roleId) {
-            throw new \RuntimeException(
+            throw new RuntimeException(
                 "Required system role [{$roleName}] does not exist."
             );
         }
@@ -353,10 +353,10 @@ return new class extends Migration
         ));
 
         if ($missing !== []) {
-            throw new \RuntimeException(
-                'Missing permissions for role [' .
-                $roleName .
-                ']: ' .
+            throw new RuntimeException(
+                'Missing permissions for role ['.
+                $roleName.
+                ']: '.
                 implode(', ', $missing)
             );
         }
@@ -391,4 +391,3 @@ return new class extends Migration
          */
     }
 };
-
