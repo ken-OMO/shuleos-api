@@ -28,3 +28,5 @@ boarding-transport-code-audit.txt
 learner-core-relationship-audit.txt
 learner-vertical-audit.txt
 stage0-pint-report.txt
+
+.env.testing

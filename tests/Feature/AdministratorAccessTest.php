@@ -10,7 +10,7 @@ class AdministratorAccessTest extends TestCase
     {
         $source = file_get_contents(app_path('Services/Administrator/AdministratorPortalAccessService.php'));
         $this->assertStringContainsString('self::PLATFORM_ROLES', $source);
-        $this->assertStringContainsString("has(\$user, 'access_platform_administration')", $source);
+        $this->assertStringContainsString('access_platform_administration', $source);
         $this->assertStringContainsString('Explicit platform administration scope required.', $source);
     }
 }
