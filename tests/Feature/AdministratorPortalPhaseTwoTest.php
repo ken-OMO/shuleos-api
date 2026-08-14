@@ -155,7 +155,22 @@ class AdministratorPortalPhaseTwoTest extends TestCase
 
     private function user(string $key, string $role): void
     {
-        User::create(['id' => $this->ids[$key], 'school_id' => $this->ids['school'], 'role_id' => $this->ids[$role], 'username' => $key.'-'.Str::random(6), 'password_hash' => bcrypt('password'), 'first_name' => Str::headline($key), 'last_name' => 'Operator', 'active' => true, 'first_login' => false, 'is_deleted' => false, 'auth_generation' => 1, 'last_login' => now()]);
+        User::create([
+            'id' => $this->ids[$key],
+            'school_id' => $role === 'platform_role'
+                ? null
+                : $this->ids['school'],
+            'role_id' => $this->ids[$role],
+            'username' => $key.'-'.Str::random(6),
+            'password_hash' => bcrypt('password'),
+            'first_name' => Str::headline($key),
+            'last_name' => 'Operator',
+            'active' => true,
+            'first_login' => false,
+            'is_deleted' => false,
+            'auth_generation' => 1,
+            'last_login' => now(),
+        ]);
     }
 
     private function model(string $key): User

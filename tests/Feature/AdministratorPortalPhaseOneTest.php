@@ -60,7 +60,7 @@ class AdministratorPortalPhaseOneTest extends TestCase
         }
         $this->makeUser('admin', 'school', 'school_role');
         $this->makeUser('other_admin', 'other_school', 'school_role');
-        $this->makeUser('platform', 'school', 'platform_role');
+        $this->makeUser('platform', null, 'platform_role');
         $this->makeUser('teacher', 'school', 'teacher_role');
         $this->grant('school_role', ['access_administrator_portal', 'view_school_users', 'create_school_users', 'update_school_users', 'view_roles_and_permissions', 'manage_school_roles', 'assign_school_permissions', 'revoke_school_user_sessions', 'revoke_school_user_devices']);
         $this->grant('platform_role', ['access_administrator_portal', 'access_platform_administration', 'manage_school_lifecycle', 'view_platform_dashboard']);
@@ -147,9 +147,9 @@ class AdministratorPortalPhaseOneTest extends TestCase
         $this->assertStringContainsString("'migration_count'", $source);
     }
 
-    private function makeUser(string $user, string $school, string $role): void
+    private function makeUser(string $user, ?string $school, string $role): void
     {
-        User::create(['id' => $this->ids[$user], 'school_id' => $this->ids[$school], 'role_id' => $this->ids[$role], 'username' => $user.'-'.Str::random(6), 'password_hash' => bcrypt('password'), 'first_name' => Str::headline($user), 'last_name' => 'User', 'active' => true, 'first_login' => false, 'auth_generation' => 1]);
+        User::create(['id' => $this->ids[$user], 'school_id' => $school !== null ? $this->ids[$school] : null, 'role_id' => $this->ids[$role], 'username' => $user.'-'.Str::random(6), 'password_hash' => bcrypt('password'), 'first_name' => Str::headline($user), 'last_name' => 'User', 'active' => true, 'first_login' => false, 'auth_generation' => 1]);
     }
 
     private function grant(string $role, array $names): void

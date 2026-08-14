@@ -143,6 +143,13 @@ class AdministratorRecoveryService
         abort_unless(in_array($restore->status, ['requested', 'validation_requested'], true), 409, 'Restore can no longer be cancelled.');
         DB::table('administrator_restores')->where('id', $id)->update(['status' => 'cancelled', 'cancelled_at' => now(), 'updated_at' => now()]);
 
+        $this->audit->record(
+            $user,
+            'administrator_restore_cancelled',
+            'administrator_restores',
+            $id
+        );
+
         return $this->restores($user, $id);
     }
 
