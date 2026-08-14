@@ -602,6 +602,39 @@ class PlatformAuthenticationTest extends TestCase
         );
     }
 
+    public function test_unknown_platform_identifier_still_performs_password_verification(): void
+    {
+        Mail::fake();
+
+        Hash::shouldReceive('check')
+            ->once()
+            ->withArgs(
+                function (
+                    string $password,
+                    string $hash
+                ): bool {
+                    return $password === 'Incorrect#Platform99'
+                        && $hash !== '';
+                }
+            )
+            ->andReturn(false);
+
+        $this->postJson(
+            '/api/platform/auth/login',
+            [
+                'identifier' => 'missing-platform-owner@example.test',
+                'password' => 'Incorrect#Platform99',
+            ]
+        )
+            ->assertUnauthorized()
+            ->assertJsonPath(
+                'message',
+                'Authentication failed.'
+            );
+
+        Mail::assertNothingSent();
+    }
+
     public function test_school_user_cannot_use_platform_login(): void
     {
         Mail::fake();

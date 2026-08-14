@@ -32,6 +32,12 @@ class PlatformAuthenticationService
 
     private const MAX_OTP_ATTEMPTS = 5;
 
+    /*
+     * Valid bcrypt hash used only to equalize password verification
+     * work when no eligible Platform identity is resolved.
+     */
+    private const DUMMY_PASSWORD_HASH = '$2y$12$n04p6I8W5z/uRE/ITFIXf.T9heXQr/O2c6Qm2ubLotzs5P2p3a7d6';
+
     public function __construct(
         private readonly AuthContextService $authContext,
         private readonly AuthenticationAuditService $audit,
@@ -79,13 +85,20 @@ class PlatformAuthenticationService
 
         /*
          * All credential failures intentionally look identical.
+         *
+         * Always perform password verification, even when no eligible
+         * Platform identity was resolved. This reduces identifier and
+         * account-state timing differences.
          */
+        $passwordMatches = Hash::check(
+            $password,
+            $user?->password_hash
+                ?: self::DUMMY_PASSWORD_HASH
+        );
+
         if (
-            ! $this->canAttempt($user)
-            || ! Hash::check(
-                $password,
-                $user->password_hash
-            )
+            ! $passwordMatches
+            || ! $this->canAttempt($user)
         ) {
             if (
                 $user

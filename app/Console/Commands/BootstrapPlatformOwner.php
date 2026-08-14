@@ -145,12 +145,14 @@ class BootstrapPlatformOwner extends Command
             return self::FAILURE;
         } catch (Throwable $exception) {
             /*
-             * Do not dump stack traces, SQL, password material,
-             * hashes, environment values, or other internals into
-             * ordinary command output.
+             * Preserve internal diagnostics without exposing exception
+             * messages, SQL, paths, connection details, hashes, or
+             * environment values to ordinary command output.
              */
+            report($exception);
+
             $this->error(
-                $exception->getMessage()
+                'Platform Owner bootstrap failed.'
             );
 
             return self::FAILURE;

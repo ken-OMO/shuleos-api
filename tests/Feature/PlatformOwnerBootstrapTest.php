@@ -261,6 +261,51 @@ class PlatformOwnerBootstrapTest extends TestCase
         );
     }
 
+    public function test_command_redacts_unexpected_internal_exception_message(): void
+    {
+        $sensitiveMessage = 'SQLSTATE[08006] password=super-secret database=platform';
+
+        $this->mock(
+            PlatformOwnerBootstrapService::class,
+            function ($mock) use ($sensitiveMessage) {
+                $mock
+                    ->shouldReceive('bootstrap')
+                    ->once()
+                    ->andThrow(
+                        new RuntimeException(
+                            $sensitiveMessage
+                        )
+                    );
+            }
+        );
+
+        $this->artisan(
+            'shuleos:bootstrap-platform-owner',
+            [
+                '--email' => 'redaction@example.test',
+                '--username' => 'platform.redaction',
+                '--first-name' => 'Redaction',
+                '--last-name' => 'Test',
+                '--yes' => true,
+            ]
+        )
+            ->expectsQuestion(
+                'Temporary password (minimum 16 characters, upper/lowercase, number and symbol)',
+                'Redaction#Password94'
+            )
+            ->expectsQuestion(
+                'Confirm temporary password',
+                'Redaction#Password94'
+            )
+            ->expectsOutput(
+                'Platform Owner bootstrap failed.'
+            )
+            ->doesntExpectOutput(
+                $sensitiveMessage
+            )
+            ->assertFailed();
+    }
+
     public function test_command_has_no_password_option(): void
     {
         $command = app(
