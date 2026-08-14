@@ -119,6 +119,20 @@ $secure = [
 
 ];
 
+Route::post(
+    '/auth/first-login/verify-otp',
+    [
+        AuthController::class,
+        'verifyFirstLoginOtp',
+    ]
+)->middleware('throttle:10,1');
+Route::post(
+    '/auth/first-login/activate',
+    [
+        AuthController::class,
+        'activateFirstLogin',
+    ]
+)->middleware('throttle:5,1');
 Route::prefix('platform/auth')->group(function () {
     Route::post(
         '/login',
