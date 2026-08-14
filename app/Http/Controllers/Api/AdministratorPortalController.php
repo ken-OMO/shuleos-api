@@ -11,6 +11,7 @@ use App\Services\Administrator\AdministratorRolePermissionService;
 use App\Services\Administrator\AdministratorUserService;
 use App\Services\Administrator\SchoolBrandingAdministrationService;
 use App\Services\Administrator\SchoolLifecycleAdministrationService;
+use App\Services\Platform\PlatformSchoolOnboardingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -272,6 +273,48 @@ class AdministratorPortalController extends BaseApiController
     public function preferences(Request $request)
     {
         return $this->success($this->operations->preferences($this->user(), $request->isMethod('put') ? $request->validate(['dashboard_widgets' => 'sometimes|array|max:30', 'default_page_size' => 'sometimes|integer|min:10|max:100', 'timezone' => 'sometimes|timezone', 'language' => 'sometimes|string|max:10', 'notification_preferences' => 'sometimes|array', 'digest_frequency' => 'sometimes|in:never,daily,weekly', 'default_audit_range_days' => 'sometimes|integer|min:1|max:365', 'preferred_dashboard' => 'sometimes|in:school,platform', 'show_system_health' => 'sometimes|boolean']) : null));
+    }
+
+    public function onboardSchool(
+        Request $request,
+        PlatformSchoolOnboardingService $onboarding
+    ) {
+        $validated = $request->validate([
+            'school_name' => 'required|string|max:255',
+
+            'school_code' => 'prohibited',
+
+            'timezone' => 'nullable|string|max:60',
+
+            'locale' => 'nullable|string|max:10',
+
+            'admin' => 'required|array',
+
+            'admin.first_name' => 'required|string|max:100',
+
+            'admin.last_name' => 'required|string|max:100',
+
+            'admin.email' => 'required|email|max:255|unique:users,email',
+
+            'admin.username' => 'prohibited',
+
+            'admin.temporary_password' => 'prohibited',
+
+            'admin.role_id' => 'prohibited',
+
+            'admin.school_id' => 'prohibited',
+        ]);
+
+        return response()->json(
+            [
+                'success' => true,
+                'data' => $onboarding->onboard(
+                    $this->user(),
+                    $validated
+                ),
+            ],
+            201
+        );
     }
 
     public function reports(Request $request)
