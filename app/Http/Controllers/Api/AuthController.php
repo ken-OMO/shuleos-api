@@ -80,10 +80,23 @@ class AuthController extends Controller
          * school-bound challenge details.
          */
         if ($user->requiresPasswordReset()) {
-            $challenge = $this->activation->begin(
-                $user,
-                $request
-            );
+            try {
+                $challenge = $this->activation->begin(
+                    $user,
+                    $request
+                );
+            } catch (\RuntimeException) {
+                $this->audit->record(
+                    $request,
+                    'authentication_first_login_activation_delivery_failed',
+                    $user
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Account activation is temporarily unavailable.',
+                ], 503);
+            }
 
             $this->audit->record(
                 $request,

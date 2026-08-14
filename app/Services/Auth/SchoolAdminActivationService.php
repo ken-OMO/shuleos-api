@@ -33,12 +33,9 @@ class SchoolAdminActivationService
                 'school_id',
                 $user->school_id
             )
-            ->whereIn(
+            ->where(
                 'purpose',
-                [
-                    'first_login',
-                    'activation',
-                ]
+                'first_login'
             )
             ->whereNull(
                 'consumed_at'

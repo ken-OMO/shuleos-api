@@ -877,6 +877,152 @@ class SchoolAdminActivationTest extends TestCase
         );
     }
 
+    public function test_second_temporary_login_does_not_destroy_verified_activation_credential(): void
+    {
+        Mail::fake();
+
+        [$school, $role] = $this->schoolFixture();
+
+        $temporaryPassword = 'TemporaryPreserveActivation123!';
+
+        $user = $this->schoolAdmin(
+            $school,
+            $role,
+            $temporaryPassword
+        );
+
+        [$activationChallenge, $activationToken] = $this->activationChallenge(
+            $user,
+            $school
+        );
+
+        /*
+         * A second correct temporary-password login may start another
+         * first-login challenge, but it must never revoke an activation
+         * credential that already passed OTP verification.
+         */
+        $this
+            ->postJson(
+                '/api/auth/login',
+                [
+                    'username' => $user->username,
+                    'password' => $temporaryPassword,
+                ]
+            )
+            ->assertStatus(202)
+            ->assertJsonMissingPath('token')
+            ->assertJsonMissingPath('data.token');
+
+        $this->assertNull(
+            $activationChallenge->fresh()->consumed_at,
+            'A verified activation credential must survive another temporary-password login.'
+        );
+
+        $newPassword = 'PermanentPreserved123!';
+
+        $this
+            ->postJson(
+                '/api/auth/first-login/activate',
+                [
+                    'challenge_id' => $activationChallenge->id,
+                    'activation_token' => $activationToken,
+                    'password' => $newPassword,
+                    'password_confirmation' => $newPassword,
+                ]
+            )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.authenticated',
+                true
+            );
+
+        $freshUser = $user->fresh();
+
+        $this->assertFalse(
+            (bool) $freshUser->first_login
+        );
+
+        $this->assertTrue(
+            Hash::check(
+                $newPassword,
+                $freshUser->password_hash
+            )
+        );
+    }
+
+    public function test_activation_mail_failure_returns_controlled_response_and_leaves_no_usable_challenge(): void
+    {
+        [$school, $role] = $this->schoolFixture();
+
+        $temporaryPassword = 'TemporaryMailFailure123!';
+
+        $user = $this->schoolAdmin(
+            $school,
+            $role,
+            $temporaryPassword
+        );
+
+        Mail::shouldReceive('to')
+            ->once()
+            ->andThrow(
+                new \RuntimeException(
+                    'Simulated SMTP transport failure.'
+                )
+            );
+
+        $response = $this->postJson(
+            '/api/auth/login',
+            [
+                'username' => $user->username,
+                'password' => $temporaryPassword,
+            ]
+        );
+
+        $response
+            ->assertServiceUnavailable()
+            ->assertJsonPath(
+                'success',
+                false
+            )
+            ->assertJsonMissingPath('token')
+            ->assertJsonMissingPath('data.token')
+            ->assertJsonMissingPath('otp')
+            ->assertJsonMissingPath('data.otp');
+
+        $challenge = AuthenticationChallenge::query()
+            ->where(
+                'user_id',
+                $user->id
+            )
+            ->where(
+                'school_id',
+                $school->id
+            )
+            ->where(
+                'purpose',
+                'first_login'
+            )
+            ->latest('created_at')
+            ->first();
+
+        $this->assertNotNull(
+            $challenge
+        );
+
+        $this->assertNotNull(
+            $challenge->consumed_at,
+            'A challenge whose OTP could not be delivered must be unusable.'
+        );
+
+        $this->assertFalse(
+            str_contains(
+                $response->getContent(),
+                'Simulated SMTP transport failure'
+            ),
+            'Transport exception details must never be exposed.'
+        );
+    }
+
     public function test_expired_temporary_password_is_rejected(): void
     {
         [$school, $role] = $this->schoolFixture();
