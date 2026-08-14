@@ -184,6 +184,14 @@ Route::prefix('admin')
                 'permission:access_platform_administration',
                 'permission:manage_school_lifecycle',
             ]);
+        Route::post(
+            '/platform/schools',
+            [AdministratorPortalController::class, 'onboardSchool']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:onboard_schools',
+            ]);
 
         Route::get(
             '/platform/schools/{school}',

@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 class AdministratorRolePermissionService
 {
-    private const PLATFORM = ['access_platform_administration', 'view_platform_dashboard', 'manage_school_lifecycle', 'view_platform_subscriptions'];
+    private const PLATFORM = ['access_platform_administration', 'view_platform_dashboard', 'manage_school_lifecycle', 'onboard_schools', 'view_platform_subscriptions'];
 
     public function __construct(private AdministratorPortalAccessService $access, private AdministratorAuditService $audit) {}
 
