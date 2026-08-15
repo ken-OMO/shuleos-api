@@ -249,6 +249,7 @@ Route::prefix('admin')->middleware($secure)->group(function () {
     Route::get('/dashboard/school', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
 
     Route::get('/school', [AdministratorPortalController::class, 'school'])->middleware('permission:manage_school_profile');
+    Route::get('/school/setup', [AdministratorPortalController::class, 'initialSetup'])->middleware('permission:view_academic_setup_status');
     Route::put('/school', [AdministratorPortalController::class, 'updateSchool'])->middleware('permission:manage_school_profile');
     Route::get('/school/completeness', [AdministratorPortalController::class, 'completeness'])->middleware('permission:view_school_completeness');
 
