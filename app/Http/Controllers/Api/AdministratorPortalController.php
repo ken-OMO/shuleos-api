@@ -48,6 +48,20 @@ class AdministratorPortalController extends BaseApiController
         return $this->success($this->portal->safeSchool($this->portal->updateSchool($this->user(), $request->validate($this->schoolRules()))));
     }
 
+    public function completeSchoolProfile(Request $request)
+    {
+        return $this->success(
+            $this->portal->safeSchool(
+                $this->portal->updateSchool(
+                    $this->user(),
+                    $request->validate(
+                        $this->schoolCompletionRules()
+                    )
+                )
+            )
+        );
+    }
+
     public function completeness()
     {
         return $this->success($this->portal->completeness($this->user()));
@@ -331,6 +345,21 @@ class AdministratorPortalController extends BaseApiController
         $data = $request->isMethod('get') ? [] : $request->validate(['report_type' => 'required|string', 'filters' => 'sometimes|array']);
 
         return $this->success($this->operations->reports($this->user(), $data['report_type'] ?? null, $request->routeIs('admin.reports.generate'), $data['filters'] ?? []));
+    }
+
+    private function schoolCompletionRules(): array
+    {
+        return [
+            'school_name' => 'required|string|max:255',
+            'short_name' => 'required|string|max:100',
+            'registration_number' => 'required|string|max:100',
+            'school_type' => 'required|string|max:100',
+            'county' => 'required|string|max:100',
+            'phone' => 'required|string|max:30',
+            'email' => 'required|email|max:255',
+            'timezone' => 'required|timezone',
+            'locale' => 'required|string|max:10',
+        ];
     }
 
     private function schoolRules(): array
