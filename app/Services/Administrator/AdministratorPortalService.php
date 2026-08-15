@@ -95,6 +95,51 @@ class AdministratorPortalService
         return ['percentage' => round((count($fields) - $profileMissing) * 100 / count($fields), 2), 'missing' => $missing->values(), 'complete' => $missing->isEmpty()];
     }
 
+    public function initialSetup(User $user): array
+    {
+        $school = $this->access->school($user);
+
+        $profileFields = [
+            'school_name',
+            'short_name',
+            'registration_number',
+            'school_type',
+            'county',
+            'phone',
+            'email',
+            'timezone',
+            'locale',
+        ];
+
+        $profileComplete = collect(
+            $profileFields
+        )->every(
+            fn ($field) => filled(
+                $school->{$field}
+            )
+        );
+
+        $academic = $this->academicSetup($user);
+
+        $steps = [
+            'school_profile' => $profileComplete,
+            'academic_year' => (bool) ($academic['checks']['active_academic_year'] ?? false),
+            'current_term' => (bool) ($academic['checks']['active_term'] ?? false),
+            'grades' => (bool) ($academic['checks']['grades'] ?? false),
+            'streams' => (bool) ($academic['checks']['streams'] ?? false),
+        ];
+
+        return [
+            'school_id' => $school->id,
+            'setup_complete' => ! in_array(
+                false,
+                $steps,
+                true
+            ),
+            'steps' => $steps,
+        ];
+    }
+
     public function academicSetup(User $user): array
     {
         $schoolId = $this->access->scope($user)['school_id'];

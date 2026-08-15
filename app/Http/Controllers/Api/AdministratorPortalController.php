@@ -132,6 +132,15 @@ class AdministratorPortalController extends BaseApiController
         return $this->success($request->routeIs('admin.permissions.modules') ? $items->groupBy('module_name') : $items);
     }
 
+    public function initialSetup()
+    {
+        return $this->success(
+            $this->portal->initialSetup(
+                $this->user()
+            )
+        );
+    }
+
     public function academic(string $type)
     {
         return $this->success($type === 'status' ? $this->portal->academicSetup($this->user()) : $this->portal->academic($this->user(), str_replace('-', '_', $type)));
