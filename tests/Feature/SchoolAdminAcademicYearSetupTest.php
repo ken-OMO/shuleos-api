@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -672,5 +673,31 @@ class SchoolAdminAcademicYearSetupTest extends TestCase
                 'year_name' => '2028',
             ]
         );
+    }
+
+    public function test_database_rejects_duplicate_academic_year_name_within_same_school(): void
+    {
+        $school = $this->createSchool();
+
+        $this->createAcademicYear(
+            $school,
+            [
+                'year_name' => '2027',
+            ]
+        );
+
+        $this->expectException(
+            QueryException::class
+        );
+
+        DB::table('academic_years')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'year_name' => '2027',
+            'start_date' => '2027-01-01',
+            'end_date' => '2027-12-31',
+            'active' => true,
+            'created_at' => now(),
+        ]);
     }
 }
