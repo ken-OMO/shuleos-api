@@ -1149,7 +1149,7 @@ Route::prefix('learners')
         Route::post('/{learner}/portal-account/reset-password', [LearnerPortalAdminController::class, 'reset']);
         Route::get('/{id}', [LearnerController::class, 'show']);
 
-        Route::post('/', [LearnerController::class, 'store']);
+        Route::post('/', [LearnerController::class, 'store'])->middleware('school.operational');
 
         Route::put('/{id}', [LearnerController::class, 'update']);
 
