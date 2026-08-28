@@ -4,458 +4,452 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\LearnerResource;
+use App\Models\Grade;
 use App\Models\Learner;
+use App\Models\Stream;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class LearnerController extends BaseCrudController
 {
-    /**
-     * Module name for audit logging.
-     */
     private const MODULE = 'Learners';
 
-    /**
-     * Relationships to eager load.
-     */
     private const RELATIONS = [
-
-        'school',
-
         'grade',
-
         'stream',
-
     ];
 
-    /**
-     * Display a listing of learners.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $learners = Learner::with(
-
-            self::RELATIONS
-
-        )
+        $learners = $this->learnerQuery($request)
+            ->with(self::RELATIONS)
             ->where('is_deleted', false)
             ->orderByDesc('created_at')
             ->get();
 
         return $this->success(
-
-            LearnerResource::collection(
-
-                $learners
-
-            ),
-
+            LearnerResource::collection($learners),
             'Learners retrieved successfully.'
-
         );
     }
 
-    /**
-     * Display the specified learner.
-     */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $learner = Learner::with(
-
-            self::RELATIONS
-
-        )
+        $learner = $this->learnerQuery($request)
+            ->with(self::RELATIONS)
             ->where('is_deleted', false)
-            ->find($id);
+            ->whereKey($id)
+            ->first();
 
-        if ($this->modelNotFound($learner)) {
-
+        if (! $learner) {
             return $this->notFound(
-
                 'Learner not found.'
-
             );
-
         }
 
         return $this->success(
-
-            new LearnerResource(
-
-                $learner
-
-            ),
-
+            new LearnerResource($learner),
             'Learner retrieved successfully.'
-
         );
     }
 
-    /**
-     * Store a newly created learner.
-     */
     public function store(Request $request)
     {
+        $schoolId = $this->schoolId($request);
+
         $validated = $request->validate([
-
-            'school_id' => 'required|exists:schools,id',
-
-            'grade_id' => 'required|exists:grades,id',
-
-            'stream_id' => 'required|exists:streams,id',
-
-            'admission_no' => 'required|unique:learners,admission_no',
-
-            'first_name' => 'required|string|max:100',
-
-            'middle_name' => 'nullable|string|max:100',
-
-            'last_name' => 'required|string|max:100',
-
-            'gender' => 'nullable|string|max:20',
-
-            'date_of_birth' => 'nullable|date',
-
-            'admission_date' => 'nullable|date',
-
-            'upi' => 'nullable|string|max:100',
-
-            'assessment_no' => 'nullable|string|max:100',
-
+            'admission_no' => [
+                'required',
+                'string',
+                'max:50',
+            ],
+            'upi' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'first_name' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+            'middle_name' => [
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'last_name' => [
+                'required',
+                'string',
+                'max:100',
+            ],
+            'gender' => [
+                'nullable',
+                'string',
+                'max:20',
+            ],
+            'date_of_birth' => [
+                'nullable',
+                'date',
+                'before_or_equal:today',
+            ],
+            'grade_id' => [
+                'required',
+                'uuid',
+            ],
+            'stream_id' => [
+                'required',
+                'uuid',
+            ],
+            'admission_date' => [
+                'nullable',
+                'date',
+            ],
+            'assessment_no' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
         ]);
 
-        $this->beginTransaction();
+        $this->validatePlacement(
+            $schoolId,
+            (string) $validated['grade_id'],
+            (string) $validated['stream_id']
+        );
 
-        try {
+        $duplicate = Learner::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->where('admission_no', $validated['admission_no'])
+            ->where('is_deleted', false)
+            ->exists();
 
-            $learner = Learner::create([
-
-                'id' => (string) Str::uuid(),
-
-                'school_id' => $validated['school_id'],
-
-                'grade_id' => $validated['grade_id'],
-
-                'stream_id' => $validated['stream_id'],
-
-                'admission_no' => $validated['admission_no'],
-
-                'first_name' => $validated['first_name'],
-
-                'middle_name' => $validated['middle_name'] ?? null,
-
-                'last_name' => $validated['last_name'],
-
-                'gender' => $validated['gender'] ?? null,
-
-                'date_of_birth' => $validated['date_of_birth'] ?? null,
-
-                'admission_date' => $validated['admission_date'] ?? null,
-
-                'upi' => $validated['upi'] ?? null,
-
-                'assessment_no' => $validated['assessment_no'] ?? null,
-
-                'active' => true,
-
-                'is_deleted' => false,
-
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'admission_no' => [
+                    'The admission number has already been taken.',
+                ],
             ]);
+        }
+
+        $learner = DB::transaction(function () use (
+            $request,
+            $schoolId,
+            $validated
+        ) {
+            $learner = Learner::query()
+                ->withoutGlobalScopes()
+                ->create([
+                    'id' => (string) Str::uuid(),
+                    'school_id' => $schoolId,
+                    'admission_no' => $validated['admission_no'],
+                    'upi' => $validated['upi'] ?? null,
+                    'first_name' => $validated['first_name'],
+                    'middle_name' => $validated['middle_name'] ?? null,
+                    'last_name' => $validated['last_name'],
+                    'gender' => $validated['gender'] ?? null,
+                    'date_of_birth' => $validated['date_of_birth'] ?? null,
+                    'grade_id' => $validated['grade_id'],
+                    'stream_id' => $validated['stream_id'],
+                    'admission_date' => $validated['admission_date'] ?? null,
+                    'assessment_no' => $validated['assessment_no'] ?? null,
+                    'active' => true,
+                    'is_deleted' => false,
+                    'deleted_at' => null,
+                    'deleted_by' => null,
+                    'user_id' => null,
+                    'portal_enabled' => false,
+                    'portal_activated_at' => null,
+                ]);
 
             $this->audit(
-
                 request: $request,
-
                 module: self::MODULE,
-
                 action: 'Create',
-
                 model: $learner,
-
                 oldValues: null,
-
                 newValues: $learner->toArray(),
-
-                description: 'Created learner.'
-
+                description: 'Admitted learner.'
             );
 
-            $this->commit();
+            return $learner;
+        });
 
-            $this->loadRelations(
+        $learner->load(self::RELATIONS);
 
-                $learner,
-
-                self::RELATIONS
-
-            );
-
-            return $this->created(
-
-                new LearnerResource(
-
-                    $learner
-
-                ),
-
-                'Learner created successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to create learner.',
-
-                [
-
-                    'school_id' => $request->school_id,
-
-                    'admission_no' => $request->admission_no,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to create learner.'
-
-            );
-
-        }
+        return $this->created(
+            new LearnerResource($learner),
+            'Learner admitted successfully.'
+        );
     }
 
-    /**
-     * Update the specified learner.
-     */
     public function update(Request $request, string $id)
     {
-        $learner = Learner::find($id);
+        $schoolId = $this->schoolId($request);
 
-        if ($this->modelNotFound($learner)) {
+        $learner = $this->learnerQuery($request)
+            ->where('is_deleted', false)
+            ->whereKey($id)
+            ->first();
 
+        if (! $learner) {
             return $this->notFound(
-
                 'Learner not found.'
-
             );
-
-        }
-
-        if ($this->isDeleted($learner)) {
-
-            return $this->badRequest(
-
-                'Learner has been deleted.'
-
-            );
-
         }
 
         $validated = $request->validate([
-
-            'admission_no' => 'sometimes|unique:learners,admission_no,'.$id.',id',
-
-            'first_name' => 'sometimes|string|max:100',
-
-            'middle_name' => 'nullable|string|max:100',
-
-            'last_name' => 'sometimes|string|max:100',
-
-            'gender' => 'nullable|string|max:20',
-
-            'date_of_birth' => 'nullable|date',
-
-            'grade_id' => 'sometimes|exists:grades,id',
-
-            'stream_id' => 'sometimes|exists:streams,id',
-
-            'admission_date' => 'nullable|date',
-
-            'upi' => 'nullable|string|max:100',
-
-            'assessment_no' => 'nullable|string|max:100',
-
+            'admission_no' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:50',
+            ],
+            'upi' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'first_name' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:100',
+            ],
+            'middle_name' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:100',
+            ],
+            'last_name' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:100',
+            ],
+            'gender' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:20',
+            ],
+            'date_of_birth' => [
+                'sometimes',
+                'nullable',
+                'date',
+                'before_or_equal:today',
+            ],
+            'grade_id' => [
+                'sometimes',
+                'required',
+                'uuid',
+            ],
+            'stream_id' => [
+                'sometimes',
+                'required',
+                'uuid',
+            ],
+            'admission_date' => [
+                'sometimes',
+                'nullable',
+                'date',
+            ],
+            'assessment_no' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+            ],
         ]);
 
-        $this->beginTransaction();
+        if (array_key_exists('admission_no', $validated)) {
+            $duplicate = Learner::query()
+                ->withoutGlobalScopes()
+                ->where('school_id', $schoolId)
+                ->where('admission_no', $validated['admission_no'])
+                ->where('is_deleted', false)
+                ->whereKeyNot($learner->id)
+                ->exists();
 
-        try {
+            if ($duplicate) {
+                throw ValidationException::withMessages([
+                    'admission_no' => [
+                        'The admission number has already been taken.',
+                    ],
+                ]);
+            }
+        }
 
-            $oldValues = $learner->toArray();
-
-            $learner->update(
-
-                $validated
-
+        if (
+            array_key_exists('grade_id', $validated)
+            || array_key_exists('stream_id', $validated)
+        ) {
+            $effectiveGradeId = (string) (
+                $validated['grade_id']
+                ?? $learner->grade_id
             );
+
+            $effectiveStreamId = (string) (
+                $validated['stream_id']
+                ?? $learner->stream_id
+            );
+
+            $this->validatePlacement(
+                $schoolId,
+                $effectiveGradeId,
+                $effectiveStreamId
+            );
+        }
+
+        $oldValues = $learner->toArray();
+
+        DB::transaction(function () use (
+            $request,
+            $learner,
+            $validated,
+            $oldValues
+        ) {
+            $learner->update($validated);
+
+            $learner->refresh();
 
             $this->audit(
-
                 request: $request,
-
                 module: self::MODULE,
-
                 action: 'Update',
-
                 model: $learner,
-
                 oldValues: $oldValues,
-
-                newValues: $learner->fresh()->toArray(),
-
+                newValues: $learner->toArray(),
                 description: 'Updated learner profile.'
-
             );
+        });
 
-            $this->commit();
+        $learner->load(self::RELATIONS);
 
-            $this->loadRelations(
+        return $this->success(
+            new LearnerResource($learner),
+            'Learner updated successfully.'
+        );
+    }
 
-                $learner,
+    public function destroy(Request $request, string $id)
+    {
+        $learner = $this->learnerQuery($request)
+            ->where('is_deleted', false)
+            ->whereKey($id)
+            ->first();
 
-                self::RELATIONS
-
+        if (! $learner) {
+            return $this->notFound(
+                'Learner not found.'
             );
+        }
 
-            return $this->success(
+        $oldValues = $learner->toArray();
 
-                new LearnerResource(
+        DB::transaction(function () use (
+            $request,
+            $learner,
+            $oldValues
+        ) {
+            /*
+             * TenantModel::performDeleteOnModel() performs the
+             * learner soft-delete and records deleted_by from
+             * the authenticated user.
+             */
+            $learner->delete();
 
-                    $learner
-
-                ),
-
-                'Learner updated successfully.'
-
+            $this->audit(
+                request: $request,
+                module: self::MODULE,
+                action: 'Delete',
+                model: $learner,
+                oldValues: $oldValues,
+                newValues: $learner->toArray(),
+                description: 'Soft deleted learner.'
             );
+        });
 
-        } catch (\Throwable $e) {
+        return $this->success(
+            null,
+            'Learner deleted successfully.'
+        );
+    }
 
-            $this->rollback();
+    private function validatePlacement(
+        string $schoolId,
+        string $gradeId,
+        string $streamId
+    ): void {
+        $gradeExists = Grade::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->whereKey($gradeId)
+            ->where('active', true)
+            ->exists();
 
-            $this->logError(
+        if (! $gradeExists) {
+            throw ValidationException::withMessages([
+                'grade_id' => [
+                    'The selected grade is invalid.',
+                ],
+            ]);
+        }
 
-                'Failed to update learner.',
+        $streamExists = Stream::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->where('grade_id', $gradeId)
+            ->whereKey($streamId)
+            ->where('active', true)
+            ->exists();
 
-                [
-
-                    'learner_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to update learner.'
-
-            );
-
+        if (! $streamExists) {
+            throw ValidationException::withMessages([
+                'stream_id' => [
+                    'The selected stream is invalid.',
+                ],
+            ]);
         }
     }
 
-    /**
-     * Soft delete the specified learner.
-     */
-    public function destroy(Request $request, string $id)
+    private function learnerQuery(Request $request): Builder
     {
-        $learner = Learner::find($id);
-
-        if ($this->modelNotFound($learner)) {
-
-            return $this->notFound(
-
-                'Learner not found.'
-
+        return Learner::query()
+            ->withoutGlobalScopes()
+            ->where(
+                'school_id',
+                $this->schoolId($request)
             );
+    }
 
+    private function schoolId(Request $request): string
+    {
+        $user = $request->user();
+
+        if (! $user || blank($user->school_id)) {
+            abort(403, 'School context not found.');
         }
 
-        if ($this->isDeleted($learner)) {
+        $schoolId = (string) $user->school_id;
 
-            return $this->badRequest(
+        $tenantSchoolId = $request->attributes->get(
+            'tenant_school_id'
+        );
 
-                'Learner has already been deleted.'
-
-            );
-
+        if (
+            blank($tenantSchoolId)
+            || (string) $tenantSchoolId !== $schoolId
+        ) {
+            abort(403, 'School context not found.');
         }
 
-        $this->beginTransaction();
-
-        try {
-
-            $oldValues = $learner->toArray();
-
-            $learner->update([
-
-                'is_deleted' => true,
-
-                'deleted_at' => now(),
-
-            ]);
-
-            $this->audit(
-
-                request: $request,
-
-                module: self::MODULE,
-
-                action: 'Delete',
-
-                model: $learner,
-
-                oldValues: $oldValues,
-
-                newValues: $learner->fresh()->toArray(),
-
-                description: 'Soft deleted learner.'
-
-            );
-
-            $this->commit();
-
-            return $this->success(
-
-                null,
-
-                'Learner deleted successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to delete learner.',
-
-                [
-
-                    'learner_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to delete learner.'
-
-            );
-
-        }
+        return $schoolId;
     }
 }
