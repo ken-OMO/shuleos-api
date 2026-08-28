@@ -3,6 +3,7 @@
 use App\Http\Middleware\JwtMiddleware;
 use App\Http\Middleware\ModulePermissionMiddleware;
 use App\Http\Middleware\PermissionMiddleware;
+use App\Http\Middleware\RequireOperationalSchoolSetup;
 use App\Http\Middleware\RoleMiddleware;
 use App\Http\Middleware\TenantMiddleware;
 use Illuminate\Foundation\Application;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => RoleMiddleware::class,
             'permission' => PermissionMiddleware::class,
             'module.permission' => ModulePermissionMiddleware::class,
+            'school.operational' => RequireOperationalSchoolSetup::class,
         ]);
 
     })

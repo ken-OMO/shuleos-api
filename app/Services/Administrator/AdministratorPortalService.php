@@ -6,6 +6,7 @@ use App\Contracts\ParentPortal\PaymentProviderInterface;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Communication\ProviderHealthService;
+use App\Services\SchoolSetupReadinessService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,7 @@ class AdministratorPortalService
         private AdministratorAuditService $audit,
         private ProviderHealthService $communicationHealth,
         private PaymentProviderInterface $paymentProvider,
+        private SchoolSetupReadinessService $setupReadiness,
     ) {}
 
     public function dashboard(User $user, bool $platform = false): array
@@ -99,45 +101,9 @@ class AdministratorPortalService
     {
         $school = $this->access->school($user);
 
-        $profileFields = [
-            'school_name',
-            'short_name',
-            'registration_number',
-            'school_type',
-            'county',
-            'phone',
-            'email',
-            'timezone',
-            'locale',
-        ];
-
-        $profileComplete = collect(
-            $profileFields
-        )->every(
-            fn ($field) => filled(
-                $school->{$field}
-            )
+        return $this->setupReadiness->readiness(
+            (string) $school->id
         );
-
-        $academic = $this->academicSetup($user);
-
-        $steps = [
-            'school_profile' => $profileComplete,
-            'academic_year' => (bool) ($academic['checks']['active_academic_year'] ?? false),
-            'current_term' => (bool) ($academic['checks']['active_term'] ?? false),
-            'grades' => (bool) ($academic['checks']['grades'] ?? false),
-            'streams' => (bool) ($academic['checks']['streams'] ?? false),
-        ];
-
-        return [
-            'school_id' => $school->id,
-            'setup_complete' => ! in_array(
-                false,
-                $steps,
-                true
-            ),
-            'steps' => $steps,
-        ];
     }
 
     public function academicSetup(User $user): array
