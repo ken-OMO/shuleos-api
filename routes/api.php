@@ -1141,20 +1141,27 @@ Route::prefix('streams')
 Route::prefix('learners')
     ->middleware($secure)
     ->group(function () {
-
-        Route::get('/', [LearnerController::class, 'index']);
+        Route::get('/', [LearnerController::class, 'index'])
+            ->middleware('permission:manage_learners');
 
         Route::post('/{learner}/portal-account', [LearnerPortalAdminController::class, 'create']);
         Route::patch('/{learner}/portal-account/status', [LearnerPortalAdminController::class, 'status']);
         Route::post('/{learner}/portal-account/reset-password', [LearnerPortalAdminController::class, 'reset']);
-        Route::get('/{id}', [LearnerController::class, 'show']);
 
-        Route::post('/', [LearnerController::class, 'store'])->middleware('school.operational');
+        Route::get('/{id}', [LearnerController::class, 'show'])
+            ->middleware('permission:manage_learners');
 
-        Route::put('/{id}', [LearnerController::class, 'update']);
+        Route::post('/', [LearnerController::class, 'store'])
+            ->middleware([
+                'permission:manage_learners',
+                'school.operational',
+            ]);
 
-        Route::delete('/{id}', [LearnerController::class, 'destroy']);
+        Route::put('/{id}', [LearnerController::class, 'update'])
+            ->middleware('permission:manage_learners');
 
+        Route::delete('/{id}', [LearnerController::class, 'destroy'])
+            ->middleware('permission:manage_learners');
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
