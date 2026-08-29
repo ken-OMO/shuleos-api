@@ -2,20 +2,23 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Auth\AuthContextService;
 use Closure;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class ModulePermissionMiddleware
 {
+    public function __construct(private AuthContextService $authContext) {}
+
     public function handle(Request $request, Closure $next): Response
     {
         $user = auth()->user();
 
-        if (! $user || ! $user->role_id) {
-            return response()->json(['success' => false, 'message' => 'Authenticated role required.'], 403);
+        if (! $user) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         }
 
         $prefix = $request->segment(2);
@@ -31,24 +34,14 @@ class ModulePermissionMiddleware
             return response()->json(['success' => false, 'message' => 'No permission policy is configured for this module.'], 403);
         }
 
-        $roleName = DB::table('roles')->where('id', $user->role_id)->value('role_name');
-
-        if ($roleName === 'Platform Owner') {
-            return $next($request);
-        }
-
-        $permissions = Cache::remember(
-            "role_permissions:{$user->role_id}",
-            now()->addMinutes(10),
-            fn () => DB::table('role_permissions')
-                ->join('permissions', 'role_permissions.permission_id', '=', 'permissions.id')
-                ->where('role_permissions.role_id', $user->role_id)
-                ->pluck('permissions.permission_name')
-                ->all()
-        );
-
-        if (! in_array($required, $permissions, true)) {
-            return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+        try {
+            if (! $this->authContext->hasPermission($user, $required)) {
+                return response()->json(['success' => false, 'message' => 'Permission denied.'], 403);
+            }
+        } catch (AuthenticationException) {
+            return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+        } catch (AuthorizationException) {
+            return response()->json(['success' => false, 'message' => 'Access is unavailable.'], 403);
         }
 
         return $next($request);

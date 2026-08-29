@@ -4,6 +4,7 @@ namespace App\Services\Administrator;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -12,7 +13,11 @@ class AdministratorRolePermissionService
 {
     private const PLATFORM = ['access_platform_administration', 'view_platform_dashboard', 'manage_school_lifecycle', 'onboard_schools', 'view_platform_subscriptions'];
 
-    public function __construct(private AdministratorPortalAccessService $access, private AdministratorAuditService $audit) {}
+    public function __construct(
+        private AdministratorPortalAccessService $access,
+        private AdministratorAuditService $audit,
+        private AuthContextService $authContext
+    ) {}
 
     public function roles(User $user)
     {
@@ -60,7 +65,7 @@ class AdministratorRolePermissionService
         if (! $scope['platform'] && $permissions->pluck('permission_name')->intersect(self::PLATFORM)->isNotEmpty()) {
             throw new AuthorizationException('School roles cannot receive platform permissions.');
         }
-        $actorNames = DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', $user->role_id)->pluck('permissions.permission_name');
+        $actorNames = $this->authContext->permissionNames($user);
         if (! $scope['platform'] && $permissions->pluck('permission_name')->diff($actorNames)->isNotEmpty()) {
             throw new AuthorizationException('Administrators cannot grant permissions they do not possess.');
         }

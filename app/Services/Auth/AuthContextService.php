@@ -166,15 +166,21 @@ class AuthContextService
         }
     }
 
-    public function hasPermission(
-        User $user,
-        string $permission
-    ): bool {
+    public function permissionNames(User $user): Collection
+    {
         $this->assertAccessible($user);
 
         return $this->permissionNamesForRoleIds(
             $this->roleRecords($user)->pluck('id')
-        )->contains($permission);
+        );
+    }
+
+    public function hasPermission(
+        User $user,
+        string $permission
+    ): bool {
+        return $this->permissionNames($user)
+            ->contains($permission);
     }
 
     public function hasRole(
