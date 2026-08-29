@@ -36,6 +36,8 @@ class LearnerResource extends JsonResource
 
             'active' => $this->active,
 
+            'mode_of_study' => $this->mode_of_study,
+
             'school' => $this->whenLoaded(
                 'school'
             ),
