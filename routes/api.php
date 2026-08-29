@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
+use App\Http\Controllers\Api\LearnerModeOfStudyController;
 use App\Http\Controllers\Api\LearnerPlacementController;
 use App\Http\Controllers\Api\LearnerPortalAdminController;
 use App\Http\Controllers\Api\LearnerPortalController;
@@ -1162,6 +1163,15 @@ Route::prefix('learners')
             ->middleware('permission:manage_learners');
 
         Route::post('/{learner}/placements', [LearnerPlacementController::class, 'store'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/mode-of-study', [LearnerModeOfStudyController::class, 'show'])
+            ->middleware('permission:manage_learners');
+
+        Route::patch('/{learner}/mode-of-study', [LearnerModeOfStudyController::class, 'update'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/mode-of-study/history', [LearnerModeOfStudyController::class, 'history'])
             ->middleware('permission:manage_learners');
 
         Route::get('/', [LearnerController::class, 'index'])

@@ -210,6 +210,14 @@ class LearnerController extends BaseCrudController
             ]);
         }
 
+        if ($request->has('mode_of_study')) {
+            throw ValidationException::withMessages([
+                'mode_of_study' => [
+                    'Mode of study must be changed through the learner mode-of-study endpoint.',
+                ],
+            ]);
+        }
+
         $validated = $request->validate([
             'admission_no' => [
                 'sometimes',
