@@ -5,429 +5,216 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\GuardianResource;
 use App\Models\Guardian;
+use App\Models\LearnerParent;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class GuardianController extends BaseCrudController
 {
-    /**
-     * Module name used in audit logs.
-     */
     private const MODULE = 'Guardians';
 
-    /**
-     * Relationships loaded with guardian responses.
-     */
-    private const RELATIONS = [
-
-        'school',
-
-        'user',
-
-        'learners',
-
-    ];
-
-    /**
-     * Display a listing of guardians.
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $guardians = Guardian::with(
+        $schoolId = $this->schoolId($request);
 
-            self::RELATIONS
-
-        )
+        $guardians = Guardian::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
             ->where('is_deleted', false)
             ->orderByDesc('created_at')
             ->get();
 
         return $this->success(
-
-            GuardianResource::collection(
-
-                $guardians
-
-            ),
-
+            GuardianResource::collection($guardians),
             'Guardians retrieved successfully.'
-
         );
     }
 
-    /**
-     * Display the specified guardian.
-     */
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        $guardian = Guardian::with(
-
-            self::RELATIONS
-
-        )
-            ->where('is_deleted', false)
-            ->find($id);
-
-        if ($this->modelNotFound($guardian)) {
-
-            return $this->notFound(
-
-                'Guardian not found.'
-
-            );
-
-        }
+        $guardian = $this->guardian(
+            $this->schoolId($request),
+            $id
+        );
 
         return $this->success(
-
-            new GuardianResource(
-
-                $guardian
-
-            ),
-
+            new GuardianResource($guardian),
             'Guardian retrieved successfully.'
-
         );
     }
 
-    /**
-     * Store a newly created guardian.
-     */
     public function store(Request $request)
     {
+        $schoolId = $this->schoolId($request);
+
         $validated = $request->validate([
-
-            'school_id' => 'required|exists:schools,id',
-
-            'user_id' => 'nullable|exists:users,id',
-
-            'first_name' => 'required|string|max:100',
-
-            'last_name' => 'required|string|max:100',
-
-            'phone' => 'required|string|max:20',
-
-            'email' => 'nullable|email|max:255',
-
-            'relationship' => 'required|string|max:50',
-
+            'first_name' => ['required', 'string', 'max:100'],
+            'last_name' => ['required', 'string', 'max:100'],
+            'phone' => ['required', 'string', 'max:20'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'relationship' => ['nullable', 'string', 'max:50'],
         ]);
 
-        $this->beginTransaction();
-
-        try {
-
-            $guardian = Guardian::create([
-
+        $guardian = DB::transaction(function () use (
+            $request,
+            $validated,
+            $schoolId
+        ): Guardian {
+            $guardian = Guardian::query()->create([
                 'id' => (string) Str::uuid(),
-
-                'school_id' => $validated['school_id'],
-
-                'user_id' => $validated['user_id'] ?? null,
-
+                'school_id' => $schoolId,
+                'user_id' => null,
                 'first_name' => $validated['first_name'],
-
                 'last_name' => $validated['last_name'],
-
                 'phone' => $validated['phone'],
-
                 'email' => $validated['email'] ?? null,
-
-                'relationship' => $validated['relationship'],
-
+                'relationship' => $validated['relationship'] ?? null,
                 'active' => true,
-
                 'created_at' => now(),
-
             ]);
 
             $this->audit(
-
                 request: $request,
-
                 module: self::MODULE,
-
                 action: 'Create',
-
                 model: $guardian,
-
                 oldValues: null,
-
                 newValues: $guardian->toArray(),
-
                 description: 'Created guardian.'
-
             );
 
-            $this->commit();
+            return $guardian;
+        });
 
-            $this->loadRelations(
-
-                $guardian,
-
-                self::RELATIONS
-
-            );
-
-            return $this->created(
-
-                new GuardianResource(
-
-                    $guardian
-
-                ),
-
-                'Guardian created successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to create guardian.',
-
-                [
-
-                    'school_id' => $request->school_id,
-
-                    'phone' => $request->phone,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to create guardian.'
-
-            );
-
-        }
+        return $this->created(
+            new GuardianResource($guardian),
+            'Guardian created successfully.'
+        );
     }
 
-    /**
-     * Update the specified guardian.
-     */
-    public function update(Request $request, string $id)
-    {
-        $guardian = Guardian::find($id);
+    public function update(
+        Request $request,
+        string $id
+    ) {
+        $schoolId = $this->schoolId($request);
 
-        if ($this->modelNotFound($guardian)) {
-
-            return $this->notFound(
-
-                'Guardian not found.'
-
-            );
-
-        }
-
-        if ($this->isDeleted($guardian)) {
-
-            return $this->badRequest(
-
-                'Guardian has been deleted.'
-
-            );
-
-        }
+        $guardian = $this->guardian($schoolId, $id);
 
         $validated = $request->validate([
-
-            'user_id' => 'nullable|exists:users,id',
-
-            'first_name' => 'sometimes|string|max:100',
-
-            'last_name' => 'sometimes|string|max:100',
-
-            'phone' => 'sometimes|string|max:20',
-
-            'email' => 'nullable|email|max:255',
-
-            'relationship' => 'sometimes|string|max:50',
-
-            'active' => 'sometimes|boolean',
-
+            'first_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'phone' => ['sometimes', 'required', 'string', 'max:20'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'relationship' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'active' => ['sometimes', 'boolean'],
         ]);
 
-        $this->beginTransaction();
-
-        try {
-
+        DB::transaction(function () use (
+            $request,
+            $guardian,
+            $validated
+        ): void {
             $oldValues = $guardian->toArray();
 
-            $guardian->update(
-
-                $validated
-
-            );
+            $guardian->fill($validated);
+            $guardian->save();
+            $guardian->refresh();
 
             $this->audit(
-
                 request: $request,
-
                 module: self::MODULE,
-
                 action: 'Update',
-
                 model: $guardian,
-
                 oldValues: $oldValues,
-
-                newValues: $guardian->fresh()->toArray(),
-
+                newValues: $guardian->toArray(),
                 description: 'Updated guardian.'
-
             );
+        });
 
-            $this->commit();
+        $guardian->refresh();
 
-            $this->loadRelations(
-
-                $guardian,
-
-                self::RELATIONS
-
-            );
-
-            return $this->success(
-
-                new GuardianResource(
-
-                    $guardian
-
-                ),
-
-                'Guardian updated successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to update guardian.',
-
-                [
-
-                    'guardian_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to update guardian.'
-
-            );
-
-        }
+        return $this->success(
+            new GuardianResource($guardian),
+            'Guardian updated successfully.'
+        );
     }
 
-    /**
-     * Soft delete the specified guardian.
-     */
-    public function destroy(Request $request, string $id)
-    {
-        $guardian = Guardian::find($id);
+    public function destroy(
+        Request $request,
+        string $id
+    ) {
+        $schoolId = $this->schoolId($request);
+        $user = $request->user();
 
-        if ($this->modelNotFound($guardian)) {
+        $guardian = $this->guardian($schoolId, $id);
 
-            return $this->notFound(
-
-                'Guardian not found.'
-
-            );
-
-        }
-
-        if ($this->isDeleted($guardian)) {
-
-            return $this->badRequest(
-
-                'Guardian has already been deleted.'
-
-            );
-
-        }
-
-        $this->beginTransaction();
-
-        try {
-
+        DB::transaction(function () use (
+            $request,
+            $guardian,
+            $user
+        ): void {
             $oldValues = $guardian->toArray();
 
-            $guardian->update([
+            LearnerParent::query()
+                ->where('parent_id', $guardian->id)
+                ->where('is_deleted', false)
+                ->update([
+                    'active' => false,
+                    'portal_enabled' => false,
+                    'is_primary_contact' => false,
+                    'is_deleted' => true,
+                    'deleted_at' => now(),
+                    'deleted_by' => $user->id,
+                    'updated_at' => now(),
+                ]);
 
-                'is_deleted' => true,
-
-                'deleted_at' => now(),
-
-            ]);
+            $guardian->active = false;
+            $guardian->is_deleted = true;
+            $guardian->deleted_at = now();
+            $guardian->deleted_by = $user->id;
+            $guardian->save();
+            $guardian->refresh();
 
             $this->audit(
-
                 request: $request,
-
                 module: self::MODULE,
-
                 action: 'Delete',
-
                 model: $guardian,
-
                 oldValues: $oldValues,
-
-                newValues: $guardian->fresh()->toArray(),
-
-                description: 'Soft deleted guardian.'
-
+                newValues: $guardian->toArray(),
+                description: 'Soft deleted guardian and revoked guardian links.'
             );
+        });
 
-            $this->commit();
+        return $this->success(
+            null,
+            'Guardian deleted successfully.'
+        );
+    }
 
-            return $this->success(
+    private function guardian(
+        string $schoolId,
+        string $guardianId
+    ): Guardian {
+        return Guardian::query()
+            ->withoutGlobalScopes()
+            ->where('id', $guardianId)
+            ->where('school_id', $schoolId)
+            ->where('is_deleted', false)
+            ->firstOrFail();
+    }
 
-                null,
+    private function schoolId(Request $request): string
+    {
+        $schoolId = trim(
+            (string) ($request->user()?->school_id ?? '')
+        );
 
-                'Guardian deleted successfully.'
-
-            );
-
-        } catch (\Throwable $e) {
-
-            $this->rollback();
-
-            $this->logError(
-
-                'Failed to delete guardian.',
-
-                [
-
-                    'guardian_id' => $id,
-
-                    'exception' => $e,
-
-                ]
-
-            );
-
-            return $this->error(
-
-                'Failed to delete guardian.'
-
-            );
-
+        if ($schoolId === '') {
+            abort(403, 'School context not found.');
         }
+
+        return $schoolId;
     }
 }

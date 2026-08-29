@@ -19,7 +19,7 @@ return [
     'student-elections' => 'manage_student_elections',
     'student-election-candidates' => 'manage_election_candidates',
     'student-leadership-positions' => 'manage_student_leadership_positions',
-    'guardians' => 'manage_learners',
+    'guardians' => 'manage_guardians',
     'learning-areas' => 'manage_learning_areas',
     'learning-area-allocations' => 'manage_learning_areas',
     'learning-resources' => 'review_learning_resources',
