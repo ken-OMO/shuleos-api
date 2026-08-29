@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
+use App\Http\Controllers\Api\LearnerPlacementController;
 use App\Http\Controllers\Api\LearnerPortalAdminController;
 use App\Http\Controllers\Api\LearnerPortalController;
 use App\Http\Controllers\Api\LearnerPortalPhaseTwoController;
@@ -1156,6 +1157,12 @@ Route::prefix('learners')
 
         Route::delete('/{learner}/guardians/{link}', [GuardianLinkController::class, 'destroy'])
             ->middleware('permission:manage_guardians');
+
+        Route::get('/{learner}/placements', [LearnerPlacementController::class, 'index'])
+            ->middleware('permission:manage_learners');
+
+        Route::post('/{learner}/placements', [LearnerPlacementController::class, 'store'])
+            ->middleware('permission:manage_learners');
 
         Route::get('/', [LearnerController::class, 'index'])
             ->middleware('permission:manage_learners');

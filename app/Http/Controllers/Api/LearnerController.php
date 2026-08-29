@@ -202,6 +202,14 @@ class LearnerController extends BaseCrudController
             );
         }
 
+        if ($request->hasAny(['grade_id', 'stream_id'])) {
+            throw ValidationException::withMessages([
+                'placement' => [
+                    'Grade and stream placement must be changed through the learner placement endpoint.',
+                ],
+            ]);
+        }
+
         $validated = $request->validate([
             'admission_no' => [
                 'sometimes',
@@ -245,16 +253,6 @@ class LearnerController extends BaseCrudController
                 'date',
                 'before_or_equal:today',
             ],
-            'grade_id' => [
-                'sometimes',
-                'required',
-                'uuid',
-            ],
-            'stream_id' => [
-                'sometimes',
-                'required',
-                'uuid',
-            ],
             'admission_date' => [
                 'sometimes',
                 'nullable',
@@ -284,27 +282,6 @@ class LearnerController extends BaseCrudController
                     ],
                 ]);
             }
-        }
-
-        if (
-            array_key_exists('grade_id', $validated)
-            || array_key_exists('stream_id', $validated)
-        ) {
-            $effectiveGradeId = (string) (
-                $validated['grade_id']
-                ?? $learner->grade_id
-            );
-
-            $effectiveStreamId = (string) (
-                $validated['stream_id']
-                ?? $learner->stream_id
-            );
-
-            $this->validatePlacement(
-                $schoolId,
-                $effectiveGradeId,
-                $effectiveStreamId
-            );
         }
 
         $oldValues = $learner->toArray();
