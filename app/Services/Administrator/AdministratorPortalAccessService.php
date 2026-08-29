@@ -4,11 +4,13 @@ namespace App\Services\Administrator;
 
 use App\Models\School;
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Support\Facades\DB;
 
 class AdministratorPortalAccessService
 {
+    public function __construct(private AuthContextService $authContext) {}
+
     private const PLATFORM_ROLES = [
         'platform_owner',
         'platform_super_administrator',
@@ -278,22 +280,10 @@ class AdministratorPortalAccessService
         User $user,
         string $permission
     ): bool {
-        return DB::table('role_permissions')
-            ->join(
-                'permissions',
-                'permissions.id',
-                '=',
-                'role_permissions.permission_id'
-            )
-            ->where(
-                'role_permissions.role_id',
-                $user->role_id
-            )
-            ->where(
-                'permissions.permission_name',
-                $permission
-            )
-            ->exists();
+        return $this->authContext->hasPermission(
+            $user,
+            $permission
+        );
     }
 
     public function normalize(?string $role): string

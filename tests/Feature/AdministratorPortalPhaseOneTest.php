@@ -147,6 +147,264 @@ class AdministratorPortalPhaseOneTest extends TestCase
         $this->assertStringContainsString("'migration_count'", $source);
     }
 
+    public function test_role_permission_delegation_accepts_permission_held_only_by_secondary_role(): void
+    {
+        $secondaryRoleId = $this->createSchoolRole(
+            'Delegation Secondary Authority'
+        );
+
+        $targetRoleId = $this->createSchoolRole(
+            'Delegation Target Role'
+        );
+
+        $permissionName = 'delegation_secondary_only_permission';
+
+        $this->grantPermissionToRoleId(
+            $secondaryRoleId,
+            $permissionName
+        );
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->ids['admin'],
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        $this->assertFalse(
+            $this->roleHasPermission(
+                $this->ids['school_role'],
+                $permissionName
+            )
+        );
+
+        app(AdministratorRolePermissionService::class)->assign(
+            $this->user('admin'),
+            $targetRoleId,
+            [$permissionName]
+        );
+
+        $this->assertTrue(
+            $this->roleHasPermission(
+                $targetRoleId,
+                $permissionName
+            )
+        );
+    }
+
+    public function test_role_permission_delegation_rejects_permission_outside_effective_role_union(): void
+    {
+        $secondaryRoleId = $this->createSchoolRole(
+            'Delegation Limited Authority'
+        );
+
+        $targetRoleId = $this->createSchoolRole(
+            'Delegation Restricted Target'
+        );
+
+        $this->grantPermissionToRoleId(
+            $secondaryRoleId,
+            'delegation_allowed_permission'
+        );
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->ids['admin'],
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        $outsidePermission = 'delegation_outside_effective_union';
+
+        $this->ensurePermission($outsidePermission);
+
+        try {
+            app(AdministratorRolePermissionService::class)->assign(
+                $this->user('admin'),
+                $targetRoleId,
+                [$outsidePermission]
+            );
+
+            $this->fail(
+                'Administrator granted a permission outside the effective role union.'
+            );
+        } catch (AuthorizationException) {
+            $this->assertFalse(
+                $this->roleHasPermission(
+                    $targetRoleId,
+                    $outsidePermission
+                )
+            );
+        }
+    }
+
+    public function test_user_role_assignment_accepts_target_role_covered_by_secondary_role_authority(): void
+    {
+        $secondaryRoleId = $this->createSchoolRole(
+            'Assignment Secondary Authority'
+        );
+
+        $targetRoleId = $this->createSchoolRole(
+            'Assignment Covered Target'
+        );
+
+        $permissionName = 'assignment_secondary_only_permission';
+
+        $this->grantPermissionToRoleId(
+            $secondaryRoleId,
+            $permissionName
+        );
+
+        $this->grantPermissionToRoleId(
+            $targetRoleId,
+            $permissionName
+        );
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->ids['admin'],
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        $this->assertFalse(
+            $this->roleHasPermission(
+                $this->ids['school_role'],
+                $permissionName
+            )
+        );
+
+        $updated = app(AdministratorUserService::class)->update(
+            $this->user('admin'),
+            $this->ids['teacher'],
+            [
+                'role_id' => $targetRoleId,
+            ]
+        );
+
+        $this->assertSame(
+            $targetRoleId,
+            $updated->role_id
+        );
+    }
+
+    public function test_user_role_assignment_rejects_target_role_outside_effective_role_union(): void
+    {
+        $secondaryRoleId = $this->createSchoolRole(
+            'Assignment Limited Authority'
+        );
+
+        $targetRoleId = $this->createSchoolRole(
+            'Assignment Excessive Target'
+        );
+
+        $this->grantPermissionToRoleId(
+            $secondaryRoleId,
+            'assignment_allowed_permission'
+        );
+
+        $outsidePermission = 'assignment_outside_effective_union';
+
+        $this->grantPermissionToRoleId(
+            $targetRoleId,
+            $outsidePermission
+        );
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->ids['admin'],
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        try {
+            app(AdministratorUserService::class)->update(
+                $this->user('admin'),
+                $this->ids['teacher'],
+                [
+                    'role_id' => $targetRoleId,
+                ]
+            );
+
+            $this->fail(
+                'Administrator assigned a role containing permissions outside the effective role union.'
+            );
+        } catch (AuthorizationException) {
+            $this->assertSame(
+                $this->ids['teacher_role'],
+                $this->user('teacher')->role_id
+            );
+        }
+    }
+
+    private function createSchoolRole(string $name): string
+    {
+        $id = (string) Str::uuid();
+
+        DB::table('roles')->insert([
+            'id' => $id,
+            'role_name' => $name,
+            'school_id' => $this->ids['school'],
+            'system_role' => false,
+            'active' => true,
+            'created_at' => now(),
+        ]);
+
+        return $id;
+    }
+
+    private function ensurePermission(string $name): string
+    {
+        $id = DB::table('permissions')
+            ->where('permission_name', $name)
+            ->value('id');
+
+        if ($id) {
+            return (string) $id;
+        }
+
+        $id = (string) Str::uuid();
+
+        DB::table('permissions')->insert([
+            'id' => $id,
+            'permission_name' => $name,
+            'module_name' => 'administrator_portal',
+            'created_at' => now(),
+        ]);
+
+        return $id;
+    }
+
+    private function grantPermissionToRoleId(
+        string $roleId,
+        string $permissionName
+    ): void {
+        $permissionId = $this->ensurePermission(
+            $permissionName
+        );
+
+        DB::table('role_permissions')->insertOrIgnore([
+            'id' => (string) Str::uuid(),
+            'role_id' => $roleId,
+            'permission_id' => $permissionId,
+            'created_at' => now(),
+        ]);
+    }
+
+    private function roleHasPermission(
+        string $roleId,
+        string $permissionName
+    ): bool {
+        return DB::table('role_permissions')
+            ->join(
+                'permissions',
+                'permissions.id',
+                '=',
+                'role_permissions.permission_id'
+            )
+            ->where(
+                'role_permissions.role_id',
+                $roleId
+            )
+            ->where(
+                'permissions.permission_name',
+                $permissionName
+            )
+            ->exists();
+    }
+
     private function makeUser(string $user, ?string $school, string $role): void
     {
         User::create(['id' => $this->ids[$user], 'school_id' => $school !== null ? $this->ids[$school] : null, 'role_id' => $this->ids[$role], 'username' => $user.'-'.Str::random(6), 'password_hash' => bcrypt('password'), 'first_name' => Str::headline($user), 'last_name' => 'User', 'active' => true, 'first_login' => false, 'auth_generation' => 1]);

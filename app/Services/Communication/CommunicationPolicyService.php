@@ -3,6 +3,7 @@
 namespace App\Services\Communication;
 
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -11,7 +12,10 @@ class CommunicationPolicyService
 {
     private const PRIORITY_WEIGHT = ['low' => 1, 'normal' => 2, 'high' => 3, 'critical' => 4];
 
-    public function __construct(private CommunicationAuditService $audit) {}
+    public function __construct(
+        private CommunicationAuditService $audit,
+        private AuthContextService $authContext
+    ) {}
 
     public function policy(User $user, string $category): array
     {
@@ -66,7 +70,11 @@ class CommunicationPolicyService
             'urgent_announcement', 'emergency' => 'send_emergency_broadcasts',
             default => 'send_sms_communications',
         };
-        abort_unless(DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', $user->role_id)->where('permissions.permission_name', $required)->exists(), 403, 'SMS communication permission denied.');
+        abort_unless(
+            $this->authContext->hasPermission($user, $required),
+            403,
+            'SMS communication permission denied.'
+        );
     }
 
     public function assertSenderAndPriority(User $user, array $policy, string $priority): void

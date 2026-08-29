@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Http\Middleware\ModulePermissionMiddleware;
 use App\Models\Grade;
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,8 @@ class PlatformSecurityTest extends TestCase
     private string $otherSchoolId;
 
     private string $roleId;
+
+    private string $userId;
 
     protected function setUp(): void
     {
@@ -56,11 +59,29 @@ class PlatformSecurityTest extends TestCase
             throw new \RuntimeException('Required migrated Teacher role was not found.');
         }
 
-        Auth::setUser(new User([
-            'id' => (string) Str::uuid(),
+        $this->userId = (string) Str::uuid();
+
+        DB::table('users')->insert([
+            'id' => $this->userId,
             'school_id' => $this->schoolId,
             'role_id' => $this->roleId,
-        ]));
+            'username' => 'platform-security-'.Str::lower(Str::random(8)),
+            'password_hash' => 'not-used',
+            'first_name' => 'Platform',
+            'last_name' => 'Security',
+            'active' => true,
+            'first_login' => false,
+            'auth_generation' => 1,
+            'is_deleted' => false,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Auth::setUser(
+            User::query()
+                ->withoutGlobalScopes()
+                ->findOrFail($this->userId)
+        );
     }
 
     protected function tearDown(): void
@@ -79,11 +100,16 @@ class PlatformSecurityTest extends TestCase
         $this->assertSame(['Own grade'], Grade::pluck('grade_name')->all());
     }
 
-    public function test_module_permission_allows_a_granted_capability(): void
+    public function test_module_permission_allows_a_primary_role_granted_capability(): void
     {
-        $permissionId = (string) Str::uuid();
-        DB::table('permissions')->insert(['id' => $permissionId, 'permission_name' => 'create_exam']);
-        DB::table('role_permissions')->insert(['role_id' => $this->roleId, 'permission_id' => $permissionId]);
+        $permissionId = $this->permission('create_exam');
+
+        DB::table('role_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'role_id' => $this->roleId,
+            'permission_id' => $permissionId,
+            'created_at' => now(),
+        ]);
 
         $response = app(ModulePermissionMiddleware::class)->handle(
             Request::create('/api/exams', 'GET'),
@@ -93,13 +119,124 @@ class PlatformSecurityTest extends TestCase
         $this->assertSame(200, $response->getStatusCode());
     }
 
-    public function test_module_permission_denies_a_missing_capability(): void
+    public function test_module_permission_allows_a_secondary_role_granted_capability(): void
     {
+        $secondaryRoleId = (string) Str::uuid();
+
+        DB::table('roles')->insert([
+            'id' => $secondaryRoleId,
+            'role_name' => 'Platform Security Exam Reviewer',
+            'school_id' => $this->schoolId,
+            'active' => true,
+            'created_at' => now(),
+        ]);
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->userId,
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        $permissionId = $this->permission('create_exam');
+
+        DB::table('role_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'role_id' => $secondaryRoleId,
+            'permission_id' => $permissionId,
+            'created_at' => now(),
+        ]);
+
+        $user = User::query()
+            ->withoutGlobalScopes()
+            ->findOrFail($this->userId);
+
+        $authContext = app(AuthContextService::class);
+
+        $this->assertFalse(
+            DB::table('role_permissions')
+                ->where('role_id', $this->roleId)
+                ->where('permission_id', $permissionId)
+                ->exists()
+        );
+
+        $this->assertTrue(
+            $authContext->hasPermission($user, 'create_exam')
+        );
+
+        $this->assertContains(
+            'create_exam',
+            $authContext->permissionNames($user)->all()
+        );
+
+        Auth::setUser($user);
+
+        $response = app(ModulePermissionMiddleware::class)->handle(
+            Request::create('/api/exams', 'GET'),
+            fn () => response('allowed')
+        );
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_module_permission_denies_when_no_effective_role_grants_capability(): void
+    {
+        $secondaryRoleId = (string) Str::uuid();
+
+        DB::table('roles')->insert([
+            'id' => $secondaryRoleId,
+            'role_name' => 'Platform Security Observer',
+            'school_id' => $this->schoolId,
+            'active' => true,
+            'created_at' => now(),
+        ]);
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->userId,
+            'role_id' => $secondaryRoleId,
+        ]);
+
+        $user = User::query()
+            ->withoutGlobalScopes()
+            ->findOrFail($this->userId);
+
+        $authContext = app(AuthContextService::class);
+
+        $this->assertFalse(
+            $authContext->hasPermission($user, 'create_exam')
+        );
+
+        $this->assertNotContains(
+            'create_exam',
+            $authContext->permissionNames($user)->all()
+        );
+
+        Auth::setUser($user);
+
         $response = app(ModulePermissionMiddleware::class)->handle(
             Request::create('/api/exams', 'GET'),
             fn () => response('allowed')
         );
 
         $this->assertSame(403, $response->getStatusCode());
+    }
+
+    private function permission(string $name): string
+    {
+        $existing = DB::table('permissions')
+            ->where('permission_name', $name)
+            ->value('id');
+
+        if ($existing) {
+            return (string) $existing;
+        }
+
+        $id = (string) Str::uuid();
+
+        DB::table('permissions')->insert([
+            'id' => $id,
+            'permission_name' => $name,
+            'created_at' => now(),
+        ]);
+
+        return $id;
     }
 }

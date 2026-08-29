@@ -4,6 +4,7 @@ namespace App\Services\Administrator;
 
 use App\Models\Role;
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -12,7 +13,11 @@ use Illuminate\Validation\ValidationException;
 
 class AdministratorUserService
 {
-    public function __construct(private AdministratorPortalAccessService $access, private AdministratorAuditService $audit) {}
+    public function __construct(
+        private AdministratorPortalAccessService $access,
+        private AdministratorAuditService $audit,
+        private AuthContextService $authContext
+    ) {}
 
     public function index(User $actor, array $filters)
     {
@@ -109,8 +114,23 @@ class AdministratorUserService
         if ($platform && ! $scope['platform']) {
             throw new AuthorizationException('School administrators cannot assign platform roles.');
         }
-        $actorPermissions = DB::table('role_permissions')->where('role_id', $actor->role_id)->pluck('permission_id');
-        $outside = DB::table('role_permissions')->where('role_id', $role->id)->whereNotIn('permission_id', $actorPermissions)->exists();
+        $actorPermissionNames = $this->authContext
+            ->permissionNames($actor)
+            ->all();
+
+        $outside = DB::table('role_permissions')
+            ->join(
+                'permissions',
+                'permissions.id',
+                '=',
+                'role_permissions.permission_id'
+            )
+            ->where('role_permissions.role_id', $role->id)
+            ->whereNotIn(
+                'permissions.permission_name',
+                $actorPermissionNames
+            )
+            ->exists();
         if ($outside && ! $scope['platform']) {
             throw new AuthorizationException('Administrators cannot assign a role with permissions they do not possess.');
         }

@@ -164,7 +164,10 @@ class FinancePhaseTwoController extends BaseApiController
     {
         $data = $request->validate(['learner_fee_account_id' => 'required|uuid', 'adjustment_type' => 'required|string', 'amount' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'reason' => 'required|string|max:4000', 'academic_year_id' => 'nullable|uuid', 'term_id' => 'nullable|uuid', 'reference_type' => 'nullable|string|max:100', 'reference_id' => 'nullable|uuid']);
         if ($data['adjustment_type'] === 'write_off') {
-            $allowed = DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', auth()->user()->role_id)->where('permissions.permission_name', 'write_off_fee_balances')->exists();
+            $allowed = $this->authContext->hasPermission(
+                auth()->user(),
+                'write_off_fee_balances'
+            );
             abort_unless($allowed, 403, 'Write-off permission is required.');
         }
 
