@@ -19,7 +19,13 @@ class ModulePermissionMiddleware
         }
 
         $prefix = $request->segment(2);
-        $required = config("module_permissions.{$prefix}");
+
+        $required = match (true) {
+            $prefix === 'learners'
+                && $request->segment(4) === 'guardians' => config('module_permissions.guardians'),
+
+            default => config("module_permissions.{$prefix}"),
+        };
 
         if (! $required) {
             return response()->json(['success' => false, 'message' => 'No permission policy is configured for this module.'], 403);

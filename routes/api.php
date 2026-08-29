@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\FinanceSettingController;
 use App\Http\Controllers\Api\FinanceWorkflowController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\GuardianController;
+use App\Http\Controllers\Api\GuardianLinkController;
 use App\Http\Controllers\Api\HomeworkLeadershipController;
 use App\Http\Controllers\Api\HomeworkLearnerController;
 use App\Http\Controllers\Api\HomeworkTeacherController;
@@ -1141,6 +1142,21 @@ Route::prefix('streams')
 Route::prefix('learners')
     ->middleware($secure)
     ->group(function () {
+        Route::get('/{learner}/guardians', [GuardianLinkController::class, 'index'])
+            ->middleware('permission:manage_guardians');
+
+        Route::post('/{learner}/guardians', [GuardianLinkController::class, 'store'])
+            ->middleware([
+                'permission:manage_guardians',
+                'school.operational',
+            ]);
+
+        Route::put('/{learner}/guardians/{link}', [GuardianLinkController::class, 'update'])
+            ->middleware('permission:manage_guardians');
+
+        Route::delete('/{learner}/guardians/{link}', [GuardianLinkController::class, 'destroy'])
+            ->middleware('permission:manage_guardians');
+
         Route::get('/', [LearnerController::class, 'index'])
             ->middleware('permission:manage_learners');
 
@@ -1328,17 +1344,23 @@ Route::prefix('student-election-candidates')->middleware($secure)->group(functio
 Route::prefix('guardians')
     ->middleware($secure)
     ->group(function () {
+        Route::get('/', [GuardianController::class, 'index'])
+            ->middleware('permission:manage_guardians');
 
-        Route::get('/', [GuardianController::class, 'index']);
+        Route::get('/{id}', [GuardianController::class, 'show'])
+            ->middleware('permission:manage_guardians');
 
-        Route::get('/{id}', [GuardianController::class, 'show']);
+        Route::post('/', [GuardianController::class, 'store'])
+            ->middleware([
+                'permission:manage_guardians',
+                'school.operational',
+            ]);
 
-        Route::post('/', [GuardianController::class, 'store']);
+        Route::put('/{id}', [GuardianController::class, 'update'])
+            ->middleware('permission:manage_guardians');
 
-        Route::put('/{id}', [GuardianController::class, 'update']);
-
-        Route::delete('/{id}', [GuardianController::class, 'destroy']);
-
+        Route::delete('/{id}', [GuardianController::class, 'destroy'])
+            ->middleware('permission:manage_guardians');
     });
 
 /*
