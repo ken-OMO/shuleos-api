@@ -166,6 +166,14 @@ class LearnerController extends BaseCrudController
                     'portal_activated_at' => null,
                 ]);
 
+            /*
+             * lifecycle_status deliberately remains outside Learner::$fillable.
+             * Admission owns initialization of the canonical lifecycle state.
+             */
+            $learner->lifecycle_status = 'active';
+            $learner->save();
+            $learner->refresh();
+
             $this->audit(
                 request: $request,
                 module: self::MODULE,
@@ -214,6 +222,17 @@ class LearnerController extends BaseCrudController
             throw ValidationException::withMessages([
                 'mode_of_study' => [
                     'Mode of study must be changed through the learner mode-of-study endpoint.',
+                ],
+            ]);
+        }
+
+        if ($request->hasAny([
+            'active',
+            'lifecycle_status',
+        ])) {
+            throw ValidationException::withMessages([
+                'lifecycle_status' => [
+                    'Learner lifecycle must be changed through the learner lifecycle endpoint.',
                 ],
             ]);
         }
