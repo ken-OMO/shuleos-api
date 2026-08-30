@@ -44,6 +44,58 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         $this->assertSame($school->id, $learner->school_id);
     }
 
+    public function test_admission_sets_active_lifecycle_status_and_active_true(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+
+        $this->withToken($this->tokenFor($user))
+            ->postJson(
+                '/api/learners',
+                $this->learnerPayload($grade, $stream)
+            )
+            ->assertSuccessful();
+
+        $learner = Learner::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $school->id)
+            ->where('admission_no', 'ADM-001')
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $learner->active);
+        $this->assertSame(
+            'active',
+            $learner->lifecycle_status
+        );
+    }
+
+    public function test_admission_client_cannot_control_active_or_lifecycle_status(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+
+        $payload = $this->learnerPayload($grade, $stream);
+
+        $payload['active'] = false;
+        $payload['lifecycle_status'] = 'graduated';
+
+        $this->withToken($this->tokenFor($user))
+            ->postJson('/api/learners', $payload)
+            ->assertSuccessful();
+
+        $learner = Learner::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $school->id)
+            ->where('admission_no', 'ADM-001')
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $learner->active);
+        $this->assertSame(
+            'active',
+            $learner->lifecycle_status
+        );
+    }
+
     public function test_client_supplied_foreign_school_id_cannot_redirect_admission(): void
     {
         [$school, $user] = $this->schoolAdminWithPermission();
