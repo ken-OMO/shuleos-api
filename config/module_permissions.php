@@ -14,6 +14,7 @@ return [
     'terms' => 'manage_academics',
     'academic-weeks' => 'manage_academics',
     'learners' => 'manage_learners',
+    'boarding' => 'manage_boarding',
     'learner' => 'access_learner_portal',
     'learner-phase-two' => 'access_learner_portal_phase_two',
     'student-elections' => 'manage_student_elections',

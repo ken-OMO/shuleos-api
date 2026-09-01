@@ -38,6 +38,9 @@ use App\Http\Controllers\Api\GuardianLinkController;
 use App\Http\Controllers\Api\HomeworkLeadershipController;
 use App\Http\Controllers\Api\HomeworkLearnerController;
 use App\Http\Controllers\Api\HomeworkTeacherController;
+use App\Http\Controllers\Api\HostelBedController;
+use App\Http\Controllers\Api\HostelController;
+use App\Http\Controllers\Api\HostelRoomController;
 use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
@@ -707,6 +710,111 @@ Route::prefix('announcements')->middleware($secure)->group(function () {
     Route::post('/{announcement}/read', [CommunicationController::class, 'announcementRead'])->middleware('permission:view_own_notifications');
 });
 
+Route::prefix('boarding')
+    ->middleware($secure)
+    ->group(function () {
+        Route::get(
+            '/hostels',
+            [HostelController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels',
+            [HostelController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}',
+            [HostelController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/hostels/{hostel}',
+            [HostelController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/hostels/{hostel}',
+            [HostelController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}/rooms',
+            [HostelRoomController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels/{hostel}/rooms',
+            [HostelRoomController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/rooms/{room}/beds',
+            [HostelBedController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/rooms/{room}/beds',
+            [HostelBedController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/beds/{bed}',
+            [HostelBedController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/beds/{bed}',
+            [HostelBedController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/beds/{bed}',
+            [HostelBedController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+    });
 Route::prefix('academic-years')->middleware($secure)->group(function () {
     Route::get('/', [AcademicYearController::class, 'index']);
     Route::get('/{id}', [AcademicYearController::class, 'show']);
