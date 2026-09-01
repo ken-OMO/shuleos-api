@@ -8,6 +8,7 @@ use App\Services\TeacherPortal\TeacherPortalService;
 use App\Services\Teaching\TeacherAssignmentService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Database\AcademicYearBuilder;
@@ -47,6 +48,9 @@ class TeacherPortalTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Carbon::setTestNow(
+            Carbon::parse('2026-08-01 12:00:00')
+        );
 
         $this->school = SchoolBuilder::create();
         $this->otherSchool = SchoolBuilder::create();
@@ -175,6 +179,13 @@ class TeacherPortalTest extends TestCase
                 'last_name' => 'Learner',
             ]
         );
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     public function test_teacher_resolution_assignments_classes_and_learners(): void
