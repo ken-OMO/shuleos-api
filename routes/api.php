@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AttendanceSessionController;
 use App\Http\Controllers\Api\AttendanceStatusController;
 use App\Http\Controllers\Api\AttendanceTeacherController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BedAllocationController;
 use App\Http\Controllers\Api\BehaviourLeadershipController;
 use App\Http\Controllers\Api\BehaviourLearnerController;
 use App\Http\Controllers\Api\BehaviourParentController;
@@ -713,6 +714,14 @@ Route::prefix('announcements')->middleware($secure)->group(function () {
 Route::prefix('boarding')
     ->middleware($secure)
     ->group(function () {
+        Route::post(
+            '/bed-allocations',
+            [BedAllocationController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
         Route::get(
             '/hostels',
             [HostelController::class, 'index']
