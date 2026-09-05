@@ -28,6 +28,7 @@ class BedAllocation extends TenantModel
         'allocation_date' => 'date',
         'release_date' => 'date',
         'active' => 'boolean',
+        'status' => 'string',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
