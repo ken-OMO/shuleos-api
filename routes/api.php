@@ -722,6 +722,23 @@ Route::prefix('boarding')
             'school.operational',
         ]);
 
+        Route::patch(
+            '/bed-allocations/{allocation}/release',
+            [BedAllocationController::class, 'release']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/bed-allocations/{allocation}/transfer',
+            [BedAllocationController::class, 'transfer']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/bed-allocations/{allocation}/history',
+            [BedAllocationController::class, 'history']
+        )->middleware('permission:manage_boarding');
         Route::get(
             '/hostels',
             [HostelController::class, 'index']

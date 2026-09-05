@@ -741,6 +741,7 @@ class BoardingStructureManagementTest extends TestCase
             'bed_id' => $bed->id,
             'allocation_date' => now()->toDateString(),
             'release_date' => null,
+            'status' => 'active',
             'active' => true,
             'allocated_by' => $user->id,
             'created_at' => now(),
