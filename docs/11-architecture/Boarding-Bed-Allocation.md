@@ -397,3 +397,152 @@ Phase 6A.9D acceptance requires evidence for:
 The implementation is not accepted merely because the happy path succeeds.
 
 Tenant isolation, authorization, database invariants, concurrency safety, auditability, and regression safety are part of the feature contract.
+
+## 6A.9E — Bed Allocation Lifecycle
+
+Phase 6A.9E extends learner bed allocation with release, transfer, and immutable occupancy history. One `bed_allocations` row represents one occupancy episode. An episode is never repurposed or reactivated after it becomes terminal.
+
+### Lifecycle states
+
+The authoritative allocation statuses are:
+
+- `active`
+- `released`
+- `transferred`
+
+The database enforces lifecycle consistency:
+
+- `status = active` requires `active = true` and `release_date = NULL`.
+- `status IN (released, transferred)` requires `active = false` and a non-null `release_date`.
+- A terminal allocation is never changed back to active.
+- Any later occupancy is represented by a new `bed_allocations` row.
+
+Legacy migration rules are conservative. Existing active rows become `active`. Existing inactive rows with a release date become `released`. Historical transfer meaning is not inferred where the legacy data cannot prove it, and ambiguous legacy state causes migration failure rather than invented history.
+
+### Release
+
+Endpoint:
+
+`PATCH /api/boarding/bed-allocations/{allocation}/release`
+
+Authorization:
+
+- authenticated school user
+- `manage_boarding`
+- no `school.operational` middleware requirement
+
+Release is occupancy cleanup rather than a new boarding admission. The source allocation must currently be active, but release remains possible when the learner has subsequently withdrawn, transferred, graduated, or otherwise ceased to satisfy current boarding admission eligibility. Existing occupancy can also be released after its bed, room, or hostel has been retired.
+
+A successful release:
+
+- changes the source status from `active` to `released`
+- sets `active = false`
+- sets the server-controlled school-local `release_date`
+- preserves the allocation episode permanently
+- creates one immutable lifecycle history event
+- records the authenticated actor
+- accepts an optional reason of at most 500 characters
+
+Clients cannot control lifecycle status, active flags, allocation/release dates, history identifiers, event types, transition states, actor fields, or history timestamps.
+
+### Transfer
+
+Endpoint:
+
+`POST /api/boarding/bed-allocations/{allocation}/transfer`
+
+Authorization:
+
+- authenticated school user
+- `manage_boarding`
+- `school.operational`
+
+Client-controlled transfer input is limited to the destination bed identifier plus an optional reason of at most 500 characters. Tenant context remains authoritative; client input cannot redirect an allocation to another school.
+
+Transfer is one atomic transaction:
+
+1. validate and lock the tenant-owned source allocation
+2. validate that the learner is still eligible for boarding transfer
+3. lock source and destination boarding resources in deterministic order
+4. validate destination bed, room, hostel, hierarchy, activity and gender compatibility
+5. close the source episode as `transferred`
+6. create a new `active` destination occupancy episode
+7. write one correlated immutable lifecycle-history event
+
+The source is closed before the new destination episode is inserted so the active-learner uniqueness invariant remains valid. If any later transfer step fails, the transaction rolls back completely and the source remains active.
+
+Transfer does not mutate the source episode into the destination episode. The destination is always a new `bed_allocations` row.
+
+### Immutable lifecycle history
+
+Lifecycle history is stored in:
+
+`bed_allocation_history`
+
+Each release or transfer creates one logical event with an independent UUID `event_id`.
+
+A release event records:
+
+- source allocation
+- destination allocation as `NULL`
+- `from_status = active`
+- `to_status = released`
+
+A transfer event records:
+
+- source allocation
+- destination allocation
+- `from_status = active`
+- `to_status = transferred`
+
+One transfer has one history event that correlates both allocation episodes. Reading history for either the source or destination episode resolves that same logical transfer event rather than creating duplicate events.
+
+History records include tenant, learner, event correlation, source/destination allocation, transition state, school-local effective date, optional reason, actor and immutable timestamps.
+
+Lifecycle history is append-only. Application model guards reject mutation, and PostgreSQL independently rejects direct `UPDATE` and `DELETE` operations through the `bed_allocation_history_immutable_trigger`.
+
+Tenant-aware foreign keys bind learner, actor, source allocation and destination allocation to the same school. Cross-tenant lifecycle resources fail closed.
+
+Endpoint:
+
+`GET /api/boarding/bed-allocations/{allocation}/history`
+
+Authorization:
+
+- authenticated school user
+- `manage_boarding`
+- no `school.operational` middleware requirement
+
+The public history response excludes `school_id` and exposes only the approved lifecycle-history fields.
+
+### Concurrency and database backstops
+
+Release and transfer execute inside database transactions.
+
+Transfer locks source/destination beds and their parent rooms and hostels in deterministic identifier order. Fresh allocation and transfer therefore contend on the destination boarding resources rather than relying only on application pre-checks.
+
+Database partial unique indexes remain the final concurrency backstop:
+
+- one active allocation per bed
+- one active bed per learner
+
+A transfer failure cannot leave the source closed without the destination, and lifecycle history is written in the same transaction as the occupancy transition.
+
+### Tenant and server authority
+
+All allocation lifecycle operations are tenant scoped. The authenticated school context is authoritative.
+
+A supplied school context must match the authenticated school and cannot redirect ownership. Server-owned lifecycle/history fields cannot be injected by clients.
+
+Release, transfer and history use the existing `manage_boarding` authorization model. Only transfer requires an operational school because transfer creates a new occupancy episode. Release and history intentionally remain available when a school is non-operational so existing occupancy can still be cleaned up and historical evidence can still be read.
+
+### Audit
+
+Release and transfer produce normal Boarding audit-log actions in addition to immutable occupancy lifecycle history.
+
+Audit logs and `bed_allocation_history` serve different purposes:
+
+- audit logs record application/API actions
+- lifecycle history is the permanent authoritative occupancy-transition record
+
+Initial bed allocation does not require a duplicate lifecycle-history event because the allocation row itself is the initial occupancy episode.
