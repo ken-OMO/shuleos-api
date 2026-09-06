@@ -849,3 +849,260 @@ separate.
 
 The database must make cross-tenant or contradictory responsibility state
 difficult or impossible to persist.
+
+## 6A.9F-A Application Contract
+
+### Purpose
+
+`HostelStaffAssignment` represents one preserved episode of responsibility between a tenant-owned school User and a Hostel.
+
+Responsibility is not identity and is not authorization.
+
+Creating a Boarding responsibility assignment MUST NOT create a Teacher record, change a User role, or grant `manage_boarding`.
+
+### Identity and eligibility
+
+The responsible person MUST be represented by a same-tenant `users` row.
+
+A User is eligible for a new assignment only when:
+
+- `school_id` matches the authoritative tenant;
+- `active = true`;
+- `is_deleted = false`;
+- `suspended_at IS NULL`.
+
+A Teacher record is not required.
+
+The target Hostel MUST:
+
+- belong to the authoritative tenant;
+- be active;
+- not be deleted.
+
+Historical assignments remain valid historical records if a User or Hostel is later suspended, deactivated, archived, or retired.
+
+### Model
+
+The application model is:
+
+`App\Models\HostelStaffAssignment`
+
+It is tenant-owned and MUST use the established ShuleOS tenant model infrastructure.
+
+Required relationships:
+
+- `school`
+- `hostel`
+- `user`
+- `assignedBy`
+- `endedBy`
+
+The model may provide a `current` scope corresponding to `active = true`.
+
+No application-level delete, restore, or reactivation capability is allowed.
+
+### Service boundary
+
+The domain service is:
+
+`App\Services\Boarding\BoardingStaffResponsibilityService`
+
+Supported operations:
+
+- assign responsibility;
+- end responsibility;
+- resolve one tenant-owned assignment;
+- list current assignments for one Hostel;
+- list preserved assignment history for one Hostel.
+
+### Assignment creation
+
+Creation MUST execute inside a database transaction.
+
+The service MUST resolve and validate the authoritative School, Hostel, responsible User, and acting User using the supplied tenant id.
+
+Queries that bypass global scopes MUST immediately reapply `school_id`.
+
+`responsibility_role` is required, trimmed, non-empty, extensible, and limited to 100 characters.
+
+`effective_from` is optional. When omitted, the server uses authoritative school-local today.
+
+A supplied `effective_from` may be today or historical, but MUST NOT be later than authoritative school-local today.
+
+School-local today MUST use the School timezone, falling back to the application timezone only when the School timezone is unavailable.
+
+The server sets:
+
+- `school_id`;
+- `assigned_by`;
+- `active = true`;
+- ending lifecycle fields to null;
+- timestamps.
+
+The client MUST NOT control those fields.
+
+A duplicate current `(school, hostel, user, responsibility_role)` assignment is a domain conflict and MUST NOT produce an unhandled PostgreSQL exception.
+
+### Ending responsibility
+
+Ending is a dedicated terminal lifecycle operation.
+
+It MUST execute inside a database transaction.
+
+The service MUST tenant-scope and lock the current assignment before changing it.
+
+Only a current assignment may be ended.
+
+Ending sets:
+
+- `active = false`;
+- `effective_to = authoritative school-local today`;
+- `ended_by = authenticated acting User`;
+- `ended_at = server timestamp`;
+- `end_reason = validated optional reason`.
+
+`end_reason` may contain at most 500 characters.
+
+An ended assignment MUST never be reactivated or mutated back into a current assignment.
+
+If the same User later resumes the same Hostel responsibility, the system creates a new assignment episode.
+
+### Read contract
+
+Current responsibility reads include only current assignments for the requested same-tenant Hostel.
+
+History reads include both current and ended episodes for that same-tenant Hostel.
+
+Historical records MUST NOT be filtered away merely because their associated User or Hostel later became inactive or retired.
+
+Cross-tenant identifiers MUST fail closed.
+
+### HTTP routes
+
+The 6A.9F-A HTTP surface is:
+
+- `GET /api/boarding/hostels/{hostel}/staff-assignments`
+- `POST /api/boarding/hostels/{hostel}/staff-assignments`
+- `GET /api/boarding/hostels/{hostel}/staff-assignments/history`
+- `PATCH /api/boarding/staff-assignments/{assignment}/end`
+
+There is deliberately no generic update, delete, restore, or reactivate route.
+
+### Authorization
+
+All assignment-management routes require the existing canonical Boarding permission:
+
+`manage_boarding`
+
+Responsibility assignment does not grant that permission.
+
+Creating a new responsibility assignment is an operational Boarding write and requires the existing `school.operational` protection.
+
+Ending an existing responsibility episode is a lifecycle closure operation and does not depend on assignment creation being available.
+
+No role name or `responsibility_role` value implicitly grants protected Boarding authority in 6A.9F-A.
+
+Scoped responsibility authorization remains future 6A.9H work.
+
+### Request ownership protection
+
+HTTP requests MUST prohibit client control of server-owned fields including:
+
+- `school_id`
+- `assigned_by`
+- `ended_by`
+- `ended_at`
+- `effective_to`
+- `active`
+- `created_at`
+- `updated_at`
+
+Assignment creation accepts only:
+
+- `user_id`
+- `responsibility_role`
+- optional `effective_from`
+
+Ending accepts only:
+
+- optional `reason`
+
+### API representation
+
+API responses MUST NOT expose `school_id` as client-authoritative state.
+
+Internal actor ownership identifiers SHOULD remain hidden from ordinary resource responses unless a later audited administrative use case explicitly requires them.
+
+The safe representation may include:
+
+- assignment id;
+- Hostel summary;
+- responsible User safe display information;
+- responsibility role;
+- effective dates;
+- active state;
+- ending reason where appropriate;
+- lifecycle timestamps.
+
+Sensitive authentication, tenant, password, token, or internal security fields from the User model MUST never be serialized through this resource.
+
+### Concurrency and database enforcement
+
+Application checks do not replace database constraints.
+
+Transactions and row locking MUST be used for lifecycle mutations.
+
+The PostgreSQL partial unique index remains the authoritative final guard against duplicate current assignments.
+
+Known PostgreSQL constraint violations MUST be translated to domain-safe validation or conflict responses where applicable.
+
+Raw SQL constraint details MUST NOT be exposed to API clients.
+
+### Required security tests
+
+6A.9F-A is not complete until tests prove at minimum:
+
+1. same-tenant eligible User can be assigned;
+2. no Teacher record is required;
+3. inactive User is rejected;
+4. deleted User is rejected;
+5. suspended User is rejected;
+6. cross-tenant User is rejected;
+7. cross-tenant Hostel is rejected;
+8. cross-tenant actor cannot establish ownership;
+9. inactive or deleted Hostel is rejected;
+10. future `effective_from` is rejected using School-local date;
+11. duplicate current assignment is rejected;
+12. multiple managers for one Hostel are permitted;
+13. one User may manage multiple Hostels;
+14. same User and Hostel may hold different responsibility roles;
+15. ending preserves the historical row;
+16. ended assignments cannot be ended again;
+17. ended assignments cannot be reactivated;
+18. a later assignment creates a new episode;
+19. current listing excludes ended episodes;
+20. history includes both current and ended episodes;
+21. cross-tenant reads fail closed;
+22. client ownership and lifecycle fields are prohibited;
+23. `manage_boarding` is required;
+24. responsibility assignment alone grants no permission;
+25. create respects `school.operational`;
+26. terminal ending remains a dedicated lifecycle operation;
+27. database duplicate races are translated safely;
+28. API resources hide tenant and security-sensitive fields.
+
+### Non-goals
+
+This application slice does not implement:
+
+- Teacher-on-Duty scheduling;
+- Boarding daily reports;
+- Boarding attendance;
+- Boarding incidents;
+- reminders or escalation;
+- permission grants from responsibility;
+- room-level responsibility;
+- future-dated responsibility activation;
+- generic Staff identity;
+- subscription billing;
+- role-specific exclusivity policy.
