@@ -2,154 +2,186 @@
 
 namespace Tests\Feature;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearningAreaAllocationBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\RoleBuilder;
+use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\StreamBuilder;
+use Tests\Support\Database\TeacherBuilder;
+use Tests\Support\Database\TermBuilder;
+use Tests\Support\Database\UserBuilder;
 use Tests\TestCase;
 
 class TeacherAssignmentTest extends TestCase
 {
-    private array $ids;
+    use DatabaseTransactions;
+
+    private object $school;
+
+    private object $role;
+
+    private object $teacher;
+
+    private object $learningArea;
+
+    private object $grade;
+
+    private object $stream;
+
+    private object $academicYear;
+
+    private object $term;
 
     protected function setUp(): void
     {
         parent::setUp();
+
         $this->withoutMiddleware();
-        $this->createSchema();
-        $this->seedContext();
+
+        $this->school = SchoolBuilder::create();
+
+        $this->role = RoleBuilder::create();
+
+        $user = UserBuilder::create(
+            $this->school,
+            $this->role
+        );
+
+        $this->teacher = TeacherBuilder::create(
+            $this->school,
+            $user
+        );
+
+        $this->learningArea = LearningAreaBuilder::create([
+            'learning_area_name' => 'Mathematics',
+        ]);
+
+        $this->grade = GradeBuilder::create(
+            $this->school
+        );
+
+        $this->stream = StreamBuilder::create(
+            $this->school,
+            $this->grade
+        );
+
+        $this->academicYear = AcademicYearBuilder::create(
+            $this->school
+        );
+
+        $this->term = TermBuilder::create(
+            $this->school,
+            $this->academicYear
+        );
+
+        LearningAreaAllocationBuilder::create(
+            $this->school,
+            $this->grade,
+            $this->learningArea,
+            [
+                'lessons_per_week' => 5,
+            ]
+        );
     }
 
     public function test_it_creates_a_valid_teacher_assignment(): void
     {
-        $response = $this->postJson('/api/teacher-assignments', $this->payload());
+        $response = $this->postJson(
+            '/api/teacher-assignments',
+            $this->payload()
+        );
 
-        $response->assertCreated()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.school_id', $this->ids['school'])
-            ->assertJsonPath('data.teacher_id', $this->ids['teacher']);
+        $response
+            ->assertCreated()
+            ->assertJsonPath(
+                'success',
+                true
+            )
+            ->assertJsonPath(
+                'data.school_id',
+                $this->school->id
+            )
+            ->assertJsonPath(
+                'data.teacher_id',
+                $this->teacher->id
+            );
 
-        $this->assertDatabaseHas('teacher_assignments', [
-            'teacher_id' => $this->ids['teacher'],
-            'is_deleted' => false,
-        ]);
+        $this->assertDatabaseHas(
+            'teacher_assignments',
+            [
+                'teacher_id' => $this->teacher->id,
+                'is_deleted' => false,
+            ]
+        );
     }
 
     public function test_it_rejects_a_duplicate_assignment(): void
     {
-        $this->postJson('/api/teacher-assignments', $this->payload())->assertCreated();
+        $this->postJson(
+            '/api/teacher-assignments',
+            $this->payload()
+        )->assertCreated();
 
-        $this->postJson('/api/teacher-assignments', $this->payload())
+        $this->postJson(
+            '/api/teacher-assignments',
+            $this->payload()
+        )
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('assignment');
+            ->assertJsonValidationErrors(
+                'assignment'
+            );
     }
 
     public function test_it_enforces_one_class_teacher_per_stream_and_term(): void
     {
-        $this->postJson('/api/teacher-assignments', $this->payload(['is_class_teacher' => true]))->assertCreated();
+        $this->postJson(
+            '/api/teacher-assignments',
+            $this->payload([
+                'is_class_teacher' => true,
+            ])
+        )->assertCreated();
 
-        $secondTeacher = (string) Str::uuid();
-        DB::table('teachers')->insert([
-            'id' => $secondTeacher, 'school_id' => $this->ids['school'], 'user_id' => (string) Str::uuid(),
-            'active' => true, 'is_deleted' => false,
-        ]);
+        $secondUser = UserBuilder::create(
+            $this->school,
+            $this->role
+        );
 
-        $this->postJson('/api/teacher-assignments', $this->payload([
-            'teacher_id' => $secondTeacher,
-            'is_class_teacher' => true,
-        ]))->assertUnprocessable()->assertJsonValidationErrors('is_class_teacher');
+        $secondTeacher = TeacherBuilder::create(
+            $this->school,
+            $secondUser
+        );
+
+        $this->postJson(
+            '/api/teacher-assignments',
+            $this->payload([
+                'teacher_id' => $secondTeacher->id,
+                'is_class_teacher' => true,
+            ])
+        )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(
+                'is_class_teacher'
+            );
     }
 
-    private function payload(array $overrides = []): array
-    {
-        return [...[
-            'school_id' => $this->ids['school'],
-            'teacher_id' => $this->ids['teacher'],
-            'learning_area_id' => $this->ids['area'],
-            'grade_id' => $this->ids['grade'],
-            'stream_id' => $this->ids['stream'],
-            'academic_year_id' => $this->ids['year'],
-            'term_id' => $this->ids['term'],
-            'lessons_per_week' => 5,
-        ], ...$overrides];
-    }
-
-    private function seedContext(): void
-    {
-        $this->ids = array_map(fn () => (string) Str::uuid(), array_flip(['school', 'teacher', 'area', 'grade', 'stream', 'year', 'term']));
-        DB::table('schools')->insert(['id' => $this->ids['school']]);
-        DB::table('teachers')->insert(['id' => $this->ids['teacher'], 'school_id' => $this->ids['school'], 'user_id' => (string) Str::uuid(), 'active' => true, 'is_deleted' => false]);
-        DB::table('learning_areas')->insert(['id' => $this->ids['area'], 'learning_area_name' => 'Mathematics']);
-        DB::table('grades')->insert(['id' => $this->ids['grade'], 'school_id' => $this->ids['school'], 'active' => true]);
-        DB::table('streams')->insert(['id' => $this->ids['stream'], 'school_id' => $this->ids['school'], 'grade_id' => $this->ids['grade'], 'active' => true]);
-        DB::table('academic_years')->insert(['id' => $this->ids['year'], 'school_id' => $this->ids['school'], 'active' => true]);
-        DB::table('terms')->insert(['id' => $this->ids['term'], 'school_id' => $this->ids['school'], 'academic_year_id' => $this->ids['year'], 'active' => true]);
-        DB::table('learning_area_allocations')->insert(['id' => (string) Str::uuid(), 'school_id' => $this->ids['school'], 'grade_id' => $this->ids['grade'], 'learning_area_id' => $this->ids['area'], 'active' => true]);
-    }
-
-    private function createSchema(): void
-    {
-        foreach (['teacher_assignments', 'learning_area_allocations', 'terms', 'academic_years', 'streams', 'grades', 'learning_areas', 'teachers', 'schools'] as $table) {
-            Schema::dropIfExists($table);
-        }
-
-        Schema::create('schools', fn (Blueprint $t) => $t->uuid('id')->primary());
-        Schema::create('teachers', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('user_id');
-            $t->boolean('active');
-            $t->boolean('is_deleted');
-        });
-        Schema::create('learning_areas', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->string('learning_area_name');
-        });
-        Schema::create('grades', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->boolean('active');
-        });
-        Schema::create('streams', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('grade_id');
-            $t->boolean('active');
-        });
-        Schema::create('academic_years', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->boolean('active');
-        });
-        Schema::create('terms', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('academic_year_id');
-            $t->boolean('active');
-        });
-        Schema::create('learning_area_allocations', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('grade_id');
-            $t->uuid('learning_area_id');
-            $t->boolean('active');
-        });
-        Schema::create('teacher_assignments', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->uuid('teacher_id');
-            $t->uuid('learning_area_id');
-            $t->uuid('grade_id');
-            $t->uuid('stream_id')->nullable();
-            $t->uuid('academic_year_id');
-            $t->uuid('term_id');
-            $t->boolean('is_class_teacher')->default(false);
-            $t->integer('lessons_per_week');
-            $t->boolean('active')->default(true);
-            $t->boolean('is_deleted')->default(false);
-            $t->timestamp('created_at')->nullable();
-            $t->timestamp('deleted_at')->nullable();
-            $t->uuid('deleted_by')->nullable();
-        });
+    private function payload(
+        array $overrides = []
+    ): array {
+        return [
+            ...[
+                'school_id' => $this->school->id,
+                'teacher_id' => $this->teacher->id,
+                'learning_area_id' => $this->learningArea->id,
+                'grade_id' => $this->grade->id,
+                'stream_id' => $this->stream->id,
+                'academic_year_id' => $this->academicYear->id,
+                'term_id' => $this->term->id,
+                'lessons_per_week' => 5,
+            ],
+            ...$overrides,
+        ];
     }
 }

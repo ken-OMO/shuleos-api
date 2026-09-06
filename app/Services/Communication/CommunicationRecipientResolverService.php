@@ -3,6 +3,7 @@
 namespace App\Services\Communication;
 
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -12,7 +13,11 @@ class CommunicationRecipientResolverService
 {
     private const TARGETS = ['entire_school', 'all_teachers', 'all_learners', 'all_parents', 'role', 'grade', 'stream', 'class_teacher_stream', 'subject_teacher_assignment', 'explicit_user', 'linked_parents_of_learners', 'finance_balance_group', 'absent_today_group'];
 
-    public function __construct(private KenyanPhoneNormalizer $phones, private ContactHealthService $contacts) {}
+    public function __construct(
+        private KenyanPhoneNormalizer $phones,
+        private ContactHealthService $contacts,
+        private AuthContextService $authContext
+    ) {}
 
     public function resolve(User $sender, iterable $targets): array
     {
@@ -62,7 +67,7 @@ class CommunicationRecipientResolverService
 
     public function hasPermission(User $user, string $permission): bool
     {
-        return DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', $user->role_id)->where('permissions.permission_name', $permission)->exists();
+        return $this->authContext->hasPermission($user, $permission);
     }
 
     private function target(User $sender, string $type, array $options): Collection

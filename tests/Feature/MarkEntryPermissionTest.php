@@ -2,68 +2,70 @@
 
 namespace Tests\Feature;
 
+use App\Services\Assessment\AssessmentTypeService;
+use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MarkEntryPermissionService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\TermBuilder;
 use Tests\TestCase;
 
 class MarkEntryPermissionTest extends TestCase
 {
-    private array $ids;
+    use DatabaseTransactions;
+
+    private object $school;
+
+    private object $exam;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        Schema::dropIfExists('mark_entry_permissions');
-        Schema::dropIfExists('exams');
+        $this->school = SchoolBuilder::create();
 
-        Schema::create('exams', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('school_id');
-            $table->string('status');
-            $table->boolean('active');
-            $table->boolean('is_deleted');
-        });
+        $assessmentType = app(AssessmentTypeService::class)->create(
+            ['assessment_type_name' => 'Formative'],
+            $this->school->id
+        );
 
-        Schema::create('mark_entry_permissions', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->uuid('exam_id');
-            $table->string('role_name');
-            $table->boolean('active');
-            $table->timestamp('opens_at')->nullable();
-            $table->timestamp('closes_at')->nullable();
-            $table->boolean('is_deleted');
-            $table->timestamp('created_at')->nullable();
-            $table->timestamp('deleted_at')->nullable();
-            $table->uuid('deleted_by')->nullable();
-        });
+        $academicYear = AcademicYearBuilder::create($this->school);
+        $term = TermBuilder::create($this->school, $academicYear);
 
-        $this->ids = [
-            'school' => (string) Str::uuid(),
-            'exam' => (string) Str::uuid(),
-        ];
+        $this->exam = app(ExamService::class)->create(
+            [
+                'exam_name' => 'Term Two Exam',
+                'assessment_type_id' => $assessmentType->id,
+                'academic_year_id' => $academicYear->id,
+                'term_id' => $term->id,
+                'start_date' => '2026-07-20',
+                'end_date' => '2026-07-25',
+            ],
+            $this->school->id,
+            null
+        );
 
-        DB::table('exams')->insert([
-            'id' => $this->ids['exam'],
-            'school_id' => $this->ids['school'],
-            'status' => 'published',
-            'active' => true,
-            'is_deleted' => false,
-        ]);
+        app(ExamService::class)->transition(
+            $this->exam,
+            'published'
+        );
+
+        $this->exam = $this->exam->fresh();
     }
 
     public function test_it_grants_a_role_permission_for_a_published_exam(): void
     {
-        $permission = app(MarkEntryPermissionService::class)->create([
-            'exam_id' => $this->ids['exam'],
-            'role_name' => 'Teacher',
-            'opens_at' => now()->subHour(),
-            'closes_at' => now()->addHour(),
-        ], $this->ids['school']);
+        $permission = app(MarkEntryPermissionService::class)->create(
+            [
+                'exam_id' => $this->exam->id,
+                'role_name' => 'Teacher',
+                'opens_at' => now()->subHour(),
+                'closes_at' => now()->addHour(),
+            ],
+            $this->school->id
+        );
 
         $this->assertSame('teacher', $permission->role_name);
         $this->assertTrue($permission->isOpen());
@@ -72,23 +74,49 @@ class MarkEntryPermissionTest extends TestCase
     public function test_it_rejects_duplicate_role_permissions(): void
     {
         $service = app(MarkEntryPermissionService::class);
-        $data = ['exam_id' => $this->ids['exam'], 'role_name' => 'teacher'];
 
-        $service->create($data, $this->ids['school']);
+        $service->create(
+            [
+                'exam_id' => $this->exam->id,
+                'role_name' => 'teacher',
+            ],
+            $this->school->id
+        );
 
         $this->expectException(ValidationException::class);
-        $service->create(['exam_id' => $this->ids['exam'], 'role_name' => 'TEACHER'], $this->ids['school']);
+
+        $service->create(
+            [
+                'exam_id' => $this->exam->id,
+                'role_name' => 'TEACHER',
+            ],
+            $this->school->id
+        );
     }
 
     public function test_it_rejects_permissions_for_draft_exams(): void
     {
-        DB::table('exams')->where('id', $this->ids['exam'])->update(['status' => 'draft']);
+        $draftExam = app(ExamService::class)->create(
+            [
+                'exam_name' => 'Draft Exam',
+                'assessment_type_id' => $this->exam->assessment_type_id,
+                'academic_year_id' => $this->exam->academic_year_id,
+                'term_id' => $this->exam->term_id,
+                'start_date' => '2026-07-20',
+                'end_date' => '2026-07-25',
+            ],
+            $this->school->id,
+            null
+        );
 
         $this->expectException(ValidationException::class);
 
-        app(MarkEntryPermissionService::class)->create([
-            'exam_id' => $this->ids['exam'],
-            'role_name' => 'teacher',
-        ], $this->ids['school']);
+        app(MarkEntryPermissionService::class)->create(
+            [
+                'exam_id' => $draftExam->id,
+                'role_name' => 'teacher',
+            ],
+            $this->school->id
+        );
     }
 }

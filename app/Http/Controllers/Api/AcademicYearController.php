@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\AcademicYearResource;
 use App\Models\AcademicYear;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class AcademicYearController extends Controller
 {
@@ -73,11 +75,26 @@ class AcademicYearController extends Controller
 
             'start_date' => 'required|date',
 
-            'end_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
 
             'active' => 'boolean',
 
         ]);
+
+        if (
+            AcademicYear::query()
+                ->where(
+                    'year_name',
+                    $validated['year_name']
+                )
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'year_name' => [
+                    'An academic year with this name already exists.',
+                ],
+            ]);
+        }
 
         $year = AcademicYear::create([
 
@@ -121,6 +138,62 @@ class AcademicYearController extends Controller
             'active' => 'sometimes|boolean',
 
         ]);
+
+        $effectiveStartDate = array_key_exists(
+            'start_date',
+            $validated
+        )
+            ? Carbon::parse(
+                $validated['start_date']
+            )
+            : $year->start_date;
+
+        $effectiveEndDate = array_key_exists(
+            'end_date',
+            $validated
+        )
+            ? Carbon::parse(
+                $validated['end_date']
+            )
+            : $year->end_date;
+
+        if (
+            $effectiveStartDate
+            && $effectiveEndDate
+            && $effectiveEndDate->lte(
+                $effectiveStartDate
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'end_date' => [
+                    'The end date must be after the start date.',
+                ],
+            ]);
+        }
+
+        if (
+            array_key_exists(
+                'year_name',
+                $validated
+            )
+            && AcademicYear::query()
+                ->where(
+                    'year_name',
+                    $validated['year_name']
+                )
+                ->where(
+                    $year->getKeyName(),
+                    '!=',
+                    $year->getKey()
+                )
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'year_name' => [
+                    'An academic year with this name already exists.',
+                ],
+            ]);
+        }
 
         $year->update($validated);
 

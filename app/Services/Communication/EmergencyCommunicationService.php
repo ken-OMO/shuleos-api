@@ -3,12 +3,16 @@
 namespace App\Services\Communication;
 
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class EmergencyCommunicationService
 {
-    public function __construct(private CommunicationService $communications) {}
+    public function __construct(
+        private CommunicationService $communications,
+        private AuthContextService $authContext
+    ) {}
 
     public function preview(User $user, array $data): array
     {
@@ -51,6 +55,9 @@ class EmergencyCommunicationService
 
     private function allowed(User $user): bool
     {
-        return DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')->where('role_permissions.role_id', $user->role_id)->where('permissions.permission_name', 'send_emergency_broadcasts')->exists();
+        return $this->authContext->hasPermission(
+            $user,
+            'send_emergency_broadcasts'
+        );
     }
 }

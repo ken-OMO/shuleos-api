@@ -26,13 +26,38 @@ class TeacherDeviceService
         $hash = hash('sha256', trim($data['device_identifier']));
 
         return DB::transaction(function () use ($user, $teacher, $data, $hash) {
-            $device = TeacherPortalDevice::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->where('device_identifier_hash', $hash)->lockForUpdate()->first();
+            DB::table('users')
+                ->where('id', $user->id)
+                ->where('school_id', $user->school_id)
+                ->lockForUpdate()
+                ->first();
+
+            $device = TeacherPortalDevice::withoutGlobalScopes()
+                ->where('school_id', $user->school_id)
+                ->where('user_id', $user->id)
+                ->where('device_identifier_hash', $hash)
+                ->lockForUpdate()
+                ->first();
+
             if (! $device) {
-                $count = TeacherPortalDevice::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->whereNull('revoked_at')->lockForUpdate()->count();
+                $count = TeacherPortalDevice::withoutGlobalScopes()
+                    ->where('school_id', $user->school_id)
+                    ->where('user_id', $user->id)
+                    ->whereNull('revoked_at')
+                    ->count();
+
                 if ($count >= config('teacher_portal.device_limit', 5)) {
-                    throw ValidationException::withMessages(['device' => 'The teacher device limit has been reached.']);
+                    throw ValidationException::withMessages([
+                        'device' => 'The teacher device limit has been reached.',
+                    ]);
                 }
-                $device = new TeacherPortalDevice(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'user_id' => $user->id, 'device_identifier_hash' => $hash]);
+
+                $device = new TeacherPortalDevice([
+                    'id' => (string) Str::uuid(),
+                    'school_id' => $user->school_id,
+                    'user_id' => $user->id,
+                    'device_identifier_hash' => $hash,
+                ]);
             }
             $device->platform = $data['platform'];
             $device->app_version = $data['app_version'] ?? null;

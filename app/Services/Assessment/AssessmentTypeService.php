@@ -15,7 +15,7 @@ class AssessmentTypeService
             throw ValidationException::withMessages(['assessment_type_name' => 'This assessment type already exists in the school.']);
         }
 
-return AssessmentType::create(['id' => (string) Str::uuid(), 'school_id' => $school, 'assessment_type_name' => $name, 'active' => $d['active'] ?? true, 'is_deleted' => false, 'created_at' => now()]);
+        return AssessmentType::create(['id' => (string) Str::uuid(), 'school_id' => $school, 'assessment_type_name' => $name, 'active' => $d['active'] ?? true, 'is_deleted' => false, 'created_at' => now()]);
     }
 
     public function delete(AssessmentType $t, ?string $user): void

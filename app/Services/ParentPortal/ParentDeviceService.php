@@ -26,12 +26,32 @@ class ParentDeviceService
         $hash = hash('sha256', trim($data['device_identifier']));
 
         return DB::transaction(function () use ($user, $data, $hash) {
-            $existing = ParentPortalDevice::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->where('device_identifier_hash', $hash)->lockForUpdate()->first();
+            DB::table('users')
+                ->where('id', $user->id)
+                ->where('school_id', $user->school_id)
+                ->lockForUpdate()
+                ->first();
+
+            $existing = ParentPortalDevice::withoutGlobalScopes()
+                ->where('school_id', $user->school_id)
+                ->where('user_id', $user->id)
+                ->where('device_identifier_hash', $hash)
+                ->lockForUpdate()
+                ->first();
+
             if (! $existing) {
-                $activeCount = ParentPortalDevice::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->whereNull('revoked_at')->lockForUpdate()->count();
+                $activeCount = ParentPortalDevice::withoutGlobalScopes()
+                    ->where('school_id', $user->school_id)
+                    ->where('user_id', $user->id)
+                    ->whereNull('revoked_at')
+                    ->count();
+
                 if ($activeCount >= config('parent_portal.device_limit', 5)) {
-                    throw ValidationException::withMessages(['device' => 'The parent device limit has been reached.']);
+                    throw ValidationException::withMessages([
+                        'device' => 'The parent device limit has been reached.',
+                    ]);
                 }
+
                 $existing = new ParentPortalDevice;
                 $existing->id = (string) Str::uuid();
                 $existing->school_id = $user->school_id;

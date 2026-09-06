@@ -11,6 +11,7 @@ use App\Services\Administrator\AdministratorRolePermissionService;
 use App\Services\Administrator\AdministratorUserService;
 use App\Services\Administrator\SchoolBrandingAdministrationService;
 use App\Services\Administrator\SchoolLifecycleAdministrationService;
+use App\Services\Platform\PlatformSchoolOnboardingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -45,6 +46,20 @@ class AdministratorPortalController extends BaseApiController
     public function updateSchool(Request $request)
     {
         return $this->success($this->portal->safeSchool($this->portal->updateSchool($this->user(), $request->validate($this->schoolRules()))));
+    }
+
+    public function completeSchoolProfile(Request $request)
+    {
+        return $this->success(
+            $this->portal->safeSchool(
+                $this->portal->updateSchool(
+                    $this->user(),
+                    $request->validate(
+                        $this->schoolCompletionRules()
+                    )
+                )
+            )
+        );
     }
 
     public function completeness()
@@ -129,6 +144,15 @@ class AdministratorPortalController extends BaseApiController
         $items = $this->roles->permissions($this->user());
 
         return $this->success($request->routeIs('admin.permissions.modules') ? $items->groupBy('module_name') : $items);
+    }
+
+    public function initialSetup()
+    {
+        return $this->success(
+            $this->portal->initialSetup(
+                $this->user()
+            )
+        );
     }
 
     public function academic(string $type)
@@ -274,11 +298,68 @@ class AdministratorPortalController extends BaseApiController
         return $this->success($this->operations->preferences($this->user(), $request->isMethod('put') ? $request->validate(['dashboard_widgets' => 'sometimes|array|max:30', 'default_page_size' => 'sometimes|integer|min:10|max:100', 'timezone' => 'sometimes|timezone', 'language' => 'sometimes|string|max:10', 'notification_preferences' => 'sometimes|array', 'digest_frequency' => 'sometimes|in:never,daily,weekly', 'default_audit_range_days' => 'sometimes|integer|min:1|max:365', 'preferred_dashboard' => 'sometimes|in:school,platform', 'show_system_health' => 'sometimes|boolean']) : null));
     }
 
+    public function onboardSchool(
+        Request $request,
+        PlatformSchoolOnboardingService $onboarding
+    ) {
+        $validated = $request->validate([
+            'school_name' => 'required|string|max:255',
+
+            'school_code' => 'prohibited',
+
+            'timezone' => 'nullable|string|max:60',
+
+            'locale' => 'nullable|string|max:10',
+
+            'admin' => 'required|array',
+
+            'admin.first_name' => 'required|string|max:100',
+
+            'admin.last_name' => 'required|string|max:100',
+
+            'admin.email' => 'required|email|max:255|unique:users,email',
+
+            'admin.username' => 'prohibited',
+
+            'admin.temporary_password' => 'prohibited',
+
+            'admin.role_id' => 'prohibited',
+
+            'admin.school_id' => 'prohibited',
+        ]);
+
+        return response()->json(
+            [
+                'success' => true,
+                'data' => $onboarding->onboard(
+                    $this->user(),
+                    $validated
+                ),
+            ],
+            201
+        );
+    }
+
     public function reports(Request $request)
     {
         $data = $request->isMethod('get') ? [] : $request->validate(['report_type' => 'required|string', 'filters' => 'sometimes|array']);
 
         return $this->success($this->operations->reports($this->user(), $data['report_type'] ?? null, $request->routeIs('admin.reports.generate'), $data['filters'] ?? []));
+    }
+
+    private function schoolCompletionRules(): array
+    {
+        return [
+            'school_name' => 'required|string|max:255',
+            'short_name' => 'required|string|max:100',
+            'registration_number' => 'required|string|max:100',
+            'school_type' => 'required|string|max:100',
+            'county' => 'required|string|max:100',
+            'phone' => 'required|string|max:30',
+            'email' => 'required|email|max:255',
+            'timezone' => 'required|timezone',
+            'locale' => 'required|string|max:10',
+        ];
     }
 
     private function schoolRules(): array

@@ -3,6 +3,7 @@
 namespace App\Services\LeadershipPortal;
 
 use App\Models\User;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -10,6 +11,8 @@ use Illuminate\Support\Facades\Schema;
 
 class LeadershipPortalAccessService
 {
+    public function __construct(private AuthContextService $authContext) {}
+
     private const LEADERSHIP_ROLES = [
         'principal', 'deputy_principal', 'headteacher', 'deputy_headteacher', 'director',
         'school_owner', 'hod', 'school_admin', 'finance_officer', 'finance_manager',
@@ -92,11 +95,10 @@ class LeadershipPortalAccessService
 
     public function has(User $user, string $permission): bool
     {
-        return DB::table('role_permissions')
-            ->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
-            ->where('role_permissions.role_id', $user->role_id)
-            ->where('permissions.permission_name', $permission)
-            ->exists();
+        return $this->authContext->hasPermission(
+            $user,
+            $permission
+        );
     }
 
     public function hasAny(User $user, array $permissions): bool
@@ -142,7 +144,7 @@ class LeadershipPortalAccessService
     {
         $scope = $this->scope($user);
         $exists = DB::table('teachers')
-            ->whereKey($teacherId)
+            ->where('id', $teacherId)
             ->where('school_id', $scope['school_id'])
             ->where('active', true)
             ->where('is_deleted', false)
@@ -155,9 +157,9 @@ class LeadershipPortalAccessService
     public function assertLearningArea(User $user, string $learningAreaId): void
     {
         $scope = $this->scope($user);
-        $exists = DB::table('learning_areas')->whereKey($learningAreaId)->exists();
+        $exists = DB::table('learning_areas')->where('id', $learningAreaId)->exists();
         if ($exists && Schema::hasColumn('learning_areas', 'school_id')) {
-            $exists = DB::table('learning_areas')->whereKey($learningAreaId)->where('school_id', $scope['school_id'])->exists();
+            $exists = DB::table('learning_areas')->where('id', $learningAreaId)->where('school_id', $scope['school_id'])->exists();
         }
         if (! $exists || ($scope['role_key'] === 'hod' && ! in_array($learningAreaId, $scope['learning_area_ids'], true))) {
             throw new AuthorizationException('Learning area is outside leadership scope.');

@@ -6,6 +6,7 @@ use App\Contracts\ParentPortal\PaymentProviderInterface;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Communication\ProviderHealthService;
+use App\Services\SchoolSetupReadinessService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
@@ -19,6 +20,7 @@ class AdministratorPortalService
         private AdministratorAuditService $audit,
         private ProviderHealthService $communicationHealth,
         private PaymentProviderInterface $paymentProvider,
+        private SchoolSetupReadinessService $setupReadiness,
     ) {}
 
     public function dashboard(User $user, bool $platform = false): array
@@ -93,6 +95,15 @@ class AdministratorPortalService
         $profileMissing = collect($fields)->filter(fn ($field) => blank($school->{$field}))->count();
 
         return ['percentage' => round((count($fields) - $profileMissing) * 100 / count($fields), 2), 'missing' => $missing->values(), 'complete' => $missing->isEmpty()];
+    }
+
+    public function initialSetup(User $user): array
+    {
+        $school = $this->access->school($user);
+
+        return $this->setupReadiness->readiness(
+            (string) $school->id
+        );
     }
 
     public function academicSetup(User $user): array

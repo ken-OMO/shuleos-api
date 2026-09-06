@@ -41,6 +41,16 @@ class TenantMiddleware
 
         );
 
+        /*
+         * Capture client ownership before school_id is overwritten with the
+         * authoritative tenant value. Request attributes are server-owned
+         * and are not populated from the client input bag.
+         */
+        $request->attributes->set(
+            'client_supplied_school_id',
+            $request->exists('school_id')
+        );
+
         $request->merge([
             'school_id' => $user->school_id,
         ]);

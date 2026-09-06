@@ -19,6 +19,6 @@ class MarkEntryPermissionService
             throw ValidationException::withMessages(['role_name' => 'This role already has a permission for the exam.']);
         }
 
-return MarkEntryPermission::create([...$d, 'id' => (string) Str::uuid(), 'role_name' => $role, 'active' => $d['active'] ?? true, 'is_deleted' => false, 'created_at' => now()]);
+        return MarkEntryPermission::create([...$d, 'id' => (string) Str::uuid(), 'role_name' => $role, 'active' => $d['active'] ?? true, 'is_deleted' => false, 'created_at' => now()]);
     }
 }

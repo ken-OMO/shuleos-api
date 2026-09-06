@@ -11,6 +11,9 @@ class AdministratorStorageTest extends TestCase
         $source = file_get_contents(app_path('Services/Administrator/Operations/AdministratorStorageService.php'));
         $this->assertStringContainsString('scanner-confirmed clean', $source);
         $this->assertStringContainsString('physical_delete', $source);
-        $this->assertStringContainsString('where(\'school_id\'', $source);
+        $this->assertStringContainsString(
+            'manage_quarantined_files',
+            $source
+        );
     }
 }

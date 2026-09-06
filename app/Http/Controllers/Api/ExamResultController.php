@@ -22,7 +22,7 @@ class ExamResultController extends BaseCrudController
             $q->when(isset($v[$f]), fn ($x) => $x->where($f, $v[$f]));
         }
 
-return $this->success(ExamResultResource::collection($q->paginate($v['per_page'] ?? 20)), 'Exam results retrieved successfully.');
+        return $this->success(ExamResultResource::collection($q->paginate($v['per_page'] ?? 20)), 'Exam results retrieved successfully.');
     }
 
     public function show(Request $r, string $id)
@@ -73,7 +73,7 @@ return $this->success(ExamResultResource::collection($q->paginate($v['per_page']
     private function school(Request $r, array $v = []): string
     {
         $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
-        abort_if(! $id,403,'School context not found.');
+        abort_if(! $id, 403, 'School context not found.');
 
         return (string) $id;
     }

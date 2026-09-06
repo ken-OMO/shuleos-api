@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\TermResource;
+use App\Models\AcademicYear;
 use App\Models\Term;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class TermController extends Controller
 {
@@ -75,11 +78,44 @@ class TermController extends Controller
 
             'start_date' => 'required|date',
 
-            'end_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
 
             'active' => 'boolean',
 
         ]);
+
+        if (
+            ! AcademicYear::query()
+                ->whereKey(
+                    $validated['academic_year_id']
+                )
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'academic_year_id' => [
+                    'The selected academic year is invalid.',
+                ],
+            ]);
+        }
+
+        if (
+            Term::query()
+                ->where(
+                    'academic_year_id',
+                    $validated['academic_year_id']
+                )
+                ->where(
+                    'term_name',
+                    $validated['term_name']
+                )
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'term_name' => [
+                    'A term with this name already exists for this academic year.',
+                ],
+            ]);
+        }
 
         $term = Term::create([
 
@@ -123,6 +159,66 @@ class TermController extends Controller
             'active' => 'sometimes|boolean',
 
         ]);
+
+        $effectiveStartDate = array_key_exists(
+            'start_date',
+            $validated
+        )
+            ? Carbon::parse(
+                $validated['start_date']
+            )
+            : $term->start_date;
+
+        $effectiveEndDate = array_key_exists(
+            'end_date',
+            $validated
+        )
+            ? Carbon::parse(
+                $validated['end_date']
+            )
+            : $term->end_date;
+
+        if (
+            $effectiveStartDate
+            && $effectiveEndDate
+            && $effectiveEndDate->lte(
+                $effectiveStartDate
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'end_date' => [
+                    'The end date must be after the start date.',
+                ],
+            ]);
+        }
+
+        if (
+            array_key_exists(
+                'term_name',
+                $validated
+            )
+            && Term::query()
+                ->where(
+                    'academic_year_id',
+                    $term->academic_year_id
+                )
+                ->where(
+                    'term_name',
+                    $validated['term_name']
+                )
+                ->where(
+                    $term->getKeyName(),
+                    '!=',
+                    $term->getKey()
+                )
+                ->exists()
+        ) {
+            throw ValidationException::withMessages([
+                'term_name' => [
+                    'A term with this name already exists for this academic year.',
+                ],
+            ]);
+        }
 
         $term->update($validated);
 

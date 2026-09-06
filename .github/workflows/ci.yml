@@ -1,0 +1,168 @@
+﻿name: ShuleOS API CI
+
+# Implements the pipeline described in docs/11-devops/CI-CD-Pipeline.md:
+# Formatting -> Static Analysis / Security Scan -> Backend Tests -> Build Verification.
+# A failed stage blocks merging through required branch protection checks.
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+
+  push:
+    branches:
+      - develop
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  formatting:
+    name: Formatting (Pint)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run Pint in check mode
+        run: vendor/bin/pint --test
+
+  dependency-security-scan:
+    name: Dependency and Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+
+      - name: Validate Composer files
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Audit dependencies
+        run: composer audit
+
+  backend-tests:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    needs:
+      - formatting
+      - dependency-security-scan
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shuleos
+          POSTGRES_PASSWORD: shuleos
+          POSTGRES_DB: shuleos_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U shuleos"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pgsql, pdo_pgsql
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: shuleos_testing
+          DB_USERNAME: shuleos
+          DB_PASSWORD: shuleos
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
+
+      - name: Run migrations against a clean PostgreSQL database
+        run: php artisan migrate:fresh --force
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: shuleos_testing
+          DB_USERNAME: shuleos
+          DB_PASSWORD: shuleos
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
+
+      - name: Run backend test suite
+        run: php artisan test
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: shuleos_testing
+          DB_USERNAME: shuleos
+          DB_PASSWORD: shuleos
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
+
+  # Future enforcement for Rule 111:
+  #
+  # tenant-schema-check:
+  #   name: Tenant Schema Validation
+  #   runs-on: ubuntu-latest
+  #   needs:
+  #     - backend-tests
+  #
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+  #
+  #     - name: Verify tenant tables and RLS policies
+  #       run: php artisan tenant:verify-schema --strict

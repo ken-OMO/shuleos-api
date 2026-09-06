@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AttendanceSessionController;
 use App\Http\Controllers\Api\AttendanceStatusController;
 use App\Http\Controllers\Api\AttendanceTeacherController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BedAllocationController;
 use App\Http\Controllers\Api\BehaviourLeadershipController;
 use App\Http\Controllers\Api\BehaviourLearnerController;
 use App\Http\Controllers\Api\BehaviourParentController;
@@ -34,14 +35,22 @@ use App\Http\Controllers\Api\FinanceSettingController;
 use App\Http\Controllers\Api\FinanceWorkflowController;
 use App\Http\Controllers\Api\GradeController;
 use App\Http\Controllers\Api\GuardianController;
+use App\Http\Controllers\Api\GuardianLinkController;
 use App\Http\Controllers\Api\HomeworkLeadershipController;
 use App\Http\Controllers\Api\HomeworkLearnerController;
 use App\Http\Controllers\Api\HomeworkTeacherController;
+use App\Http\Controllers\Api\HostelBedController;
+use App\Http\Controllers\Api\HostelController;
+use App\Http\Controllers\Api\HostelRoomController;
+use App\Http\Controllers\Api\HostelStaffAssignmentController;
 use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
 use App\Http\Controllers\Api\LearnerController;
 use App\Http\Controllers\Api\LearnerFeeAccountController;
+use App\Http\Controllers\Api\LearnerLifecycleController;
+use App\Http\Controllers\Api\LearnerModeOfStudyController;
+use App\Http\Controllers\Api\LearnerPlacementController;
 use App\Http\Controllers\Api\LearnerPortalAdminController;
 use App\Http\Controllers\Api\LearnerPortalController;
 use App\Http\Controllers\Api\LearnerPortalPhaseTwoController;
@@ -64,6 +73,7 @@ use App\Http\Controllers\Api\PaymentAllocationController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\PaymentPlanController;
+use App\Http\Controllers\Api\PlatformAuthController;
 use App\Http\Controllers\Api\RecordOfWorkController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportCardPdfController;
@@ -105,6 +115,9 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
+$authenticated = [
+    'jwt',
+];
 $secure = [
 
     'jwt',
@@ -115,19 +128,140 @@ $secure = [
 
 ];
 
+Route::post(
+    '/auth/first-login/verify-otp',
+    [
+        AuthController::class,
+        'verifyFirstLoginOtp',
+    ]
+)->middleware('throttle:10,1');
+Route::post(
+    '/auth/first-login/activate',
+    [
+        AuthController::class,
+        'activateFirstLogin',
+    ]
+)->middleware('throttle:5,1');
+Route::prefix('platform/auth')->group(function () {
+    Route::post(
+        '/login',
+        [
+            PlatformAuthController::class,
+            'login',
+        ]
+    )->middleware('throttle:5,1');
+
+    Route::post(
+        '/verify-otp',
+        [
+            PlatformAuthController::class,
+            'verifyOtp',
+        ]
+    )->middleware('throttle:10,1');
+
+    Route::post(
+        '/activate',
+        [
+            PlatformAuthController::class,
+            'activate',
+        ]
+    )->middleware('throttle:5,1');
+});
+
+Route::prefix('admin')
+    ->middleware($authenticated)
+    ->group(function () {
+        Route::get(
+            '/dashboard/platform',
+            [AdministratorPortalController::class, 'dashboard']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:view_platform_dashboard',
+            ])
+            ->name('admin.dashboard.platform');
+        Route::get(
+            '/platform/subscriptions',
+            [AdministratorPortalController::class, 'subscription']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:view_platform_subscriptions',
+            ])
+            ->name('admin.platform.subscriptions');
+
+        Route::get(
+            '/platform/subscriptions/{school}',
+            [AdministratorPortalController::class, 'subscription']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:view_platform_subscriptions',
+            ]);
+
+        Route::get(
+            '/platform/schools',
+            [AdministratorPortalController::class, 'platformSchools']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:manage_school_lifecycle',
+            ]);
+        Route::post(
+            '/platform/schools',
+            [AdministratorPortalController::class, 'onboardSchool']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:onboard_schools',
+            ]);
+
+        Route::get(
+            '/platform/schools/{school}',
+            [AdministratorPortalController::class, 'platformSchool']
+        )
+            ->middleware([
+                'permission:access_platform_administration',
+                'permission:manage_school_lifecycle',
+            ]);
+
+        foreach (
+            [
+                'activate',
+                'suspend',
+                'resume',
+                'enter-read-only',
+                'lock',
+                'archive',
+            ] as $action
+        ) {
+            Route::post(
+                '/platform/schools/{school}/'.$action,
+                fn (
+                    Request $request,
+                    string $school
+                ) => app(
+                    AdministratorPortalController::class
+                )->lifecycle(
+                    $request,
+                    $school,
+                    $action
+                )
+            )->middleware([
+                'permission:access_platform_administration',
+                'permission:manage_school_lifecycle',
+            ]);
+        }
+    });
 Route::prefix('admin')->middleware($secure)->group(function () {
     Route::get('/dashboard', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
     Route::get('/dashboard/school', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
-    Route::get('/dashboard/platform', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_platform_dashboard')->name('admin.dashboard.platform');
-    Route::get('/school', [AdministratorPortalController::class, 'school'])->middleware('permission:manage_school_profile');
-    Route::put('/school', [AdministratorPortalController::class, 'updateSchool'])->middleware('permission:manage_school_profile');
-    Route::get('/school/completeness', [AdministratorPortalController::class, 'completeness'])->middleware('permission:view_school_completeness');
 
-    Route::get('/platform/schools', [AdministratorPortalController::class, 'platformSchools'])->middleware('permission:manage_school_lifecycle');
-    Route::get('/platform/schools/{school}', [AdministratorPortalController::class, 'platformSchool'])->middleware('permission:manage_school_lifecycle');
-    foreach (['activate', 'suspend', 'resume', 'enter-read-only', 'lock', 'archive'] as $action) {
-        Route::post('/platform/schools/{school}/'.$action, fn (Request $request, string $school) => app(AdministratorPortalController::class)->lifecycle($request, $school, $action))->middleware('permission:manage_school_lifecycle');
-    }
+    Route::get('/school', [AdministratorPortalController::class, 'school'])->middleware('permission:manage_school_profile');
+    Route::get('/school/setup', [AdministratorPortalController::class, 'initialSetup'])->middleware('permission:view_academic_setup_status');
+    Route::put('/school', [AdministratorPortalController::class, 'updateSchool'])->middleware('permission:manage_school_profile');
+    Route::put('/school/complete-profile', [AdministratorPortalController::class, 'completeSchoolProfile'])->middleware('permission:manage_school_profile');
+    Route::get('/school/completeness', [AdministratorPortalController::class, 'completeness'])->middleware('permission:view_school_completeness');
 
     Route::get('/users', [AdministratorPortalController::class, 'users'])->middleware('permission:view_school_users');
     Route::post('/users', [AdministratorPortalController::class, 'userCreate'])->middleware('permission:create_school_users');
@@ -160,8 +294,7 @@ Route::prefix('admin')->middleware($secure)->group(function () {
     Route::get('/subscription', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription');
     Route::get('/subscription/history', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription')->name('admin.subscription.history');
     Route::get('/subscription/entitlements', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_school_subscription')->name('admin.subscription.entitlements');
-    Route::get('/platform/subscriptions', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_platform_subscriptions')->name('admin.platform.subscriptions');
-    Route::get('/platform/subscriptions/{school}', [AdministratorPortalController::class, 'subscription'])->middleware('permission:view_platform_subscriptions');
+
     Route::get('/modules', [AdministratorPortalController::class, 'modules'])->middleware('permission:view_module_readiness');
     Route::get('/modules/{module}', [AdministratorPortalController::class, 'modules'])->middleware('permission:view_module_readiness');
 
@@ -209,6 +342,243 @@ Route::prefix('admin')->middleware($secure)->group(function () {
     Route::post('/reports/generate', [AdministratorPortalController::class, 'reports'])->middleware('permission:generate_admin_reports')->name('admin.reports.generate');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Platform Operations Routes
+|--------------------------------------------------------------------------
+|
+| Platform infrastructure is global and must never pass through
+| TenantMiddleware. Platform identities have school_id = NULL.
+|
+*/
+
+Route::prefix('admin/operations')
+    ->middleware([
+        'jwt',
+        'permission:access_platform_administration',
+    ])
+    ->group(function () {
+        Route::get('/queue', fn () => app(AdministratorOperationsController::class)->queue())
+            ->middleware('permission:view_queue_operations');
+
+        Route::get('/scheduler', fn () => app(AdministratorOperationsController::class)->scheduler())
+            ->middleware('permission:view_scheduler_operations');
+
+        Route::get('/cache', [AdministratorOperationsController::class, 'cache'])
+            ->middleware('permission:view_cache_operations');
+
+        Route::get('/logs', [AdministratorOperationsController::class, 'logs'])
+            ->middleware('permission:view_application_logs');
+
+        Route::get('/storage', fn () => app(AdministratorOperationsController::class)->storage())
+            ->middleware('permission:view_storage_operations');
+
+        Route::get('/backups', [AdministratorOperationsController::class, 'backups'])
+            ->middleware('permission:view_backup_operations');
+
+        Route::get('/restores', [AdministratorOperationsController::class, 'restores'])
+            ->middleware('permission:view_restore_operations');
+
+        Route::get('/diagnostics', [AdministratorOperationsController::class, 'diagnostics'])
+            ->middleware('permission:view_operational_diagnostics');
+
+        Route::get('/releases', [AdministratorOperationsController::class, 'releases'])
+            ->middleware('permission:view_release_metadata');
+
+        Route::get('/platform-settings', [AdministratorOperationsController::class, 'settings'])
+            ->middleware('permission:manage_platform_settings');
+
+        Route::get('/disaster-recovery', [AdministratorOperationsController::class, 'disasterRecovery'])
+            ->middleware('permission:view_disaster_recovery_readiness');
+        /*
+        |--------------------------------------------------------------------------
+        | Controlled Platform Mutations
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post(
+            '/queue/failed/{job}/retry',
+            fn (Request $request, string $job) => app(
+                AdministratorOperationsController::class
+            )->queueAction($request, $job, 'retry')
+        )->middleware('permission:retry_failed_jobs');
+
+        Route::post(
+            '/queue/failed/{job}/forget',
+            fn (Request $request, string $job) => app(
+                AdministratorOperationsController::class
+            )->queueAction($request, $job, 'forget')
+        )->middleware('permission:forget_failed_jobs');
+
+        Route::post(
+            '/scheduler/tasks/{task}/run',
+            [AdministratorOperationsController::class, 'runTask']
+        )->middleware(
+            'permission:run_allowlisted_scheduler_tasks'
+        );
+
+        Route::post(
+            '/cache/preview-clear',
+            [AdministratorOperationsController::class, 'cachePreview']
+        )->middleware(
+            'permission:clear_safe_cache_groups'
+        );
+
+        Route::post(
+            '/cache/clear',
+            [AdministratorOperationsController::class, 'cacheClear']
+        )->middleware(
+            'permission:clear_safe_cache_groups'
+        );
+
+        Route::post(
+            '/diagnostics/run',
+            [AdministratorOperationsController::class, 'runDiagnostics']
+        )->middleware(
+            'permission:run_operational_diagnostics'
+        );
+
+        Route::put(
+            '/platform-settings',
+            [AdministratorOperationsController::class, 'settings']
+        )->middleware(
+            'permission:manage_platform_settings'
+        );
+        /*
+        |--------------------------------------------------------------------------
+        | Platform Storage Mutations
+        |--------------------------------------------------------------------------
+        */
+
+        foreach (['release', 'reject'] as $action) {
+            Route::post(
+                '/storage/quarantine/{file}/'.$action,
+                fn (Request $request, string $file) => app(
+                    AdministratorOperationsController::class
+                )->storageAction(
+                    $request,
+                    $file,
+                    $action
+                )
+            )->middleware(
+                'permission:manage_quarantined_files'
+            );
+        }
+
+        Route::post(
+            '/storage/orphans/{file}/archive',
+            fn (Request $request, string $file) => app(
+                AdministratorOperationsController::class
+            )->storageAction(
+                $request,
+                $file,
+                'archive'
+            )
+        )->middleware(
+            'permission:manage_quarantined_files'
+        );
+        /*
+        |--------------------------------------------------------------------------
+        | Platform Restore Mutations
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post(
+            '/restores/preview',
+            [AdministratorOperationsController::class, 'restorePreview']
+        )->middleware(
+            'permission:create_restore_requests'
+        );
+
+        Route::post(
+            '/restores',
+            [AdministratorOperationsController::class, 'createRestore']
+        )->middleware(
+            'permission:create_restore_requests'
+        );
+
+        Route::post(
+            '/restores/{restore}/cancel',
+            [AdministratorOperationsController::class, 'cancelRestore']
+        )->middleware(
+            'permission:create_restore_requests'
+        );
+        Route::get('/queue/jobs', fn () => app(AdministratorOperationsController::class)->queue('jobs'))
+            ->middleware('permission:view_queue_operations');
+
+        Route::get('/queue/failed', fn () => app(AdministratorOperationsController::class)->queue('failed'))
+            ->middleware('permission:view_queue_operations');
+
+        Route::get('/queue/failed/{job}', fn (string $job) => app(AdministratorOperationsController::class)->queue('failed', $job))
+            ->middleware('permission:view_queue_operations');
+
+        Route::get('/scheduler/tasks', fn () => app(AdministratorOperationsController::class)->scheduler('tasks'))
+            ->middleware('permission:view_scheduler_operations');
+
+        Route::get('/scheduler/tasks/{task}', fn (string $task) => app(AdministratorOperationsController::class)->scheduler('tasks', $task))
+            ->middleware('permission:view_scheduler_operations');
+
+        Route::get('/logs/{log}', [AdministratorOperationsController::class, 'logs'])
+            ->middleware('permission:view_application_logs');
+
+        Route::get(
+            '/logs/{log}/entries',
+            fn (Request $request, string $log) => app(
+                AdministratorOperationsController::class
+            )->logs($request, $log, true)
+        )->middleware('permission:view_application_logs');
+
+        foreach (['disks', 'quarantine', 'orphans'] as $view) {
+            Route::get(
+                '/storage/'.$view,
+                fn () => app(
+                    AdministratorOperationsController::class
+                )->storage($view)
+            )->middleware('permission:view_storage_operations');
+        }
+
+        Route::get('/backups/{backup}', [AdministratorOperationsController::class, 'backups'])
+            ->middleware('permission:view_backup_operations');
+
+        Route::get('/restores/{restore}', [AdministratorOperationsController::class, 'restores'])
+            ->middleware('permission:view_restore_operations');
+
+        Route::get('/diagnostics/{run}', [AdministratorOperationsController::class, 'diagnostics'])
+            ->middleware('permission:view_operational_diagnostics');
+
+        Route::get('/releases/current', [AdministratorOperationsController::class, 'releases'])
+            ->middleware('permission:view_release_metadata')
+            ->name('admin.operations.releases.current');
+    });
+/*
+|--------------------------------------------------------------------------
+| Mixed-Scope Backup Mutations
+|--------------------------------------------------------------------------
+|
+| Backup scope is derived from the persisted backup record. Tenant and
+| platform authorization are enforced by AdministratorRecoveryService.
+|
+*/
+
+Route::prefix('admin/operations')->middleware($authenticated)->group(function () {
+    foreach (['verify', 'archive'] as $action) {
+        Route::post(
+            '/backups/{backup}/'.$action,
+            fn (string $backup) => app(
+                AdministratorOperationsController::class
+            )->backupAction(
+                $backup,
+                $action
+            )
+        )->middleware(
+            'permission:'.(
+                $action === 'verify'
+                    ? 'verify_backups'
+                    : 'archive_backups'
+            )
+        );
+    }
+});
 Route::prefix('admin/operations')->middleware($secure)->group(function () {
     Route::get('/feature-flags', [AdministratorOperationsController::class, 'flags'])->middleware('permission:manage_school_feature_flags');
     Route::post('/feature-flags', [AdministratorOperationsController::class, 'saveFlag'])->middleware('permission:manage_school_feature_flags');
@@ -232,45 +602,8 @@ Route::prefix('admin/operations')->middleware($secure)->group(function () {
     Route::post('/providers/{category}/disable', fn (Request $request, string $category) => app(AdministratorOperationsController::class)->providerAction($request, $category, 'disable'))->middleware('permission:manage_provider_configuration');
     Route::get('/providers/{category}/health', [AdministratorOperationsController::class, 'providerHealth'])->middleware('permission:view_provider_configuration');
 
-    Route::get('/queue', fn () => app(AdministratorOperationsController::class)->queue())->middleware('permission:view_queue_operations');
-    Route::get('/queue/jobs', fn () => app(AdministratorOperationsController::class)->queue('jobs'))->middleware('permission:view_queue_operations');
-    Route::get('/queue/failed', fn () => app(AdministratorOperationsController::class)->queue('failed'))->middleware('permission:view_queue_operations');
-    Route::get('/queue/failed/{job}', fn (string $job) => app(AdministratorOperationsController::class)->queue('failed', $job))->middleware('permission:view_queue_operations');
-    Route::post('/queue/failed/{job}/retry', fn (Request $request, string $job) => app(AdministratorOperationsController::class)->queueAction($request, $job, 'retry'))->middleware('permission:retry_failed_jobs');
-    Route::post('/queue/failed/{job}/forget', fn (Request $request, string $job) => app(AdministratorOperationsController::class)->queueAction($request, $job, 'forget'))->middleware('permission:forget_failed_jobs');
-
-    Route::get('/scheduler', fn () => app(AdministratorOperationsController::class)->scheduler())->middleware('permission:view_scheduler_operations');
-    Route::get('/scheduler/tasks', fn () => app(AdministratorOperationsController::class)->scheduler('tasks'))->middleware('permission:view_scheduler_operations');
-    Route::get('/scheduler/tasks/{task}', fn (string $task) => app(AdministratorOperationsController::class)->scheduler('tasks', $task))->middleware('permission:view_scheduler_operations');
-    Route::post('/scheduler/tasks/{task}/run', [AdministratorOperationsController::class, 'runTask'])->middleware('permission:run_allowlisted_scheduler_tasks');
-    Route::get('/cache', [AdministratorOperationsController::class, 'cache'])->middleware('permission:view_cache_operations');
-    Route::post('/cache/preview-clear', [AdministratorOperationsController::class, 'cachePreview'])->middleware('permission:clear_safe_cache_groups');
-    Route::post('/cache/clear', [AdministratorOperationsController::class, 'cacheClear'])->middleware('permission:clear_safe_cache_groups');
-
-    Route::get('/logs', [AdministratorOperationsController::class, 'logs'])->middleware('permission:view_application_logs');
-    Route::get('/logs/{log}', [AdministratorOperationsController::class, 'logs'])->middleware('permission:view_application_logs');
-    Route::get('/logs/{log}/entries', fn (Request $request, string $log) => app(AdministratorOperationsController::class)->logs($request, $log, true))->middleware('permission:view_application_logs');
-    Route::get('/storage', fn () => app(AdministratorOperationsController::class)->storage())->middleware('permission:view_storage_operations');
-    foreach (['disks', 'quarantine', 'orphans'] as $view) {
-        Route::get('/storage/'.$view, fn () => app(AdministratorOperationsController::class)->storage($view))->middleware('permission:view_storage_operations');
-    }
-    foreach (['release', 'reject'] as $action) {
-        Route::post('/storage/quarantine/{file}/'.$action, fn (Request $request, string $file) => app(AdministratorOperationsController::class)->storageAction($request, $file, $action))->middleware('permission:manage_quarantined_files');
-    }
-    Route::post('/storage/orphans/{file}/archive', fn (Request $request, string $file) => app(AdministratorOperationsController::class)->storageAction($request, $file, 'archive'))->middleware('permission:manage_quarantined_files');
-
-    Route::get('/backups', [AdministratorOperationsController::class, 'backups'])->middleware('permission:view_backup_operations');
     Route::post('/backups/preview', [AdministratorOperationsController::class, 'backupPreview'])->middleware('permission:create_backups');
     Route::post('/backups', [AdministratorOperationsController::class, 'createBackup'])->middleware('permission:create_backups');
-    Route::get('/backups/{backup}', [AdministratorOperationsController::class, 'backups'])->middleware('permission:view_backup_operations');
-    foreach (['verify', 'archive'] as $action) {
-        Route::post('/backups/{backup}/'.$action, fn (string $backup) => app(AdministratorOperationsController::class)->backupAction($backup, $action))->middleware('permission:'.($action === 'verify' ? 'verify_backups' : 'archive_backups'));
-    }
-    Route::get('/restores', [AdministratorOperationsController::class, 'restores'])->middleware('permission:view_restore_operations');
-    Route::post('/restores/preview', [AdministratorOperationsController::class, 'restorePreview'])->middleware('permission:create_restore_requests');
-    Route::post('/restores', [AdministratorOperationsController::class, 'createRestore'])->middleware('permission:create_restore_requests');
-    Route::get('/restores/{restore}', [AdministratorOperationsController::class, 'restores'])->middleware('permission:view_restore_operations');
-    Route::post('/restores/{restore}/cancel', [AdministratorOperationsController::class, 'cancelRestore'])->middleware('permission:create_restore_requests');
 
     Route::get('/api-keys', [AdministratorOperationsController::class, 'apiKeys'])->middleware('permission:manage_api_keys');
     Route::post('/api-keys', [AdministratorOperationsController::class, 'createApiKey'])->middleware('permission:manage_api_keys');
@@ -286,20 +619,13 @@ Route::prefix('admin/operations')->middleware($secure)->group(function () {
     Route::post('/webhooks/{webhook}/disable', fn (string $webhook) => app(AdministratorOperationsController::class)->webhookAction($webhook, 'disable'))->middleware('permission:manage_webhooks');
     Route::get('/webhooks/{webhook}/deliveries', [AdministratorOperationsController::class, 'webhookDeliveries'])->middleware('permission:manage_webhooks');
 
-    Route::get('/diagnostics', [AdministratorOperationsController::class, 'diagnostics'])->middleware('permission:view_operational_diagnostics');
-    Route::post('/diagnostics/run', [AdministratorOperationsController::class, 'runDiagnostics'])->middleware('permission:run_operational_diagnostics');
-    Route::get('/diagnostics/{run}', [AdministratorOperationsController::class, 'diagnostics'])->middleware('permission:view_operational_diagnostics');
     Route::get('/notices', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
     Route::post('/notices', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
     Route::put('/notices/{notice}', [AdministratorOperationsController::class, 'notices'])->middleware('permission:manage_system_notices');
     foreach (['publish', 'archive'] as $action) {
         Route::post('/notices/{notice}/'.$action, fn (Request $request, string $notice) => app(AdministratorOperationsController::class)->notices($request, $notice, $action))->middleware('permission:manage_system_notices');
     }
-    Route::get('/releases', [AdministratorOperationsController::class, 'releases'])->middleware('permission:view_release_metadata');
-    Route::get('/releases/current', [AdministratorOperationsController::class, 'releases'])->middleware('permission:view_release_metadata')->name('admin.operations.releases.current');
-    Route::get('/platform-settings', [AdministratorOperationsController::class, 'settings'])->middleware('permission:manage_platform_settings');
-    Route::put('/platform-settings', [AdministratorOperationsController::class, 'settings'])->middleware('permission:manage_platform_settings');
-    Route::get('/disaster-recovery', [AdministratorOperationsController::class, 'disasterRecovery'])->middleware('permission:view_disaster_recovery_readiness');
+
 });
 
 Route::prefix('communications')->middleware($secure)->group(function () {
@@ -386,6 +712,159 @@ Route::prefix('announcements')->middleware($secure)->group(function () {
     Route::post('/{announcement}/read', [CommunicationController::class, 'announcementRead'])->middleware('permission:view_own_notifications');
 });
 
+Route::prefix('boarding')
+    ->middleware($secure)
+    ->group(function () {
+        Route::get(
+            '/hostels/{hostel}/staff-assignments',
+            [HostelStaffAssignmentController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels/{hostel}/staff-assignments',
+            [HostelStaffAssignmentController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}/staff-assignments/history',
+            [HostelStaffAssignmentController::class, 'history']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/staff-assignments/{assignment}/end',
+            [HostelStaffAssignmentController::class, 'end']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/bed-allocations',
+            [BedAllocationController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::patch(
+            '/bed-allocations/{allocation}/release',
+            [BedAllocationController::class, 'release']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/bed-allocations/{allocation}/transfer',
+            [BedAllocationController::class, 'transfer']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/bed-allocations/{allocation}/history',
+            [BedAllocationController::class, 'history']
+        )->middleware('permission:manage_boarding');
+        Route::get(
+            '/hostels',
+            [HostelController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels',
+            [HostelController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}',
+            [HostelController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/hostels/{hostel}',
+            [HostelController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/hostels/{hostel}',
+            [HostelController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}/rooms',
+            [HostelRoomController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels/{hostel}/rooms',
+            [HostelRoomController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/rooms/{room}',
+            [HostelRoomController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/rooms/{room}/beds',
+            [HostelBedController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/rooms/{room}/beds',
+            [HostelBedController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/beds/{bed}',
+            [HostelBedController::class, 'show']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/beds/{bed}',
+            [HostelBedController::class, 'update']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::delete(
+            '/beds/{bed}',
+            [HostelBedController::class, 'destroy']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+    });
 Route::prefix('academic-years')->middleware($secure)->group(function () {
     Route::get('/', [AcademicYearController::class, 'index']);
     Route::get('/{id}', [AcademicYearController::class, 'show']);
@@ -431,13 +910,21 @@ Route::prefix('auth')->group(function () {
 */
 
 Route::prefix('schools')
-    ->middleware($secure)
+    ->middleware($authenticated)
     ->group(function () {
+        Route::get(
+            '/',
+            [SchoolController::class, 'index']
+        )->middleware(
+            'permission:access_platform_administration'
+        );
 
-        Route::get('/', [SchoolController::class, 'index'])->middleware('permission:access_platform_administration');
-
-        Route::get('/{id}', [SchoolController::class, 'show'])->middleware('permission:access_platform_administration');
-
+        Route::get(
+            '/{id}',
+            [SchoolController::class, 'show']
+        )->middleware(
+            'permission:access_platform_administration'
+        );
     });
 
 /*
@@ -816,20 +1303,66 @@ Route::prefix('streams')
 Route::prefix('learners')
     ->middleware($secure)
     ->group(function () {
+        Route::get('/{learner}/guardians', [GuardianLinkController::class, 'index'])
+            ->middleware('permission:manage_guardians');
 
-        Route::get('/', [LearnerController::class, 'index']);
+        Route::post('/{learner}/guardians', [GuardianLinkController::class, 'store'])
+            ->middleware([
+                'permission:manage_guardians',
+                'school.operational',
+            ]);
+
+        Route::put('/{learner}/guardians/{link}', [GuardianLinkController::class, 'update'])
+            ->middleware('permission:manage_guardians');
+
+        Route::delete('/{learner}/guardians/{link}', [GuardianLinkController::class, 'destroy'])
+            ->middleware('permission:manage_guardians');
+
+        Route::get('/{learner}/placements', [LearnerPlacementController::class, 'index'])
+            ->middleware('permission:manage_learners');
+
+        Route::post('/{learner}/placements', [LearnerPlacementController::class, 'store'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/mode-of-study', [LearnerModeOfStudyController::class, 'show'])
+            ->middleware('permission:manage_learners');
+
+        Route::patch('/{learner}/mode-of-study', [LearnerModeOfStudyController::class, 'update'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/mode-of-study/history', [LearnerModeOfStudyController::class, 'history'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/lifecycle', [LearnerLifecycleController::class, 'show'])
+            ->middleware('permission:manage_learners');
+
+        Route::patch('/{learner}/lifecycle', [LearnerLifecycleController::class, 'update'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/{learner}/lifecycle/history', [LearnerLifecycleController::class, 'history'])
+            ->middleware('permission:manage_learners');
+
+        Route::get('/', [LearnerController::class, 'index'])
+            ->middleware('permission:manage_learners');
 
         Route::post('/{learner}/portal-account', [LearnerPortalAdminController::class, 'create']);
         Route::patch('/{learner}/portal-account/status', [LearnerPortalAdminController::class, 'status']);
         Route::post('/{learner}/portal-account/reset-password', [LearnerPortalAdminController::class, 'reset']);
-        Route::get('/{id}', [LearnerController::class, 'show']);
 
-        Route::post('/', [LearnerController::class, 'store']);
+        Route::get('/{id}', [LearnerController::class, 'show'])
+            ->middleware('permission:manage_learners');
 
-        Route::put('/{id}', [LearnerController::class, 'update']);
+        Route::post('/', [LearnerController::class, 'store'])
+            ->middleware([
+                'permission:manage_learners',
+                'school.operational',
+            ]);
 
-        Route::delete('/{id}', [LearnerController::class, 'destroy']);
+        Route::put('/{id}', [LearnerController::class, 'update'])
+            ->middleware('permission:manage_learners');
 
+        Route::delete('/{id}', [LearnerController::class, 'destroy'])
+            ->middleware('permission:manage_learners');
     });
 
 Route::prefix('learner')->middleware($secure)->group(function () {
@@ -996,17 +1529,23 @@ Route::prefix('student-election-candidates')->middleware($secure)->group(functio
 Route::prefix('guardians')
     ->middleware($secure)
     ->group(function () {
+        Route::get('/', [GuardianController::class, 'index'])
+            ->middleware('permission:manage_guardians');
 
-        Route::get('/', [GuardianController::class, 'index']);
+        Route::get('/{id}', [GuardianController::class, 'show'])
+            ->middleware('permission:manage_guardians');
 
-        Route::get('/{id}', [GuardianController::class, 'show']);
+        Route::post('/', [GuardianController::class, 'store'])
+            ->middleware([
+                'permission:manage_guardians',
+                'school.operational',
+            ]);
 
-        Route::post('/', [GuardianController::class, 'store']);
+        Route::put('/{id}', [GuardianController::class, 'update'])
+            ->middleware('permission:manage_guardians');
 
-        Route::put('/{id}', [GuardianController::class, 'update']);
-
-        Route::delete('/{id}', [GuardianController::class, 'destroy']);
-
+        Route::delete('/{id}', [GuardianController::class, 'destroy'])
+            ->middleware('permission:manage_guardians');
     });
 
 /*

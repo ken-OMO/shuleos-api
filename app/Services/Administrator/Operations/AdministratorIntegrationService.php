@@ -139,7 +139,7 @@ class AdministratorIntegrationService
             throw ValidationException::withMessages(['scopes' => 'API key scopes are unsupported for this authority.']);
         }
 
-return $scopes;
+        return $scopes;
     }
 
     private function ips(array $ips): array
@@ -150,7 +150,7 @@ return $scopes;
             }
         }
 
-return array_values(array_unique($ips));
+        return array_values(array_unique($ips));
     }
 
     private function endpoint(string $url): void

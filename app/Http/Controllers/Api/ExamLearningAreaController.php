@@ -24,7 +24,7 @@ class ExamLearningAreaController extends BaseCrudController
             $q->when(isset($v[$f]), fn ($x) => $x->where($f, $v[$f]));
         }
 
-return $this->success(ExamLearningAreaResource::collection($q->orderByDesc('created_at')->paginate($v['per_page'] ?? 20)), 'Exam learning areas retrieved successfully.');
+        return $this->success(ExamLearningAreaResource::collection($q->orderByDesc('created_at')->paginate($v['per_page'] ?? 20)), 'Exam learning areas retrieved successfully.');
     }
 
     public function show(Request $r, string $id)
@@ -76,7 +76,7 @@ return $this->success(ExamLearningAreaResource::collection($q->orderByDesc('crea
     private function school(Request $r, array $v = []): string
     {
         $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
-        abort_if(! $id,403,'School context not found.');
+        abort_if(! $id, 403, 'School context not found.');
 
         return (string) $id;
     }

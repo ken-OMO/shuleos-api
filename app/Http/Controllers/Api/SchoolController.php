@@ -60,7 +60,7 @@ class SchoolController extends BaseCrudController
             ->where('is_deleted', false)
             ->find($id);
 
-        if ($this->modelNotFound($school)) {
+        if (! $school) {
 
             return $this->notFound(
 
@@ -238,7 +238,7 @@ class SchoolController extends BaseCrudController
     {
         $school = School::find($id);
 
-        if ($this->modelNotFound($school)) {
+        if (! $school) {
 
             return $this->notFound(
 
@@ -378,7 +378,7 @@ class SchoolController extends BaseCrudController
     {
         $school = School::find($id);
 
-        if ($this->modelNotFound($school)) {
+        if (! $school) {
 
             return $this->notFound(
 

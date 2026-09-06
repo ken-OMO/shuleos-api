@@ -7,10 +7,12 @@ use App\Http\Resources\AuthenticatedUserResource;
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
 use App\Services\Auth\AuthenticationAuditService;
+use App\Services\Auth\SchoolAdminActivationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Throwable;
 
@@ -19,6 +21,7 @@ class AuthController extends Controller
     public function __construct(
         private AuthContextService $authContext,
         private AuthenticationAuditService $audit,
+        private SchoolAdminActivationService $activation,
     ) {}
 
     public function login(Request $request): JsonResponse
@@ -53,6 +56,61 @@ class AuthController extends Controller
             return $this->unavailable();
         }
 
+        /*
+         * Temporary first-login credentials fail closed once expired.
+         *
+         * Never issue a normal JWT from an expired bootstrap credential.
+         */
+        if ($user->temporaryPasswordExpired()) {
+            $this->audit->record(
+                $request,
+                'authentication_temporary_password_expired',
+                $user
+            );
+
+            return $this->unauthenticated();
+        }
+
+        /*
+         * First-login / reset state must be completed before a normal
+         * authenticated tenant session can exist.
+         *
+         * Phase 6A.6 establishes this JWT boundary first. The subsequent
+         * activation challenge flow will replace this response with the
+         * school-bound challenge details.
+         */
+        if ($user->requiresPasswordReset()) {
+            try {
+                $challenge = $this->activation->begin(
+                    $user,
+                    $request
+                );
+            } catch (\RuntimeException) {
+                $this->audit->record(
+                    $request,
+                    'authentication_first_login_activation_delivery_failed',
+                    $user
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Account activation is temporarily unavailable.',
+                ], 503);
+            }
+
+            $this->audit->record(
+                $request,
+                'authentication_first_login_activation_required',
+                $user
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password activation is required.',
+                'data' => $challenge,
+            ], 202);
+        }
+
         $user->forceFill([
             'failed_login_attempts' => 0,
             'account_locked_until' => null,
@@ -63,6 +121,211 @@ class AuthController extends Controller
         $token = JWTAuth::fromUser($user);
 
         return $this->tokenResponse($request, $user, $token);
+    }
+
+    public function verifyFirstLoginOtp(
+        Request $request
+    ): JsonResponse {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'challenge_id' => [
+                    'required',
+                    'uuid',
+                ],
+
+                'challenge_token' => [
+                    'required',
+                    'string',
+                    'min:32',
+                    'max:255',
+                ],
+
+                'otp' => [
+                    'required',
+                    'digits:6',
+                ],
+            ]
+        );
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        try {
+            $result = $this->activation->verifyOtp(
+                $request->string(
+                    'challenge_id'
+                )->toString(),
+
+                $request->string(
+                    'challenge_token'
+                )->toString(),
+
+                $request->string(
+                    'otp'
+                )->toString(),
+
+                $request
+            );
+        } catch (\RuntimeException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Verification failed.',
+            ], 401);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Verification successful. Password activation is required.',
+            'data' => $result,
+        ], 202);
+    }
+
+    public function activateFirstLogin(
+        Request $request
+    ): JsonResponse {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'challenge_id' => [
+                    'required',
+                    'uuid',
+                ],
+
+                'activation_token' => [
+                    'required',
+                    'string',
+                    'min:32',
+                    'max:255',
+                ],
+
+                'password' => [
+                    'required',
+                    'string',
+                    'min:12',
+                    'max:128',
+                ],
+
+                'password_confirmation' => [
+                    'required',
+                    'string',
+                    'max:128',
+                ],
+            ]
+        );
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        if (
+            ! hash_equals(
+                $request->string(
+                    'password'
+                )->toString(),
+
+                $request->string(
+                    'password_confirmation'
+                )->toString()
+            )
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => [
+                    'password' => [
+                        'The password confirmation does not match.',
+                    ],
+                ],
+            ], 422);
+        }
+
+        try {
+            $user = $this->activation->activate(
+                $request->string(
+                    'challenge_id'
+                )->toString(),
+
+                $request->string(
+                    'activation_token'
+                )->toString(),
+
+                $request->string(
+                    'password'
+                )->toString(),
+
+                $request
+            );
+        } catch (ValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The given data was invalid.',
+                'errors' => $exception->errors(),
+            ], 422);
+        } catch (\RuntimeException) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Activation failed.',
+            ], 401);
+        }
+
+        $this->audit->record(
+            $request,
+            'authentication_first_login_activated',
+            $user
+        );
+
+        $token = JWTAuth::fromUser(
+            $user
+        );
+
+        $safeUser = $this->safeUser(
+            $request,
+            $user
+        );
+
+        $tokenType = 'bearer';
+        $expiresIn = (int) config(
+            'jwt.ttl',
+            60
+        ) * 60;
+
+        return response()->json([
+            'success' => true,
+
+            'message' => 'Account activated successfully.',
+
+            'token' => $token,
+
+            'token_type' => $tokenType,
+
+            'expires_in' => $expiresIn,
+
+            'user' => $safeUser,
+
+            'data' => [
+                'authenticated' => true,
+
+                'activation_required' => false,
+
+                'token' => $token,
+
+                'token_type' => $tokenType,
+
+                'expires_in' => $expiresIn,
+
+                'user' => $safeUser,
+            ],
+        ]);
     }
 
     public function me(Request $request): JsonResponse

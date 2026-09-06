@@ -2,78 +2,124 @@
 
 namespace Tests\Feature;
 
+use App\Services\Assessment\AssessmentTypeService;
+use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use App\Services\Assessment\ExamService;
+use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\TermBuilder;
 use Tests\TestCase;
 
 class ExamPaperTest extends TestCase
 {
-    private array $id;
+    use DatabaseTransactions;
+
+    private object $school;
+
+    private object $examLearningArea;
 
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['exam_papers', 'exam_learning_areas', 'exams'] as $t) {
-            Schema::dropIfExists($t);
-        }Schema::create('exams', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('school_id');
-            $t->string('status');
-            $t->boolean('is_deleted');
-        });
-        Schema::create('exam_learning_areas', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('exam_id');
-            $t->integer('number_of_papers');
-            $t->integer('total_marks');
-            $t->boolean('is_deleted');
-        });
-        Schema::create('exam_papers', function (Blueprint $t) {
-            $t->uuid('id')->primary();
-            $t->uuid('exam_learning_area_id');
-            $t->string('paper_name');
-            $t->integer('paper_number');
-            $t->integer('max_marks');
-            $t->boolean('is_deleted');
-            $t->timestamp('created_at')->nullable();
-            $t->timestamp('deleted_at')->nullable();
-            $t->uuid('deleted_by')->nullable();
-        });
-        foreach (['school', 'exam', 'area'] as $n) {
-            $this->id[$n] = (string) Str::uuid();
-        }DB::table('exams')->insert(['id' => $this->id['exam'], 'school_id' => $this->id['school'], 'status' => 'draft', 'is_deleted' => false]);
-        DB::table('exam_learning_areas')->insert(['id' => $this->id['area'], 'exam_id' => $this->id['exam'], 'number_of_papers' => 2, 'total_marks' => 100, 'is_deleted' => false]);
+
+        $this->school = SchoolBuilder::create();
+
+        $assessmentType = app(AssessmentTypeService::class)->create(
+            ['assessment_type_name' => 'Formative'],
+            $this->school->id
+        );
+
+        $academicYear = AcademicYearBuilder::create($this->school);
+        $term = TermBuilder::create($this->school, $academicYear);
+
+        $exam = app(ExamService::class)->create(
+            [
+                'exam_name' => 'Term Two Exam',
+                'assessment_type_id' => $assessmentType->id,
+                'academic_year_id' => $academicYear->id,
+                'term_id' => $term->id,
+                'start_date' => '2026-07-20',
+                'end_date' => '2026-07-25',
+            ],
+            $this->school->id,
+            null
+        );
+
+        $learningArea = LearningAreaBuilder::create();
+
+        $this->examLearningArea = app(
+            ExamLearningAreaService::class
+        )->create(
+            [
+                'exam_id' => $exam->id,
+                'learning_area_id' => $learningArea->id,
+                'number_of_papers' => 2,
+                'total_marks' => 100,
+            ],
+            $this->school->id
+        );
     }
 
     public function test_it_creates_a_paper_within_declared_limits(): void
     {
-        $x = app(ExamPaperService::class)->create($this->data(), $this->id['school']);
-        $this->assertSame(1, $x->paper_number);
-        $this->assertSame(50, $x->max_marks);
+        $paper = app(ExamPaperService::class)->create(
+            $this->data(),
+            $this->school->id
+        );
+
+        $this->assertSame(1, $paper->paper_number);
+        $this->assertSame(50, $paper->max_marks);
     }
 
     public function test_it_rejects_duplicate_paper_numbers(): void
     {
-        $s = app(ExamPaperService::class);
-        $s->create($this->data(), $this->id['school']);
+        $service = app(ExamPaperService::class);
+
+        $service->create(
+            $this->data(),
+            $this->school->id
+        );
+
         $this->expectException(ValidationException::class);
-        $s->create($this->data(), $this->id['school']);
+
+        $service->create(
+            $this->data(),
+            $this->school->id
+        );
     }
 
     public function test_it_rejects_marks_above_subject_total(): void
     {
-        $s = app(ExamPaperService::class);
-        $s->create($this->data(), $this->id['school']);
+        $service = app(ExamPaperService::class);
+
+        $service->create(
+            $this->data(),
+            $this->school->id
+        );
+
         $this->expectException(ValidationException::class);
-        $s->create([...$this->data(), 'paper_number' => 2, 'max_marks' => 60], $this->id['school']);
+
+        $service->create(
+            [
+                ...$this->data(),
+                'paper_number' => 2,
+                'max_marks' => 60,
+            ],
+            $this->school->id
+        );
     }
 
     private function data(): array
     {
-        return ['exam_learning_area_id' => $this->id['area'], 'paper_name' => 'Paper 1', 'paper_number' => 1, 'max_marks' => 50];
+        return [
+            'exam_learning_area_id' => $this->examLearningArea->id,
+            'paper_name' => 'Paper 1',
+            'paper_number' => 1,
+            'max_marks' => 50,
+        ];
     }
 }

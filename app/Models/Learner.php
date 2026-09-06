@@ -54,6 +54,7 @@ class Learner extends TenantModel
         'admission_date' => 'date',
 
         'active' => 'boolean',
+        'lifecycle_status' => 'string',
         'portal_enabled' => 'boolean', 'portal_activated_at' => 'datetime',
 
         'is_deleted' => 'boolean',

@@ -1285,20 +1285,7 @@ CREATE TABLE public.hostel_rooms (
 );
 
 
---
--- Name: hostel_staff_assignments; Type: TABLE; Schema: public; Owner: -
---
 
-CREATE TABLE public.hostel_staff_assignments (
-    id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
-    hostel_id uuid NOT NULL,
-    teacher_id uuid NOT NULL,
-    role_name character varying(100) NOT NULL,
-    start_date date,
-    end_date date,
-    active boolean DEFAULT true,
-    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
-);
 
 
 --
@@ -4663,12 +4650,7 @@ ALTER TABLE ONLY public.hostel_rooms
     ADD CONSTRAINT hostel_rooms_pkey PRIMARY KEY (id);
 
 
---
--- Name: hostel_staff_assignments hostel_staff_assignments_pkey; Type: CONSTRAINT; Schema: public; Owner: -
---
 
-ALTER TABLE ONLY public.hostel_staff_assignments
-    ADD CONSTRAINT hostel_staff_assignments_pkey PRIMARY KEY (id);
 
 
 --
@@ -7690,20 +7672,10 @@ ALTER TABLE ONLY public.hostel_rooms
     ADD CONSTRAINT fk_hr_hostel FOREIGN KEY (hostel_id) REFERENCES public.hostels(id) ON DELETE CASCADE;
 
 
---
--- Name: hostel_staff_assignments fk_hsa_hostel; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.hostel_staff_assignments
-    ADD CONSTRAINT fk_hsa_hostel FOREIGN KEY (hostel_id) REFERENCES public.hostels(id);
 
 
---
--- Name: hostel_staff_assignments fk_hsa_teacher; Type: FK CONSTRAINT; Schema: public; Owner: -
---
 
-ALTER TABLE ONLY public.hostel_staff_assignments
-    ADD CONSTRAINT fk_hsa_teacher FOREIGN KEY (teacher_id) REFERENCES public.teachers(id);
+
 
 
 --

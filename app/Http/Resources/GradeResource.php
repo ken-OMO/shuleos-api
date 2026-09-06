@@ -26,10 +26,6 @@ class GradeResource extends JsonResource
                 'educationLevel'
             ),
 
-            'school' => $this->whenLoaded(
-                'school'
-            ),
-
             'created_at' => $this->created_at,
 
         ];
