@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\HomeworkTeacherController;
 use App\Http\Controllers\Api\HostelBedController;
 use App\Http\Controllers\Api\HostelController;
 use App\Http\Controllers\Api\HostelRoomController;
+use App\Http\Controllers\Api\HostelStaffAssignmentController;
 use App\Http\Controllers\Api\LeadershipPortalController;
 use App\Http\Controllers\Api\LeadershipPortalPhaseTwoController;
 use App\Http\Controllers\Api\LearnerAttendanceController;
@@ -714,6 +715,29 @@ Route::prefix('announcements')->middleware($secure)->group(function () {
 Route::prefix('boarding')
     ->middleware($secure)
     ->group(function () {
+        Route::get(
+            '/hostels/{hostel}/staff-assignments',
+            [HostelStaffAssignmentController::class, 'index']
+        )->middleware('permission:manage_boarding');
+
+        Route::post(
+            '/hostels/{hostel}/staff-assignments',
+            [HostelStaffAssignmentController::class, 'store']
+        )->middleware([
+            'permission:manage_boarding',
+            'school.operational',
+        ]);
+
+        Route::get(
+            '/hostels/{hostel}/staff-assignments/history',
+            [HostelStaffAssignmentController::class, 'history']
+        )->middleware('permission:manage_boarding');
+
+        Route::patch(
+            '/staff-assignments/{assignment}/end',
+            [HostelStaffAssignmentController::class, 'end']
+        )->middleware('permission:manage_boarding');
+
         Route::post(
             '/bed-allocations',
             [BedAllocationController::class, 'store']
