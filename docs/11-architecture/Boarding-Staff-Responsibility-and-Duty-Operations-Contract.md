@@ -391,3 +391,461 @@ ShuleOS does not merely record who holds a school responsibility.
 
 ShuleOS progressively digitizes the operational work, accountability,
 reporting and follow-up created by that responsibility.
+---
+
+# 19. Frozen 6A.9F-A Database Contract
+
+## 19.1 Table
+
+The permanent Boarding staff responsibility record is stored in:
+
+`hostel_staff_assignments`
+
+One row represents one responsibility episode for one school User,
+one Hostel and one responsibility type.
+
+The row is historical operational evidence.
+
+Ending an assignment closes the episode.
+
+A later return to the same responsibility creates a new assignment row.
+
+An ended assignment must never be reactivated.
+
+---
+
+## 19.2 Columns
+
+The frozen table contract is:
+
+| Column | Type | Null | Meaning |
+| --- | --- | --- | --- |
+| id | UUID | NO | Assignment identifier |
+| school_id | UUID | NO | Authoritative tenant |
+| hostel_id | UUID | NO | Responsible Boarding facility |
+| user_id | UUID | NO | School User receiving responsibility |
+| responsibility_role | VARCHAR(100) | NO | Operational responsibility label |
+| effective_from | DATE | NO | First effective responsibility date |
+| effective_to | DATE | YES | Final effective responsibility date |
+| active | BOOLEAN | NO | Whether the responsibility episode is currently open |
+| assigned_by | UUID | NO | User who created the assignment |
+| ended_by | UUID | YES | User who ended the assignment |
+| ended_at | TIMESTAMPTZ | YES | Server timestamp at which the assignment was ended |
+| end_reason | VARCHAR(500) | YES | Optional administrative reason for ending |
+| created_at | TIMESTAMPTZ | NO | Creation timestamp |
+| updated_at | TIMESTAMPTZ | NO | Controlled lifecycle update timestamp |
+
+The table must not contain `is_deleted`, `deleted_at` or `deleted_by`.
+
+Responsibility history is preserved by closing an assignment rather than
+deleting or archiving the assignment row.
+
+---
+
+## 19.3 Tenant Ownership
+
+`school_id` is server-owned.
+
+The client must not establish or override assignment ownership.
+
+Every assignment belongs to exactly one school.
+
+Platform-level Users without a school tenant cannot receive a Boarding
+responsibility assignment.
+
+---
+
+## 19.4 Tenant-Safe Foreign Keys
+
+The database must enforce tenant-safe relationships using composite
+foreign keys.
+
+Required relationships:
+
+`(school_id, hostel_id)`
+references
+`hostels (school_id, id)`
+
+`(school_id, user_id)`
+references
+`users (school_id, id)`
+
+`(school_id, assigned_by)`
+references
+`users (school_id, id)`
+
+`(school_id, ended_by)`
+references
+`users (school_id, id)`
+
+The assignment table must also reference:
+
+`school_id`
+references
+`schools (id)`
+
+with restrictive deletion behaviour consistent with the hardened Boarding
+domain.
+
+Cross-school assignment relationships must therefore fail at the
+database layer as well as the application layer.
+
+---
+
+## 19.5 User Eligibility
+
+A new Boarding responsibility may only be assigned to a User who:
+
+- belongs to the authoritative school
+- is active
+- is not deleted
+- is not suspended
+
+A Teacher specialization is not required.
+
+Authorization role and responsibility assignment remain separate.
+
+A responsibility assignment does not automatically grant
+`manage_boarding` or any other permission.
+
+---
+
+## 19.6 Hostel Eligibility
+
+A new Boarding responsibility may only target a Hostel that:
+
+- belongs to the authoritative school
+- is active
+- is not deleted
+
+The service must lock the relevant Hostel when assignment concurrency
+requires authoritative current-state validation.
+
+Historical assignments remain preserved if the Hostel later becomes
+inactive or retired.
+
+---
+
+## 19.7 Responsibility Role
+
+`responsibility_role` is stored as a bounded string with maximum length
+100 characters.
+
+The database must not permanently hard-code responsibility terminology
+such as only:
+
+- Matron
+- Warden
+- Boarding Master
+
+Schools may use other approved operational terminology.
+
+The application layer must normalize and validate responsibility labels
+according to the approved Boarding contract.
+
+A responsibility label is not itself an authorization role.
+
+---
+
+## 19.8 Effective Lifecycle
+
+6A.9F-A does not support future-dated responsibility activation.
+
+For a newly created assignment:
+
+`effective_from` must not be later than the authoritative school-local
+current date.
+
+While current:
+
+- `active = true`
+- `effective_to IS NULL`
+- `ended_by IS NULL`
+- `ended_at IS NULL`
+- `end_reason IS NULL`
+
+When ended:
+
+- `active = false`
+- `effective_to IS NOT NULL`
+- `ended_by IS NOT NULL`
+- `ended_at IS NOT NULL`
+
+`end_reason` remains optional.
+
+The database must enforce lifecycle consistency with CHECK constraints.
+
+`effective_to` must not precede `effective_from`.
+
+An ended assignment must never transition back to active.
+
+---
+
+## 19.9 Ending an Assignment
+
+Ending responsibility is a dedicated lifecycle operation.
+
+Generic deletion is not permitted.
+
+The lifecycle operation must:
+
+1. resolve the authoritative school tenant
+2. lock the current assignment
+3. confirm that the assignment is currently active
+4. confirm tenant ownership
+5. derive the effective end date from authoritative school-local time
+6. record the authenticated ending actor
+7. record the server ending timestamp
+8. optionally record the end reason
+9. set `active = false`
+10. preserve the row permanently as historical evidence
+
+The operation must execute transactionally.
+
+---
+
+## 19.10 Reassignment
+
+Reassignment does not modify an old historical episode into a new one.
+
+Example:
+
+Assignment A:
+
+Mary
+→ Girls Hostel
+→ Matron
+→ January through April
+→ ENDED
+
+If Mary returns later:
+
+Assignment B:
+
+Mary
+→ Girls Hostel
+→ Matron
+→ September onward
+→ ACTIVE
+
+Both rows remain independently queryable.
+
+---
+
+## 19.11 Multiple Responsible Personnel
+
+A Hostel may have multiple simultaneous responsible Users.
+
+Examples include:
+
+- multiple Matrons
+- multiple Wardens
+- Boarding Master plus Matron
+- other school-defined combinations
+
+6A.9F-A does not impose a universal one-person-per-role rule.
+
+A User may also hold responsibility for more than one Hostel where school
+policy permits.
+
+Role-specific exclusivity may only be introduced later through an
+explicit policy/configuration contract.
+
+---
+
+## 19.12 Duplicate Current Assignment Protection
+
+The same User must not receive the same current responsibility role for
+the same Hostel more than once.
+
+The database concurrency backstop is a PostgreSQL partial unique index
+equivalent to:
+
+`UNIQUE (school_id, hostel_id, user_id, responsibility_role)
+ WHERE active = true`
+
+The service must also detect duplicate current assignments and return an
+appropriate domain validation error.
+
+Database unique violations caused by concurrent requests must be
+translated into the same safe domain error.
+
+---
+
+## 19.13 Date-Range Overlap
+
+6A.9F-A does not introduce a PostgreSQL range or exclusion-constraint
+engine.
+
+Future-dated assignment scheduling is outside the first slice.
+
+Because a current assignment has no future activation state, the partial
+current-assignment uniqueness rule is sufficient for the frozen first
+slice.
+
+Any later scheduling/overlap feature requires a separate architecture and
+migration decision.
+
+---
+
+## 19.14 Concurrency
+
+Assignment creation and ending are concurrency-sensitive operations.
+
+Implementation must use database transactions and locking where required.
+
+Application-only pre-checks are insufficient.
+
+Database constraints and partial unique indexes provide the final
+concurrency backstop.
+
+Concurrent requests must not create duplicate current responsibility
+episodes.
+
+Concurrent attempts to end the same assignment must not produce
+contradictory lifecycle states.
+
+---
+
+## 19.15 Indexes
+
+At minimum the migration must provide indexes appropriate for:
+
+- tenant + Hostel current responsibility lookup
+- tenant + User responsibility lookup
+- tenant + responsibility role lookup
+- current assignment lookup
+- historical effective-date lookup
+
+The duplicate-current partial unique index is mandatory.
+
+Exact index names must be deterministic and migration-controlled.
+
+---
+
+## 19.16 Actor Integrity
+
+`assigned_by` is mandatory.
+
+`ended_by` is required only for an ended assignment.
+
+Both actor relationships must use tenant-safe composite foreign keys.
+
+Historical actor identity must not be rewritten merely because the actor
+later changes role, becomes inactive, is suspended or leaves the school.
+
+---
+
+## 19.17 Immutability
+
+Historical responsibility episodes are operational evidence.
+
+After an assignment is ended, application code must treat the record as
+immutable.
+
+6A.9F-A must not provide a generic update endpoint capable of rewriting
+historical responsibility.
+
+Any future database-level immutability trigger must be introduced
+deliberately and tested against migration rollback and lifecycle
+operations.
+
+---
+
+## 19.18 API Lifecycle Direction
+
+The eventual API should expose responsibility lifecycle operations rather
+than generic CRUD semantics.
+
+Conceptually:
+
+- create assignment
+- list assignments
+- view assignment
+- end assignment
+
+There is no ordinary delete operation.
+
+There is no reactivate operation.
+
+Changing a responsibility in a way that represents a new operational
+episode must end the old episode and create a new row.
+
+---
+
+## 19.19 Authorization Boundary
+
+Assignment-management endpoints remain protected by the approved
+Boarding authorization boundary.
+
+6A.9F-A does not introduce hostel-scoped authorization.
+
+6A.9F-A does not make assignment membership equivalent to permission.
+
+Future authorization may deliberately consider:
+
+- permission
+- responsibility scope
+- responsibility role
+
+but that belongs to the explicit scoped-authorization phase.
+
+---
+
+## 19.20 First-Slice Non-Goals
+
+6A.9F-A does not implement:
+
+- Teacher-on-Duty roster records
+- Teacher-on-Duty daily occurrences
+- Boarding daily reports
+- Boarding attendance
+- Boarding incidents
+- reporting reminders
+- escalation scheduling
+- Boarding subscription billing
+- automatic permission grants
+- generic Staff records
+- generic cross-domain occurrence records
+- room-level Boarding staff responsibility
+- future-dated responsibility scheduling
+
+These remain in their approved later phases.
+
+---
+
+## 19.21 Migration Acceptance Requirements
+
+The first migration must prove:
+
+- table creation succeeds on current PostgreSQL
+- fresh migration succeeds
+- rollback succeeds
+- re-migration succeeds
+- required composite foreign keys exist
+- cross-tenant User assignment is rejected by PostgreSQL
+- cross-tenant Hostel assignment is rejected by PostgreSQL
+- cross-tenant actor assignment is rejected by PostgreSQL
+- lifecycle CHECK constraints reject contradictory states
+- effective end date cannot precede effective start date
+- duplicate active assignment is rejected
+- multiple different managers for one Hostel are allowed
+- one User may manage multiple Hostels
+- historical ended assignments remain preserved
+- a later new assignment may coexist with an ended historical assignment
+
+The migration is not accepted merely because `php artisan migrate`
+returns successfully.
+
+---
+
+## 19.22 Frozen Database Principle
+
+One `hostel_staff_assignments` row represents one preserved Boarding
+responsibility episode.
+
+Identity, authority, responsibility and operational history remain
+separate.
+
+The database must make cross-tenant or contradictory responsibility state
+difficult or impossible to persist.
