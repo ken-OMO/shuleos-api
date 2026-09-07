@@ -987,7 +987,7 @@ class TeacherDutyRosterServiceTest extends TestCase
             );
 
             $this->assertStringContainsString(
-                'teacher_duty_periods_academic_week_foreign',
+                'teacher_duty_periods_school_academic_week_foreign',
                 $exception->getMessage()
             );
         }
