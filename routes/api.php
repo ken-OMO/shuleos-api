@@ -92,6 +92,7 @@ use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TeacherDutyRosterController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
 use App\Http\Controllers\Api\TeacherPortalPhaseTwoController;
@@ -2553,4 +2554,62 @@ Route::middleware($secure)->group(function () {
 
     )->only(['index', 'show']);
 
+    /*
+    |--------------------------------------------------------------------------
+    | Teacher Duty Roster 6A.9F-B
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('teacher-duty')
+        ->middleware('permission:manage_teacher_duty_roster')
+        ->group(function () {
+            Route::get(
+                '/periods',
+                [TeacherDutyRosterController::class, 'currentPeriods']
+            );
+
+            Route::post(
+                '/periods',
+                [TeacherDutyRosterController::class, 'storePeriod']
+            )->middleware('school.operational');
+
+            Route::get(
+                '/periods/history',
+                [TeacherDutyRosterController::class, 'periodHistory']
+            );
+
+            Route::get(
+                '/periods/{period}',
+                [TeacherDutyRosterController::class, 'showPeriod']
+            );
+
+            Route::patch(
+                '/periods/{period}/end',
+                [TeacherDutyRosterController::class, 'endPeriod']
+            );
+
+            Route::get(
+                '/periods/{period}/assignments',
+                [TeacherDutyRosterController::class, 'currentAssignments']
+            );
+
+            Route::post(
+                '/periods/{period}/assignments',
+                [TeacherDutyRosterController::class, 'storeAssignment']
+            )->middleware('school.operational');
+
+            Route::get(
+                '/periods/{period}/assignments/history',
+                [TeacherDutyRosterController::class, 'assignmentHistory']
+            );
+
+            Route::get(
+                '/assignments/{assignment}',
+                [TeacherDutyRosterController::class, 'showAssignment']
+            );
+
+            Route::patch(
+                '/assignments/{assignment}/end',
+                [TeacherDutyRosterController::class, 'endAssignment']
+            );
+        });
 });
