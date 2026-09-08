@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use LogicException;
 
-class TeacherDutyPeriod extends TenantModel
+class TeacherDutyOccurrenceCategory extends TenantModel
 {
     use HasUuids;
 
-    protected $table = 'teacher_duty_periods';
+    protected $table = 'teacher_duty_occurrence_categories';
 
     protected $primaryKey = 'id';
 
@@ -24,16 +24,17 @@ class TeacherDutyPeriod extends TenantModel
     public $timestamps = true;
 
     protected $fillable = [
-        'academic_week_id',
-        'start_date',
-        'end_date',
+        'code',
+        'name',
+        'description',
+        'display_order',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
+        'is_canonical' => 'boolean',
+        'display_order' => 'integer',
         'active' => 'boolean',
-        'ended_at' => 'datetime',
+        'deactivated_at' => 'datetime',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -46,14 +47,6 @@ class TeacherDutyPeriod extends TenantModel
         );
     }
 
-    public function academicWeek(): BelongsTo
-    {
-        return $this->belongsTo(
-            AcademicWeek::class,
-            'academic_week_id'
-        );
-    }
-
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(
@@ -62,19 +55,11 @@ class TeacherDutyPeriod extends TenantModel
         );
     }
 
-    public function endedBy(): BelongsTo
+    public function deactivatedBy(): BelongsTo
     {
         return $this->belongsTo(
             User::class,
-            'ended_by'
-        );
-    }
-
-    public function assignments(): HasMany
-    {
-        return $this->hasMany(
-            TeacherDutyAssignment::class,
-            'duty_period_id'
+            'deactivated_by'
         );
     }
 
@@ -82,25 +67,14 @@ class TeacherDutyPeriod extends TenantModel
     {
         return $this->hasMany(
             TeacherDutyOccurrence::class,
-            'duty_period_id'
+            'occurrence_category_id'
         );
     }
 
-    public function scopeCurrent($query)
-    {
-        return $query->where('active', true);
-    }
-
-    /**
-     * Duty periods are preserved lifecycle records.
-     *
-     * They may only be closed through TeacherDutyRosterService.
-     * Generic model deletion is deliberately forbidden.
-     */
     protected function performDeleteOnModel(): void
     {
         throw new LogicException(
-            'Teacher duty periods cannot be deleted.'
+            'Teacher duty occurrence categories cannot be deleted.'
         );
     }
 }
