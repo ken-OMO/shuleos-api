@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
+use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -188,6 +189,56 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->assertNotNull(
             $admin->force_password_reset_at
         );
+
+        $categories = DB::table(
+            'teacher_duty_occurrence_categories'
+        )
+            ->where('school_id', $school->id)
+            ->orderBy('display_order')
+            ->get();
+
+        $this->assertCount(8, $categories);
+
+        $this->assertSame(
+            [
+                ['discipline', 10],
+                ['attendance', 20],
+                ['health_safety', 30],
+                ['cleanliness', 40],
+                ['property_facilities', 50],
+                ['academic', 60],
+                ['visitor_security', 70],
+                ['general', 80],
+            ],
+            $categories
+                ->map(fn (object $category): array => [
+                    $category->code,
+                    $category->display_order,
+                ])
+                ->all()
+        );
+
+        foreach ($categories as $category) {
+            $this->assertTrue(
+                (bool) $category->is_canonical
+            );
+
+            $this->assertTrue(
+                (bool) $category->active
+            );
+
+            $this->assertNull(
+                $category->created_by
+            );
+
+            $this->assertNull(
+                $category->deactivated_by
+            );
+
+            $this->assertNull(
+                $category->deactivated_at
+            );
+        }
     }
 
     public function test_client_cannot_supply_authoritative_school_or_admin_identity_fields(): void
@@ -335,6 +386,76 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
                 $audit,
                 JSON_THROW_ON_ERROR
             )
+        );
+    }
+
+    public function test_onboarding_rolls_back_school_when_occurrence_category_provisioning_fails(): void
+    {
+        $user = $this->platformOwner();
+
+        $token = JWTAuth::fromUser(
+            $user
+        );
+
+        $schoolName = 'Provisioning Rollback School';
+
+        $adminEmail = 'provisioning-rollback-'
+            .Str::lower(
+                Str::random(6)
+            )
+            .'@example.test';
+
+        $this->mock(
+            TeacherDutyOccurrenceCategoryProvisioningService::class,
+            function ($mock) {
+                $mock
+                    ->shouldReceive('provision')
+                    ->once()
+                    ->andThrow(
+                        new RuntimeException(
+                            'Simulated occurrence category provisioning failure.'
+                        )
+                    );
+            }
+        );
+
+        $response = $this
+            ->withToken($token)
+            ->postJson(
+                '/api/admin/platform/schools',
+                [
+                    'school_name' => $schoolName,
+
+                    'timezone' => 'Africa/Nairobi',
+
+                    'locale' => 'en',
+
+                    'admin' => [
+                        'first_name' => 'Provisioning',
+
+                        'last_name' => 'Rollback',
+
+                        'email' => $adminEmail,
+                    ],
+                ]
+            );
+
+        $response->assertStatus(
+            500
+        );
+
+        $this->assertDatabaseMissing(
+            'schools',
+            [
+                'school_name' => $schoolName,
+            ]
+        );
+
+        $this->assertDatabaseMissing(
+            'users',
+            [
+                'email' => $adminEmail,
+            ]
         );
     }
 

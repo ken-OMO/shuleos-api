@@ -6,6 +6,7 @@ use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -19,7 +20,8 @@ class PlatformSchoolOnboardingService
 
     public function __construct(
         private AdministratorPortalAccessService $access,
-        private AdministratorAuditService $audit
+        private AdministratorAuditService $audit,
+        private TeacherDutyOccurrenceCategoryProvisioningService $teacherDutyOccurrenceCategories
     ) {}
 
     public function onboard(
@@ -101,6 +103,10 @@ class PlatformSchoolOnboardingService
                     'locale' => $data['locale']
                         ?? 'en',
                 ]);
+
+                $this->teacherDutyOccurrenceCategories->provision(
+                    $school
+                );
 
                 $admin = User::create([
                     'id' => (string) Str::uuid(),
