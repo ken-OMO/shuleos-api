@@ -21,6 +21,8 @@ class TeacherDutyDailyReport extends TenantModel
 
     protected $keyType = 'string';
 
+    protected $dateFormat = 'Y-m-d H:i:sP';
+
     public $timestamps = true;
 
     protected $fillable = [
