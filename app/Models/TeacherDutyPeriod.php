@@ -86,6 +86,14 @@ class TeacherDutyPeriod extends TenantModel
         );
     }
 
+    public function dailyReports(): HasMany
+    {
+        return $this->hasMany(
+            TeacherDutyDailyReport::class,
+            'duty_period_id'
+        );
+    }
+
     public function scopeCurrent($query)
     {
         return $query->where('active', true);

@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
+use App\Services\School\SchoolSettingsProvisioningService;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -134,6 +135,22 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
         $this->assertFalse(
             (bool) $school->is_deleted
+        );
+
+        $settings = DB::table('school_settings')
+            ->where('school_id', $school->id)
+            ->get();
+
+        $this->assertCount(1, $settings);
+
+        $this->assertSame(
+            '17:00:00',
+            (string) $settings->first()->teacher_duty_report_deadline_time
+        );
+
+        $this->assertSame(
+            120,
+            (int) $settings->first()->teacher_duty_report_grace_minutes
         );
 
         $admin = DB::table('users')
@@ -386,6 +403,72 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
                 $audit,
                 JSON_THROW_ON_ERROR
             )
+        );
+    }
+
+    public function test_onboarding_rolls_back_school_and_admin_when_school_settings_provisioning_fails(): void
+    {
+        $user = $this->platformOwner();
+
+        $token = JWTAuth::fromUser(
+            $user
+        );
+
+        $schoolName = 'Settings Provisioning Rollback School';
+
+        $adminEmail = 'settings-provisioning-rollback-'
+            .Str::lower(
+                Str::random(6)
+            )
+            .'@example.test';
+
+        $this->mock(
+            SchoolSettingsProvisioningService::class,
+            function ($mock) {
+                $mock
+                    ->shouldReceive('provision')
+                    ->once()
+                    ->andThrow(
+                        new RuntimeException(
+                            'Simulated school settings provisioning failure.'
+                        )
+                    );
+            }
+        );
+
+        $response = $this
+            ->withToken($token)
+            ->postJson(
+                '/api/admin/platform/schools',
+                [
+                    'school_name' => $schoolName,
+                    'timezone' => 'Africa/Nairobi',
+                    'locale' => 'en',
+
+                    'admin' => [
+                        'first_name' => 'Settings',
+                        'last_name' => 'Rollback',
+                        'email' => $adminEmail,
+                    ],
+                ]
+            );
+
+        $response->assertStatus(
+            500
+        );
+
+        $this->assertDatabaseMissing(
+            'schools',
+            [
+                'school_name' => $schoolName,
+            ]
+        );
+
+        $this->assertDatabaseMissing(
+            'users',
+            [
+                'email' => $adminEmail,
+            ]
         );
     }
 

@@ -6,6 +6,7 @@ use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\School\SchoolSettingsProvisioningService;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -21,6 +22,7 @@ class PlatformSchoolOnboardingService
     public function __construct(
         private AdministratorPortalAccessService $access,
         private AdministratorAuditService $audit,
+        private SchoolSettingsProvisioningService $schoolSettings,
         private TeacherDutyOccurrenceCategoryProvisioningService $teacherDutyOccurrenceCategories
     ) {}
 
@@ -103,6 +105,10 @@ class PlatformSchoolOnboardingService
                     'locale' => $data['locale']
                         ?? 'en',
                 ]);
+
+                $this->schoolSettings->provision(
+                    $school
+                );
 
                 $this->teacherDutyOccurrenceCategories->provision(
                     $school
