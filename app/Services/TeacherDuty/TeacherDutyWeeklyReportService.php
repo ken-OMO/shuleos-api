@@ -20,6 +20,10 @@ use Throwable;
 
 class TeacherDutyWeeklyReportService
 {
+    public function __construct(
+        private readonly TeacherDutyAuthorizationService $authorization
+    ) {}
+
     public function openReport(
         string $schoolId,
         string $periodId,
@@ -32,12 +36,6 @@ class TeacherDutyWeeklyReportService
         ): TeacherDutyWeeklyReport {
             $this->school($schoolId);
 
-            $actor = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             /*
              * Locking the authoritative duty-period row serializes concurrent
              * open attempts for the same weekly-report identity.
@@ -45,6 +43,12 @@ class TeacherDutyWeeklyReportService
             $period = $this->lockPeriod(
                 $schoolId,
                 $periodId
+            );
+
+            $actor = $this->authorization->reporter(
+                $schoolId,
+                $period->id,
+                $actorUserId
             );
 
             $existing = TeacherDutyWeeklyReport::query()
@@ -117,15 +121,15 @@ class TeacherDutyWeeklyReportService
         ): TeacherDutyWeeklyReport {
             $this->school($schoolId);
 
-            $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $this->authorization->reporter(
+                $schoolId,
+                $report->duty_period_id,
+                $actorUserId
             );
 
             if (
@@ -164,15 +168,15 @@ class TeacherDutyWeeklyReportService
         ): TeacherDutyWeeklyReport {
             $school = $this->school($schoolId);
 
-            $actor = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $actor = $this->authorization->reporter(
+                $schoolId,
+                $report->duty_period_id,
+                $actorUserId
             );
 
             if ($report->status !== 'draft') {
@@ -252,32 +256,6 @@ class TeacherDutyWeeklyReportService
             ->firstOrFail();
     }
 
-    private function lockEligibleUser(
-        string $schoolId,
-        string $userId,
-        string $field
-    ): User {
-        $user = User::query()
-            ->withoutGlobalScopes()
-            ->where('id', $userId)
-            ->where('school_id', $schoolId)
-            ->where('active', true)
-            ->where('is_deleted', false)
-            ->whereNull('suspended_at')
-            ->lockForUpdate()
-            ->first();
-
-        if (! $user) {
-            throw ValidationException::withMessages([
-                $field => [
-                    'The selected school user is not eligible for teacher duty weekly reporting.',
-                ],
-            ]);
-        }
-
-        return $user;
-    }
-
     private function lockPeriod(
         string $schoolId,
         string $periodId
@@ -312,15 +290,15 @@ class TeacherDutyWeeklyReportService
         ): TeacherDutyWeeklyReport {
             $school = $this->school($schoolId);
 
-            $actor = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $actor = $this->authorization->reporter(
+                $schoolId,
+                $report->duty_period_id,
+                $actorUserId
             );
 
             if ($report->status !== 'changes_requested') {
@@ -404,15 +382,14 @@ class TeacherDutyWeeklyReportService
         ): TeacherDutyWeeklyReport {
             $school = $this->school($schoolId);
 
-            $reviewer = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'reviewer'
-            );
-
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $reviewer = $this->authorization->reviewer(
+                $schoolId,
+                $actorUserId
             );
 
             if ($report->status !== 'submitted') {

@@ -17,6 +17,10 @@ use Throwable;
 
 class TeacherDutyDailyReportService
 {
+    public function __construct(
+        private readonly TeacherDutyAuthorizationService $authorization
+    ) {}
+
     public function openReport(
         string $schoolId,
         string $periodId,
@@ -31,15 +35,15 @@ class TeacherDutyDailyReportService
         ): TeacherDutyDailyReport {
             $school = $this->school($schoolId);
 
-            $actor = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $period = $this->lockPeriod(
                 $schoolId,
                 $periodId
+            );
+
+            $actor = $this->authorization->reporter(
+                $schoolId,
+                $period->id,
+                $actorUserId
             );
 
             $normalizedDate = $this->strictDate(
@@ -238,17 +242,17 @@ class TeacherDutyDailyReportService
         ): TeacherDutyDailyReport {
             $this->school($schoolId);
 
-            $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $this->lockSettings($schoolId);
 
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $this->authorization->reporter(
+                $schoolId,
+                $report->duty_period_id,
+                $actorUserId
             );
 
             if ($report->status !== 'draft') {
@@ -286,17 +290,17 @@ class TeacherDutyDailyReportService
         ): TeacherDutyDailyReport {
             $school = $this->school($schoolId);
 
-            $actor = $this->lockEligibleUser(
-                $schoolId,
-                $actorUserId,
-                'actor'
-            );
-
             $this->lockSettings($schoolId);
 
             $report = $this->lockReport(
                 $schoolId,
                 $reportId
+            );
+
+            $actor = $this->authorization->reporter(
+                $schoolId,
+                $report->duty_period_id,
+                $actorUserId
             );
 
             if ($report->status !== 'draft') {
@@ -356,32 +360,6 @@ class TeacherDutyDailyReportService
             ->withoutGlobalScopes()
             ->whereKey($schoolId)
             ->firstOrFail();
-    }
-
-    private function lockEligibleUser(
-        string $schoolId,
-        string $userId,
-        string $field
-    ): User {
-        $user = User::query()
-            ->withoutGlobalScopes()
-            ->where('id', $userId)
-            ->where('school_id', $schoolId)
-            ->where('active', true)
-            ->where('is_deleted', false)
-            ->whereNull('suspended_at')
-            ->lockForUpdate()
-            ->first();
-
-        if (! $user) {
-            throw ValidationException::withMessages([
-                $field => [
-                    'The selected school user is not eligible for teacher duty daily reporting.',
-                ],
-            ]);
-        }
-
-        return $user;
     }
 
     private function lockPeriod(

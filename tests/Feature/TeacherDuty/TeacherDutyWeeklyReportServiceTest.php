@@ -16,6 +16,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\Database\TeacherBuilder;
 use Tests\TestCase;
 
 class TeacherDutyWeeklyReportServiceTest extends TestCase
@@ -25,8 +26,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
     public function test_open_report_creates_one_draft_report_for_the_duty_period(): void
     {
         $school = $this->school();
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -74,8 +76,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
     public function test_open_report_returns_existing_report_for_the_same_period(): void
     {
         $school = $this->school();
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $first = $this->service()->openReport(
             $school->id,
@@ -111,8 +114,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
     public function test_draft_narrative_can_be_updated_while_period_is_active(): void
     {
         $school = $this->school();
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -153,8 +157,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
     public function test_draft_cannot_be_submitted_until_period_is_authoritatively_ended(): void
     {
         $school = $this->school();
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -184,8 +189,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -314,8 +320,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
                 120
             );
 
-            $actor = $this->user($school);
+            $actor = $this->reporter($school);
             $periodId = $this->period($school, $actor);
+            $this->assignReporter($school, $periodId, $actor);
 
             $report = $this->service()->openReport(
                 $school->id,
@@ -466,8 +473,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -600,9 +608,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -705,8 +714,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
+        $submitter = $this->reporter($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -752,9 +762,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -814,9 +825,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -974,9 +986,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1045,9 +1058,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1125,10 +1139,11 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
-        $secondReviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
+        $secondReviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1177,9 +1192,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1226,8 +1242,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1321,8 +1338,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1414,8 +1432,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1535,8 +1554,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1572,8 +1592,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1607,9 +1628,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1755,8 +1777,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -1958,6 +1981,93 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         ]);
     }
 
+    private function reporter(School $school): User
+    {
+        $user = $this->user($school);
+
+        TeacherBuilder::create($school, $user);
+
+        $this->grantPermission(
+            $user,
+            'submit_teacher_duty_reports'
+        );
+
+        return $user;
+    }
+
+    private function reviewer(School $school): User
+    {
+        $user = $this->user($school);
+
+        $this->grantPermission(
+            $user,
+            'review_teacher_duty_reports'
+        );
+
+        return $user;
+    }
+
+    private function assignReporter(
+        School $school,
+        string $periodId,
+        User $user
+    ): void {
+        $teacherId = DB::table('teachers')
+            ->where('school_id', $school->id)
+            ->where('user_id', $user->id)
+            ->where('active', true)
+            ->where('is_deleted', false)
+            ->value('id');
+
+        if (! $teacherId) {
+            throw new \RuntimeException(
+                'Reporter fixture requires an eligible Teacher profile.'
+            );
+        }
+
+        DB::table('teacher_duty_assignments')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'duty_period_id' => $periodId,
+            'teacher_id' => $teacherId,
+            'active' => true,
+            'assigned_by' => $user->id,
+            'ended_by' => null,
+            'ended_at' => null,
+            'end_reason' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function grantPermission(
+        User $user,
+        string $permissionName
+    ): void {
+        $permissionId = DB::table('permissions')
+            ->where('permission_name', $permissionName)
+            ->value('id');
+
+        if (! $permissionId) {
+            $permissionId = (string) Str::uuid();
+
+            DB::table('permissions')->insert([
+                'id' => $permissionId,
+                'permission_name' => $permissionName,
+                'module_name' => 'teacher_duty',
+                'description' => 'Teacher duty Weekly reporting test permission',
+                'created_at' => now(),
+            ]);
+        }
+
+        DB::table('role_permissions')->insertOrIgnore([
+            'id' => (string) Str::uuid(),
+            'role_id' => $user->role_id,
+            'permission_id' => $permissionId,
+            'created_at' => now(),
+        ]);
+    }
+
     private function period(
         School $school,
         User $actor
@@ -2067,7 +2177,7 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         );
 
         $this->assertGreaterThanOrEqual(
-            5,
+            4,
             substr_count(
                 $service,
                 '->lockForUpdate()'
@@ -2075,7 +2185,20 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         );
 
         $this->assertStringContainsString(
-            'private function lockEligibleUser(',
+            'TeacherDutyAuthorizationService $authorization',
+            $service
+        );
+
+        $this->assertGreaterThanOrEqual(
+            4,
+            substr_count(
+                $service,
+                '$this->authorization->reporter('
+            )
+        );
+
+        $this->assertStringContainsString(
+            '$this->authorization->reviewer(',
             $service
         );
 
@@ -2133,8 +2256,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2175,9 +2299,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2248,9 +2373,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2299,9 +2425,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2350,8 +2477,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school();
         $this->settings($school);
 
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2471,9 +2599,10 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         $school = $this->school('Pacific/Auckland');
         $this->settings($school);
 
-        $submitter = $this->user($school);
-        $reviewer = $this->user($school);
+        $submitter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
         $periodId = $this->period($school, $submitter);
+        $this->assignReporter($school, $periodId, $submitter);
 
         $report = $this->service()->openReport(
             $school->id,
@@ -2585,8 +2714,9 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
     public function test_weekly_reporting_fails_closed_when_tenant_context_is_missing(): void
     {
         $school = $this->school();
-        $actor = $this->user($school);
+        $actor = $this->reporter($school);
         $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
 
         $this->expectException(
             ModelNotFoundException::class
