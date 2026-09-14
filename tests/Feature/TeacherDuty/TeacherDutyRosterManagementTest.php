@@ -946,6 +946,9 @@ final class TeacherDutyRosterManagementTest extends TestCase
                 fn ($route): bool => str_starts_with(
                     $route->uri(),
                     'api/teacher-duty'
+                ) && str_contains(
+                    (string) $route->getActionName(),
+                    'TeacherDutyRosterController@'
                 )
             )
             ->values();

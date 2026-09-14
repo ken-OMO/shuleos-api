@@ -10,12 +10,58 @@ use App\Models\TeacherDutyOccurrenceCategory;
 use App\Models\TeacherDutyPeriod;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
 class TeacherDutyOccurrenceService
 {
+    public function categories(string $schoolId): Collection
+    {
+        $this->school($schoolId);
+
+        return TeacherDutyOccurrenceCategory::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->orderBy('display_order')
+            ->orderBy('name')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function occurrencesForPeriod(
+        string $schoolId,
+        string $periodId
+    ): Collection {
+        $period = TeacherDutyPeriod::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->whereKey($periodId)
+            ->firstOrFail();
+
+        return TeacherDutyOccurrence::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->where('duty_period_id', $period->id)
+            ->orderBy('occurrence_date')
+            ->orderBy('occurrence_time')
+            ->orderBy('created_at')
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function occurrence(
+        string $schoolId,
+        string $occurrenceId
+    ): TeacherDutyOccurrence {
+        return TeacherDutyOccurrence::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->whereKey($occurrenceId)
+            ->firstOrFail();
+    }
+
     public function recordOccurrence(
         string $schoolId,
         string $periodId,

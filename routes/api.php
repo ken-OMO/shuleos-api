@@ -92,6 +92,8 @@ use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TeacherDutyOccurrenceCategoryController;
+use App\Http\Controllers\Api\TeacherDutyOccurrenceController;
 use App\Http\Controllers\Api\TeacherDutyRosterController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
@@ -2556,9 +2558,56 @@ Route::middleware($secure)->group(function () {
 
     /*
     |--------------------------------------------------------------------------
+    | Teacher Duty Occurrences 6A.9I-A
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('teacher-duty')
+        ->withoutMiddleware('module.permission')
+        ->middleware('permission:submit_teacher_duty_reports')
+        ->group(function () {
+            Route::get(
+                '/occurrence-categories',
+                [TeacherDutyOccurrenceCategoryController::class, 'index']
+            );
+
+            Route::get(
+                '/periods/{period}/occurrences',
+                [TeacherDutyOccurrenceController::class, 'index']
+            );
+
+            Route::post(
+                '/periods/{period}/occurrences',
+                [TeacherDutyOccurrenceController::class, 'store']
+            )->middleware('school.operational');
+
+            Route::get(
+                '/occurrences/{occurrence}',
+                [TeacherDutyOccurrenceController::class, 'show']
+            );
+        });
+
+    Route::prefix('teacher-duty')
+        ->withoutMiddleware('module.permission')
+        ->middleware('permission:manage_teacher_duty_roster')
+        ->group(function () {
+            Route::post(
+                '/occurrence-categories',
+                [TeacherDutyOccurrenceCategoryController::class, 'store']
+            )->middleware('school.operational');
+
+            Route::patch(
+                '/occurrence-categories/{category}/deactivate',
+                [TeacherDutyOccurrenceCategoryController::class, 'deactivate']
+            )->middleware('school.operational');
+        });
+
+    /*
+    |--------------------------------------------------------------------------
     | Teacher Duty Roster 6A.9F-B
     |--------------------------------------------------------------------------
     */
+
     Route::prefix('teacher-duty')
         ->middleware('permission:manage_teacher_duty_roster')
         ->group(function () {

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceService;
 use App\Services\TeacherDuty\TeacherDutyRosterService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -746,6 +747,246 @@ class TeacherDutyOccurrenceServiceTest extends TestCase
                 'occurrence_category_id' => $category->id,
                 'description' => 'Historical occurrence.',
             ]
+        );
+    }
+
+    public function test_lists_school_categories_including_deactivated_categories(): void
+    {
+        $school = $this->school();
+        $actor = $this->user($school);
+
+        $this->provisioner->provision($school);
+
+        $custom = $this->service->createCustomCategory(
+            (string) $school->id,
+            'pastoral_support',
+            'Pastoral Support',
+            null,
+            90,
+            (string) $actor->id
+        );
+
+        $this->service->deactivateCategory(
+            (string) $school->id,
+            (string) $custom->id,
+            (string) $actor->id
+        );
+
+        $categories = $this->service->categories(
+            (string) $school->id
+        );
+
+        $this->assertTrue(
+            $categories->contains(
+                fn ($category): bool => (string) $category->id === (string) $custom->id
+                    && $category->active === false
+            )
+        );
+
+        $this->assertTrue(
+            $categories->contains(
+                fn ($category): bool => $category->code === 'discipline'
+                    && $category->active === true
+            )
+        );
+    }
+
+    public function test_category_listing_is_scoped_to_school(): void
+    {
+        $schoolA = $this->school();
+        $schoolB = $this->school();
+
+        $this->provisioner->provision($schoolA);
+        $this->provisioner->provision($schoolB);
+
+        $categories = $this->service->categories(
+            (string) $schoolA->id
+        );
+
+        $this->assertNotEmpty($categories);
+
+        $this->assertTrue(
+            $categories->every(
+                fn ($category): bool => (string) $category->school_id
+                    === (string) $schoolA->id
+            )
+        );
+
+        $this->assertFalse(
+            $categories->contains(
+                fn ($category): bool => (string) $category->school_id
+                    === (string) $schoolB->id
+            )
+        );
+    }
+
+    public function test_lists_occurrences_for_same_school_period_in_deterministic_order(): void
+    {
+        $school = $this->school();
+        $actor = $this->user($school);
+
+        $period = $this->period(
+            $school,
+            $actor
+        );
+
+        $categoryId = $this->canonicalCategoryId(
+            $school,
+            'discipline'
+        );
+
+        $later = $this->service->recordOccurrence(
+            (string) $school->id,
+            (string) $period->id,
+            $categoryId,
+            '2026-09-10',
+            '10:00:00',
+            'Later occurrence.',
+            (string) $actor->id
+        );
+
+        $earlier = $this->service->recordOccurrence(
+            (string) $school->id,
+            (string) $period->id,
+            $categoryId,
+            '2026-09-08',
+            '09:00:00',
+            'Earlier occurrence.',
+            (string) $actor->id
+        );
+
+        $occurrences = $this->service->occurrencesForPeriod(
+            (string) $school->id,
+            (string) $period->id
+        );
+
+        $this->assertSame(
+            [
+                (string) $earlier->id,
+                (string) $later->id,
+            ],
+            $occurrences
+                ->pluck('id')
+                ->map(fn ($id): string => (string) $id)
+                ->all()
+        );
+    }
+
+    public function test_occurrence_history_remains_readable_after_period_closure_and_category_deactivation(): void
+    {
+        $school = $this->school();
+        $actor = $this->user($school);
+
+        $period = $this->period(
+            $school,
+            $actor
+        );
+
+        $category = $this->service->createCustomCategory(
+            (string) $school->id,
+            'pastoral_support',
+            'Pastoral Support',
+            null,
+            90,
+            (string) $actor->id
+        );
+
+        $occurrence = $this->service->recordOccurrence(
+            (string) $school->id,
+            (string) $period->id,
+            (string) $category->id,
+            '2026-09-09',
+            null,
+            'Preserved historical occurrence.',
+            (string) $actor->id
+        );
+
+        $this->service->deactivateCategory(
+            (string) $school->id,
+            (string) $category->id,
+            (string) $actor->id
+        );
+
+        $this->roster->endPeriod(
+            (string) $school->id,
+            (string) $period->id,
+            (string) $actor->id
+        );
+
+        $occurrences = $this->service->occurrencesForPeriod(
+            (string) $school->id,
+            (string) $period->id
+        );
+
+        $this->assertTrue(
+            $occurrences->contains(
+                fn ($item): bool => (string) $item->id === (string) $occurrence->id
+            )
+        );
+
+        $found = $this->service->occurrence(
+            (string) $school->id,
+            (string) $occurrence->id
+        );
+
+        $this->assertSame(
+            (string) $occurrence->id,
+            (string) $found->id
+        );
+    }
+
+    public function test_single_occurrence_lookup_is_scoped_to_school(): void
+    {
+        $schoolA = $this->school();
+        $schoolB = $this->school();
+
+        $actorB = $this->user($schoolB);
+
+        $periodB = $this->period(
+            $schoolB,
+            $actorB
+        );
+
+        $categoryId = $this->canonicalCategoryId(
+            $schoolB,
+            'discipline'
+        );
+
+        $occurrence = $this->service->recordOccurrence(
+            (string) $schoolB->id,
+            (string) $periodB->id,
+            $categoryId,
+            '2026-09-09',
+            null,
+            'Foreign occurrence.',
+            (string) $actorB->id
+        );
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->service->occurrence(
+            (string) $schoolA->id,
+            (string) $occurrence->id
+        );
+    }
+
+    public function test_occurrence_listing_rejects_period_from_another_school(): void
+    {
+        $schoolA = $this->school();
+        $schoolB = $this->school();
+
+        $actorB = $this->user($schoolB);
+
+        $periodB = $this->period(
+            $schoolB,
+            $actorB
+        );
+
+        $this->expectException(ModelNotFoundException::class);
+
+        $this->service->occurrencesForPeriod(
+            (string) $schoolA->id,
+            (string) $periodB->id
         );
     }
 
