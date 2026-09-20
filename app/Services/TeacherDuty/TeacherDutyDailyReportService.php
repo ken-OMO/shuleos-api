@@ -9,7 +9,6 @@ use App\Models\SchoolSettings;
 use App\Models\TeacherDutyDailyReport;
 use App\Models\TeacherDutyDailyReportHistory;
 use App\Models\TeacherDutyPeriod;
-use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -112,23 +111,6 @@ class TeacherDutyDailyReportService
     ): array {
         $school = $this->school($schoolId);
 
-        $actor = User::query()
-            ->withoutGlobalScopes()
-            ->where('id', $actorUserId)
-            ->where('school_id', $schoolId)
-            ->where('active', true)
-            ->where('is_deleted', false)
-            ->whereNull('suspended_at')
-            ->first();
-
-        if (! $actor) {
-            throw ValidationException::withMessages([
-                'actor' => [
-                    'The selected school user is not eligible for teacher duty daily reporting.',
-                ],
-            ]);
-        }
-
         $period = TeacherDutyPeriod::query()
             ->withoutGlobalScopes()
             ->where('school_id', $schoolId)
@@ -142,6 +124,12 @@ class TeacherDutyDailyReportService
                 ],
             ]);
         }
+
+        $this->authorization->reporter(
+            $schoolId,
+            $period->id,
+            $actorUserId
+        );
 
         $normalizedDate = $this->strictDate(
             $school,

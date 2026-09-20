@@ -793,13 +793,14 @@ class TeacherDutyDailyReportServiceTest extends TestCase
         $this->settings($schoolA);
         $this->settings($schoolB);
 
-        $actorA = $this->user($schoolA);
+        $actorA = $this->reporter($schoolA);
         $actorB = $this->user($schoolB);
 
         $periodA = $this->period(
             $schoolA,
             $actorA
         );
+        $this->assignReporter($schoolA, $periodA, $actorA);
 
         $periodB = $this->period(
             $schoolB,
@@ -856,6 +857,67 @@ class TeacherDutyDailyReportServiceTest extends TestCase
                     $actorA->id
                 );
             }
+        );
+    }
+
+    public function test_state_fails_closed_when_reporter_lacks_period_responsibility(): void
+    {
+        $school = $this->school();
+        $this->settings($school);
+
+        $actor = $this->reporter($school);
+        $periodId = $this->period($school, $actor);
+
+        $this->expectValidationFailure(
+            'actor',
+            function () use (
+                $school,
+                $periodId,
+                $actor
+            ): void {
+                $this->service()->state(
+                    $school->id,
+                    $periodId,
+                    '2026-09-09',
+                    $actor->id
+                );
+            }
+        );
+    }
+
+    public function test_state_accepts_ended_assignment_as_period_responsibility(): void
+    {
+        $school = $this->school();
+        $this->settings($school);
+
+        $actor = $this->reporter($school);
+        $periodId = $this->period($school, $actor);
+        $this->assignReporter($school, $periodId, $actor);
+
+        DB::table('teacher_duty_assignments')
+            ->where('school_id', $school->id)
+            ->where('duty_period_id', $periodId)
+            ->update([
+                'active' => false,
+                'ended_by' => $actor->id,
+                'ended_at' => now(),
+                'end_reason' => 'Historical assignment',
+                'updated_at' => now(),
+            ]);
+
+        $state = $this->service()->state(
+            $school->id,
+            $periodId,
+            '2026-09-09',
+            $actor->id
+        );
+
+        $this->assertContains(
+            $state['state'],
+            [
+                'NOT_STARTED',
+                'OVERDUE',
+            ]
         );
     }
 
