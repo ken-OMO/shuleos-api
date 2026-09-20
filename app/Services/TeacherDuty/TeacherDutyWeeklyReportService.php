@@ -9,7 +9,6 @@ use App\Models\SchoolSettings;
 use App\Models\TeacherDutyPeriod;
 use App\Models\TeacherDutyWeeklyReport;
 use App\Models\TeacherDutyWeeklyReportHistory;
-use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
@@ -472,23 +471,6 @@ class TeacherDutyWeeklyReportService
     ): array {
         $school = $this->school($schoolId);
 
-        $actor = User::query()
-            ->withoutGlobalScopes()
-            ->where('id', $actorUserId)
-            ->where('school_id', $schoolId)
-            ->where('active', true)
-            ->where('is_deleted', false)
-            ->whereNull('suspended_at')
-            ->first();
-
-        if (! $actor) {
-            throw ValidationException::withMessages([
-                'actor_user_id' => [
-                    'The selected school user is not eligible for teacher duty weekly reporting.',
-                ],
-            ]);
-        }
-
         $report = TeacherDutyWeeklyReport::query()
             ->withoutGlobalScopes()
             ->where('school_id', $schoolId)
@@ -515,6 +497,27 @@ class TeacherDutyWeeklyReportService
                     'The selected teacher duty period does not belong to this school.',
                 ],
             ]);
+        }
+
+        try {
+            $this->authorization->reporter(
+                $schoolId,
+                $period->id,
+                $actorUserId
+            );
+        } catch (ValidationException) {
+            try {
+                $this->authorization->reviewer(
+                    $schoolId,
+                    $actorUserId
+                );
+            } catch (ValidationException) {
+                throw ValidationException::withMessages([
+                    'actor_user_id' => [
+                        'The selected school user is not authorized to view this teacher duty weekly report.',
+                    ],
+                ]);
+            }
         }
 
         $settings = SchoolSettings::query()

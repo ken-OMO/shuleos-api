@@ -1862,6 +1862,81 @@ class TeacherDutyWeeklyReportServiceTest extends TestCase
         );
     }
 
+    public function test_state_allows_reporter_with_period_responsibility(): void
+    {
+        $school = $this->school();
+        $this->settings($school);
+
+        $reporter = $this->reporter($school);
+        $periodId = $this->period($school, $reporter);
+        $this->assignReporter($school, $periodId, $reporter);
+
+        $report = $this->service()->openReport(
+            $school->id,
+            $periodId,
+            $reporter->id
+        );
+
+        $state = $this->service()->state(
+            $school->id,
+            $report->id,
+            $reporter->id
+        );
+
+        $this->assertSame('DRAFT', $state['state']);
+    }
+
+    public function test_state_allows_reviewer_without_teacher_duty_assignment(): void
+    {
+        $school = $this->school();
+        $this->settings($school);
+
+        $reporter = $this->reporter($school);
+        $reviewer = $this->reviewer($school);
+        $periodId = $this->period($school, $reporter);
+        $this->assignReporter($school, $periodId, $reporter);
+
+        $report = $this->service()->openReport(
+            $school->id,
+            $periodId,
+            $reporter->id
+        );
+
+        $state = $this->service()->state(
+            $school->id,
+            $report->id,
+            $reviewer->id
+        );
+
+        $this->assertSame('DRAFT', $state['state']);
+    }
+
+    public function test_state_fails_closed_for_eligible_same_school_user_with_neither_authority(): void
+    {
+        $school = $this->school();
+        $this->settings($school);
+
+        $reporter = $this->reporter($school);
+        $unauthorizedActor = $this->user($school);
+        $periodId = $this->period($school, $reporter);
+        $this->assignReporter($school, $periodId, $reporter);
+
+        $report = $this->service()->openReport(
+            $school->id,
+            $periodId,
+            $reporter->id
+        );
+
+        $this->expectValidationFailure(
+            'actor_user_id',
+            fn () => $this->service()->state(
+                $school->id,
+                $report->id,
+                $unauthorizedActor->id
+            )
+        );
+    }
+
     private function service(): TeacherDutyWeeklyReportService
     {
         return app(TeacherDutyWeeklyReportService::class);
