@@ -92,6 +92,7 @@ use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
 use App\Http\Controllers\Api\TeacherController;
+use App\Http\Controllers\Api\TeacherDutyDailyReportController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceCategoryController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceController;
 use App\Http\Controllers\Api\TeacherDutyRosterController;
@@ -2585,6 +2586,26 @@ Route::middleware($secure)->group(function () {
                 '/occurrences/{occurrence}',
                 [TeacherDutyOccurrenceController::class, 'show']
             );
+
+            Route::post(
+                '/periods/{period}/daily-reports/open',
+                [TeacherDutyDailyReportController::class, 'open']
+            )->middleware('school.operational');
+
+            Route::get(
+                '/periods/{period}/daily-reports/state',
+                [TeacherDutyDailyReportController::class, 'state']
+            );
+
+            Route::patch(
+                '/daily-reports/{report}',
+                [TeacherDutyDailyReportController::class, 'update']
+            )->middleware('school.operational');
+
+            Route::post(
+                '/daily-reports/{report}/submit',
+                [TeacherDutyDailyReportController::class, 'submit']
+            )->middleware('school.operational');
         });
 
     Route::prefix('teacher-duty')
