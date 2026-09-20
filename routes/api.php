@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\TeacherDutyDailyReportController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceCategoryController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceController;
 use App\Http\Controllers\Api\TeacherDutyRosterController;
+use App\Http\Controllers\Api\TeacherDutyWeeklyReportController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
 use App\Http\Controllers\Api\TeacherPortalPhaseTwoController;
@@ -2608,6 +2609,55 @@ Route::middleware($secure)->group(function () {
             )->middleware('school.operational');
         });
 
+    /*
+    |--------------------------------------------------------------------------
+    | Teacher Duty Weekly Reporting & Review 6A.9I-C
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('teacher-duty')
+        ->withoutMiddleware('module.permission')
+        ->middleware('permission:submit_teacher_duty_reports')
+        ->group(function () {
+            Route::post(
+                '/periods/{period}/weekly-reports/open',
+                [TeacherDutyWeeklyReportController::class, 'open']
+            )->middleware('school.operational');
+
+            Route::patch(
+                '/weekly-reports/{report}',
+                [TeacherDutyWeeklyReportController::class, 'update']
+            )->middleware('school.operational');
+
+            Route::post(
+                '/weekly-reports/{report}/submit',
+                [TeacherDutyWeeklyReportController::class, 'submit']
+            )->middleware('school.operational');
+
+            Route::post(
+                '/weekly-reports/{report}/resubmit',
+                [TeacherDutyWeeklyReportController::class, 'resubmit']
+            )->middleware('school.operational');
+        });
+
+    Route::prefix('teacher-duty')
+        ->withoutMiddleware('module.permission')
+        ->group(function () {
+            Route::get(
+                '/weekly-reports/{report}/state',
+                [TeacherDutyWeeklyReportController::class, 'state']
+            );
+        });
+
+    Route::prefix('teacher-duty')
+        ->withoutMiddleware('module.permission')
+        ->middleware('permission:review_teacher_duty_reports')
+        ->group(function () {
+            Route::post(
+                '/weekly-reports/{report}/review',
+                [TeacherDutyWeeklyReportController::class, 'review']
+            )->middleware('school.operational');
+        });
     Route::prefix('teacher-duty')
         ->withoutMiddleware('module.permission')
         ->middleware('permission:manage_teacher_duty_roster')
