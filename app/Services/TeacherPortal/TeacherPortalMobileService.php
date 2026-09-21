@@ -9,13 +9,26 @@ use App\Models\RecordOfWork;
 use App\Models\SchemeOfWork;
 use App\Models\User;
 use App\Services\Communication\CommunicationNotificationService;
+use App\Services\TeacherDuty\TeacherDutyAuthorizationService;
+use App\Services\TeacherDuty\TeacherDutyDailyReportService;
+use App\Services\TeacherDuty\TeacherDutyRosterService;
+use App\Services\TeacherDuty\TeacherDutyWeeklyReportService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class TeacherPortalMobileService
 {
-    public function __construct(private TeacherPortalAccessService $access, private TeacherPortalService $portal, private CommunicationNotificationService $notifications) {}
+    public function __construct(
+        private TeacherPortalAccessService $access,
+        private TeacherPortalService $portal,
+        private CommunicationNotificationService $notifications,
+        private TeacherDutyRosterService $teacherDutyRoster,
+        private TeacherDutyAuthorizationService $teacherDutyAuthorization,
+        private TeacherDutyDailyReportService $teacherDutyDailyReports,
+        private TeacherDutyWeeklyReportService $teacherDutyWeeklyReports
+    ) {}
 
     public function assignments(User $user)
     {
@@ -132,7 +145,89 @@ class TeacherPortalMobileService
     {
         $limit = config('teacher_portal.dashboard_limit', 10);
 
-        return ['teacher' => $this->access->teacher($user), 'current_period' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first(), 'assignments' => $this->assignments($user)->take($limit), 'todays_timetable' => $this->portal->timetable($user, now()->dayOfWeekIso)->take($limit), 'analytics' => $this->analytics($user), 'announcements' => collect($this->portal->announcements($user))->take($limit), 'recent_communications' => $this->communications($user)->items(), 'last_refreshed_at' => now()->toIso8601String()];
+        return ['teacher' => $this->access->teacher($user), 'current_period' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first(), 'assignments' => $this->assignments($user)->take($limit), 'todays_timetable' => $this->portal->timetable($user, now()->dayOfWeekIso)->take($limit), 'analytics' => $this->analytics($user), 'announcements' => collect($this->portal->announcements($user))->take($limit), 'recent_communications' => $this->communications($user)->items(), 'teacher_duty' => $this->teacherDuty($user), 'last_refreshed_at' => now()->toIso8601String()];
+    }
+
+    private function teacherDuty(User $user): ?array
+    {
+        $authorizedPeriods = $this->teacherDutyRoster
+            ->currentPeriods((string) $user->school_id)
+            ->filter(function ($period) use ($user): bool {
+                try {
+                    $this->teacherDutyAuthorization->reporter(
+                        (string) $user->school_id,
+                        (string) $period->id,
+                        (string) $user->id
+                    );
+
+                    return true;
+                } catch (ValidationException $exception) {
+                    $actorErrors = $exception->errors()['actor'] ?? [];
+
+                    if ($actorErrors === [
+                        'The selected teacher is not responsible for this teacher duty period.',
+                    ]) {
+                        return false;
+                    }
+
+                    throw $exception;
+                }
+            })
+            ->values();
+
+        if ($authorizedPeriods->count() !== 1) {
+            return null;
+        }
+
+        $period = $authorizedPeriods->first();
+
+        $today = $this->teacherDutyDailyReports->state(
+            (string) $user->school_id,
+            (string) $period->id,
+            CarbonImmutable::now('Africa/Nairobi')->toDateString(),
+            (string) $user->id
+        );
+
+        $weeklyReportId = DB::table('teacher_duty_weekly_reports')
+            ->where('school_id', $user->school_id)
+            ->where('duty_period_id', $period->id)
+            ->value('id');
+
+        $weeklyReportState = $weeklyReportId === null
+            ? null
+            : $this->teacherDutyWeeklyReports->state(
+                (string) $user->school_id,
+                (string) $weeklyReportId,
+                (string) $user->id
+            );
+
+        $academicWeek = $period->academic_week_id === null
+            ? null
+            : $period->academicWeek()->first();
+
+        return [
+            'duty_period_id' => (string) $period->id,
+            'academic_week_id' => $period->academic_week_id === null
+                ? null
+                : (string) $period->academic_week_id,
+            'week_number' => $academicWeek?->week_number,
+            'today' => [
+                'state' => $today['state'],
+                'deadline_at' => $today['deadline_at'],
+                'submitted_at' => $today['submitted_at'],
+                'late' => $today['late'],
+            ],
+            'occurrences_recorded' => DB::table('teacher_duty_occurrences')
+                ->where('school_id', $user->school_id)
+                ->where('duty_period_id', $period->id)
+                ->count(),
+            'weekly_report' => $weeklyReportId === null
+                ? null
+                : [
+                    'id' => (string) $weeklyReportId,
+                    'state' => $weeklyReportState['state'],
+                ],
+        ];
     }
 
     private function event(string $type, string $id, string $title, mixed $start, mixed $end, bool $allDay): array
