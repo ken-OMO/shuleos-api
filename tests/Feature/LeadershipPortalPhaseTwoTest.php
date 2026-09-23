@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\TestCase;
 
 class LeadershipPortalPhaseTwoTest extends TestCase
@@ -86,6 +87,403 @@ class LeadershipPortalPhaseTwoTest extends TestCase
             $this->assertNotNull($route, $uri);
             $this->assertNotEmpty(collect($route->gatherMiddleware())->first(fn ($item) => str_starts_with($item, 'permission:')), $uri);
         }
+    }
+
+    public function test_teacher_duty_widget_is_exposed_through_leadership_dashboard_http_resource(): void
+    {
+        config([
+            'jwt.secret' => str_repeat(
+                'leadership-dashboard-test-secret-',
+                3
+            ),
+        ]);
+
+        $academicPermissionId = DB::table('permissions')
+            ->where('permission_name', 'view_academic_insights')
+            ->value('id');
+
+        DB::table('role_permissions')
+            ->where('role_id', $this->ids['principal_role'])
+            ->where('permission_id', $academicPermissionId)
+            ->delete();
+
+        $this->grant(
+            'principal_role',
+            ['review_teacher_duty_reports']
+        );
+
+        $reportId = $this->createSubmittedTeacherDutyWeeklyReport(
+            '2026-09-13 08:00:00'
+        );
+
+        $token = JWTAuth::fromUser(
+            $this->userModel('principal')
+        );
+
+        $response = $this
+            ->withToken($token)
+            ->getJson('/api/leadership/dashboard');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath(
+                'data.widgets.teacher_duty.pending_review_count',
+                1
+            )
+            ->assertJsonPath(
+                'data.widgets.teacher_duty.pending_reviews.0.report_id',
+                $reportId
+            )
+            ->assertJsonPath(
+                'data.widgets.teacher_duty.pending_reviews.0.academic_week',
+                null
+            );
+
+        $this->assertSame(
+            [
+                'report_id',
+                'duty_period_id',
+                'academic_week',
+                'period_start_date',
+                'period_end_date',
+                'submitted_at',
+                'submitted_by',
+            ],
+            array_keys(
+                $response->json(
+                    'data.widgets.teacher_duty.pending_reviews.0'
+                )
+            )
+        );
+    }
+
+    public function test_teacher_duty_widget_requires_independent_reviewer_permission(): void
+    {
+        $academicPermissionId = DB::table('permissions')
+            ->where('permission_name', 'view_academic_insights')
+            ->value('id');
+
+        $reviewPermissionId = DB::table('permissions')
+            ->where('permission_name', 'review_teacher_duty_reports')
+            ->value('id');
+
+        DB::table('role_permissions')
+            ->where('role_id', $this->ids['principal_role'])
+            ->whereIn('permission_id', [
+                $academicPermissionId,
+                $reviewPermissionId,
+            ])
+            ->delete();
+
+        $portal = app(LeadershipPortalPhaseTwoService::class);
+
+        $withoutReviewerPermission = $portal->dashboard(
+            $this->userModel('principal')
+        );
+
+        $this->assertArrayNotHasKey(
+            'teacher_duty',
+            $withoutReviewerPermission['widgets']
+        );
+
+        $this->grant(
+            'principal_role',
+            ['review_teacher_duty_reports']
+        );
+
+        $withReviewerPermission = $portal->dashboard(
+            $this->userModel('principal')
+        );
+
+        $this->assertArrayHasKey(
+            'teacher_duty',
+            $withReviewerPermission['widgets']
+        );
+    }
+
+    public function test_teacher_duty_widget_projects_same_school_submitted_reports_oldest_first(): void
+    {
+        $academicPermissionId = DB::table('permissions')
+            ->where('permission_name', 'view_academic_insights')
+            ->value('id');
+
+        DB::table('role_permissions')
+            ->where('role_id', $this->ids['principal_role'])
+            ->where('permission_id', $academicPermissionId)
+            ->delete();
+
+        $this->grant(
+            'principal_role',
+            ['review_teacher_duty_reports']
+        );
+
+        $weekOne = (string) Str::uuid();
+        $weekTwo = (string) Str::uuid();
+
+        DB::table('academic_weeks')->insert([
+            [
+                'id' => $weekOne,
+                'school_id' => $this->ids['school'],
+                'academic_year_id' => $this->ids['year'],
+                'term_id' => $this->ids['term'],
+                'week_number' => 1,
+                'start_date' => '2026-09-07',
+                'end_date' => '2026-09-13',
+                'active' => true,
+            ],
+            [
+                'id' => $weekTwo,
+                'school_id' => $this->ids['school'],
+                'academic_year_id' => $this->ids['year'],
+                'term_id' => $this->ids['term'],
+                'week_number' => 2,
+                'start_date' => '2026-09-14',
+                'end_date' => '2026-09-20',
+                'active' => true,
+            ],
+        ]);
+
+        $oldestPeriod = (string) Str::uuid();
+        $newestPeriod = (string) Str::uuid();
+        $draftPeriod = (string) Str::uuid();
+        $otherSchoolPeriod = (string) Str::uuid();
+
+        DB::table('teacher_duty_periods')->insert([
+            [
+                'id' => $oldestPeriod,
+                'school_id' => $this->ids['school'],
+                'academic_week_id' => $weekOne,
+                'start_date' => '2026-09-07',
+                'end_date' => '2026-09-13',
+                'active' => true,
+                'created_by' => $this->ids['principal'],
+            ],
+            [
+                'id' => $newestPeriod,
+                'school_id' => $this->ids['school'],
+                'academic_week_id' => $weekTwo,
+                'start_date' => '2026-09-14',
+                'end_date' => '2026-09-20',
+                'active' => true,
+                'created_by' => $this->ids['principal'],
+            ],
+            [
+                'id' => $draftPeriod,
+                'school_id' => $this->ids['school'],
+                'academic_week_id' => null,
+                'start_date' => '2026-09-21',
+                'end_date' => '2026-09-27',
+                'active' => true,
+                'created_by' => $this->ids['principal'],
+            ],
+            [
+                'id' => $otherSchoolPeriod,
+                'school_id' => $this->ids['other_school'],
+                'academic_week_id' => null,
+                'start_date' => '2026-09-07',
+                'end_date' => '2026-09-13',
+                'active' => true,
+                'created_by' => $this->ids['other_principal'],
+            ],
+        ]);
+
+        $oldestReport = (string) Str::uuid();
+        $newestReport = (string) Str::uuid();
+
+        DB::table('teacher_duty_weekly_reports')->insert([
+            [
+                'id' => $oldestReport,
+                'school_id' => $this->ids['school'],
+                'duty_period_id' => $oldestPeriod,
+                'status' => 'submitted',
+                'summary' => 'Must not leak.',
+                'highlights' => 'Must not leak.',
+                'challenges' => 'Must not leak.',
+                'recommendations' => 'Must not leak.',
+                'evidence_snapshot' => json_encode(['secret' => 'must-not-leak'], JSON_THROW_ON_ERROR),
+                'created_by' => $this->ids['ordinary'],
+                'submitted_by' => $this->ids['ordinary'],
+                'submitted_at' => '2026-09-20 08:00:00+03',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => $newestReport,
+                'school_id' => $this->ids['school'],
+                'duty_period_id' => $newestPeriod,
+                'status' => 'submitted',
+                'summary' => null,
+                'highlights' => null,
+                'challenges' => null,
+                'recommendations' => null,
+                'evidence_snapshot' => json_encode(['secret' => 'must-not-leak'], JSON_THROW_ON_ERROR),
+                'created_by' => $this->ids['ordinary'],
+                'submitted_by' => $this->ids['ordinary'],
+                'submitted_at' => '2026-09-21 08:00:00+03',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'school_id' => $this->ids['school'],
+                'duty_period_id' => $draftPeriod,
+                'status' => 'draft',
+                'summary' => null,
+                'highlights' => null,
+                'challenges' => null,
+                'recommendations' => null,
+                'evidence_snapshot' => null,
+                'created_by' => $this->ids['ordinary'],
+                'submitted_by' => null,
+                'submitted_at' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'id' => (string) Str::uuid(),
+                'school_id' => $this->ids['other_school'],
+                'duty_period_id' => $otherSchoolPeriod,
+                'status' => 'submitted',
+                'summary' => null,
+                'highlights' => null,
+                'challenges' => null,
+                'recommendations' => null,
+                'evidence_snapshot' => json_encode(['secret' => 'other-school'], JSON_THROW_ON_ERROR),
+                'created_by' => $this->ids['other_principal'],
+                'submitted_by' => $this->ids['other_principal'],
+                'submitted_at' => '2026-09-19 08:00:00+03',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $reportCountBefore = DB::table(
+            'teacher_duty_weekly_reports'
+        )->count();
+
+        $historyCountBefore = DB::table(
+            'teacher_duty_weekly_report_history'
+        )->count();
+
+        $oldestReportBefore = DB::table(
+            'teacher_duty_weekly_reports'
+        )
+            ->where('id', $oldestReport)
+            ->first();
+
+        $dashboard = app(LeadershipPortalPhaseTwoService::class)
+            ->dashboard($this->userModel('principal'));
+
+        $teacherDuty = $dashboard['widgets']['teacher_duty'];
+
+        $this->assertSame(2, $teacherDuty['pending_review_count']);
+        $this->assertCount(2, $teacherDuty['pending_reviews']);
+
+        $this->assertSame(
+            [$oldestReport, $newestReport],
+            array_column($teacherDuty['pending_reviews'], 'report_id')
+        );
+
+        $this->assertSame([
+            'report_id',
+            'duty_period_id',
+            'academic_week',
+            'period_start_date',
+            'period_end_date',
+            'submitted_at',
+            'submitted_by',
+        ], array_keys($teacherDuty['pending_reviews'][0]));
+
+        $this->assertSame([
+            'id' => $weekOne,
+            'week_number' => 1,
+        ], $teacherDuty['pending_reviews'][0]['academic_week']);
+
+        $this->assertSame(
+            $this->ids['ordinary'],
+            $teacherDuty['pending_reviews'][0]['submitted_by']
+        );
+
+        $this->assertArrayNotHasKey(
+            'evidence_snapshot',
+            $teacherDuty['pending_reviews'][0]
+        );
+
+        $this->assertArrayNotHasKey(
+            'summary',
+            $teacherDuty['pending_reviews'][0]
+        );
+
+        $this->assertSame(
+            $reportCountBefore,
+            DB::table('teacher_duty_weekly_reports')->count()
+        );
+
+        $this->assertSame(
+            $historyCountBefore,
+            DB::table('teacher_duty_weekly_report_history')->count()
+        );
+
+        $this->assertEquals(
+            $oldestReportBefore,
+            DB::table('teacher_duty_weekly_reports')
+                ->where('id', $oldestReport)
+                ->first()
+        );
+    }
+
+    public function test_teacher_duty_widget_counts_all_pending_reports_but_previews_only_twenty_with_deterministic_tie_break(): void
+    {
+        $academicPermissionId = DB::table('permissions')
+            ->where('permission_name', 'view_academic_insights')
+            ->value('id');
+
+        DB::table('role_permissions')
+            ->where('role_id', $this->ids['principal_role'])
+            ->where('permission_id', $academicPermissionId)
+            ->delete();
+
+        $this->grant(
+            'principal_role',
+            ['review_teacher_duty_reports']
+        );
+
+        $reportIds = [];
+
+        for ($index = 0; $index < 21; $index++) {
+            $reportIds[] = $this->createSubmittedTeacherDutyWeeklyReport(
+                '2026-09-20 08:00:00+03'
+            );
+        }
+
+        sort($reportIds, SORT_STRING);
+
+        $dashboard = app(LeadershipPortalPhaseTwoService::class)
+            ->dashboard($this->userModel('principal'));
+
+        $teacherDuty = $dashboard['widgets']['teacher_duty'];
+
+        $this->assertSame(
+            21,
+            $teacherDuty['pending_review_count']
+        );
+
+        $this->assertCount(
+            20,
+            $teacherDuty['pending_reviews']
+        );
+
+        $this->assertSame(
+            array_slice($reportIds, 0, 20),
+            array_column(
+                $teacherDuty['pending_reviews'],
+                'report_id'
+            )
+        );
+
+        $this->assertNull(
+            $teacherDuty['pending_reviews'][0]['academic_week']
+        );
     }
 
     public function test_principal_is_whole_school_and_hod_is_department_scoped_without_finance(): void
@@ -194,6 +592,45 @@ class LeadershipPortalPhaseTwoTest extends TestCase
         $this->assertArrayNotHasKey('private_notes', $payload);
         $this->assertArrayNotHasKey('push_token', $payload['nested']);
         $this->assertSame('safe', $payload['nested']['name']);
+    }
+
+    private function createSubmittedTeacherDutyWeeklyReport(
+        string $submittedAt
+    ): string {
+        $periodId = (string) Str::uuid();
+        $reportId = (string) Str::uuid();
+
+        DB::table('teacher_duty_periods')->insert([
+            'id' => $periodId,
+            'school_id' => $this->ids['school'],
+            'academic_week_id' => null,
+            'start_date' => '2026-09-07',
+            'end_date' => '2026-09-13',
+            'active' => true,
+            'created_by' => $this->ids['principal'],
+        ]);
+
+        DB::table('teacher_duty_weekly_reports')->insert([
+            'id' => $reportId,
+            'school_id' => $this->ids['school'],
+            'duty_period_id' => $periodId,
+            'status' => 'submitted',
+            'summary' => null,
+            'highlights' => null,
+            'challenges' => null,
+            'recommendations' => null,
+            'evidence_snapshot' => json_encode(
+                ['fixture' => true],
+                JSON_THROW_ON_ERROR
+            ),
+            'created_by' => $this->ids['ordinary'],
+            'submitted_by' => $this->ids['ordinary'],
+            'submitted_at' => $submittedAt,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $reportId;
     }
 
     private function user(string $userKey, string $roleKey, string $schoolKey): void

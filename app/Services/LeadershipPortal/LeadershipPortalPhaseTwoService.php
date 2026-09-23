@@ -5,6 +5,7 @@ namespace App\Services\LeadershipPortal;
 use App\Models\LeadershipAlertState;
 use App\Models\LeadershipDashboardPreference;
 use App\Models\User;
+use App\Services\TeacherDuty\TeacherDutyAuthorizationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +24,7 @@ class LeadershipPortalPhaseTwoService
     public function __construct(
         private LeadershipPortalAccessService $access,
         private LeadershipPortalAuditService $audit,
+        private TeacherDutyAuthorizationService $teacherDutyAuthorization,
     ) {}
 
     public function dashboard(User $user, ?string $requestedView = null): array
@@ -69,6 +71,19 @@ class LeadershipPortalPhaseTwoService
                 'alerts' => array_slice($this->alerts($user), 0, 10),
             ],
         };
+
+        try {
+            $this->teacherDutyAuthorization->reviewer(
+                $scope['school_id'],
+                $user->id
+            );
+
+            $widgets['teacher_duty'] = $this->teacherDutyReviewQueue(
+                $scope['school_id']
+            );
+        } catch (ValidationException) {
+            // Teacher Duty reviewer authority is independent of leadership access.
+        }
 
         $this->audit->record($user, 'dashboard_viewed', null, null, ['view' => $view]);
 
@@ -692,6 +707,63 @@ class LeadershipPortalPhaseTwoService
         $wallet = DB::table('communication_sms_wallets')->where('school_id', $schoolId)->first();
 
         return ['available' => (bool) $wallet, 'balance' => $wallet?->balance_credits ?? 0];
+    }
+
+    private function teacherDutyReviewQueue(string $schoolId): array
+    {
+        $query = DB::table('teacher_duty_weekly_reports as reports')
+            ->join(
+                'teacher_duty_periods as periods',
+                'periods.id',
+                '=',
+                'reports.duty_period_id'
+            )
+            ->leftJoin(
+                'academic_weeks as weeks',
+                'weeks.id',
+                '=',
+                'periods.academic_week_id'
+            )
+            ->where('reports.school_id', $schoolId)
+            ->where('periods.school_id', $schoolId)
+            ->where('reports.status', 'submitted');
+
+        $pendingReviewCount = (clone $query)->count();
+
+        $pendingReviews = $query
+            ->orderBy('reports.submitted_at')
+            ->orderBy('reports.id')
+            ->limit(20)
+            ->get([
+                'reports.id as report_id',
+                'reports.duty_period_id',
+                'reports.submitted_at',
+                'reports.submitted_by',
+                'periods.start_date as period_start_date',
+                'periods.end_date as period_end_date',
+                'weeks.id as academic_week_id',
+                'weeks.week_number',
+            ])
+            ->map(fn ($report): array => [
+                'report_id' => $report->report_id,
+                'duty_period_id' => $report->duty_period_id,
+                'academic_week' => $report->academic_week_id === null
+                    ? null
+                    : [
+                        'id' => $report->academic_week_id,
+                        'week_number' => (int) $report->week_number,
+                    ],
+                'period_start_date' => $report->period_start_date,
+                'period_end_date' => $report->period_end_date,
+                'submitted_at' => $report->submitted_at,
+                'submitted_by' => $report->submitted_by,
+            ])
+            ->all();
+
+        return [
+            'pending_review_count' => $pendingReviewCount,
+            'pending_reviews' => $pendingReviews,
+        ];
     }
 
     private function academicContext(string $schoolId): array
