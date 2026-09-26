@@ -8,10 +8,15 @@ use App\Models\LessonNote;
 use App\Models\LessonPlan;
 use App\Models\RecordOfWork;
 use App\Models\SchemeOfWork;
+use App\Models\TeacherDutyWeeklyReport;
 use App\Models\TeacherWorkflow;
 use App\Models\TeacherWorkflowHistory;
 use App\Models\User;
+use App\Services\TeacherDuty\TeacherDutyAuthorizationService;
+use App\Services\TeacherDuty\TeacherDutyDailyReportService;
+use App\Services\TeacherDuty\TeacherDutyRosterService;
 use App\Services\Teaching\CurriculumCoverageService;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -22,7 +27,7 @@ class TeacherWorkflowService
 {
     private const TYPES = ['scheme_of_work', 'lesson_plan', 'lesson_note', 'record_of_work', 'homework', 'learning_resource'];
 
-    public function __construct(private TeacherPortalAccessService $access, private TeacherHodScopeService $hod, private CurriculumCoverageService $coverage) {}
+    public function __construct(private TeacherPortalAccessService $access, private TeacherHodScopeService $hod, private CurriculumCoverageService $coverage, private TeacherDutyRosterService $teacherDutyRoster, private TeacherDutyAuthorizationService $teacherDutyAuthorization, private TeacherDutyDailyReportService $teacherDutyDailyReports) {}
 
     public function submit(User $user, string $type, string $entityId): TeacherWorkflow
     {
@@ -88,6 +93,117 @@ class TeacherWorkflowService
         }
         if (Schema::hasTable('mark_entry_batches')) {
             DB::table('mark_entry_batches')->where('school_id', $user->school_id)->where('teacher_id', $teacher->id)->whereIn('status', ['draft', 'changes_requested'])->limit(10)->get()->each(fn ($item) => $tasks->push(['task_type' => $item->status === 'changes_requested' ? 'marks_correction_requested' : 'marks_entry_pending', 'title' => 'Mark entry batch', 'priority' => $item->status === 'changes_requested' ? 'high' : 'normal', 'entity_reference' => $item->id, 'status' => $item->status, 'deep_link' => '/teacher/marks-entry/batches/'.$item->id]));
+        }
+
+        $today = CarbonImmutable::now('Africa/Nairobi')->toDateString();
+
+        foreach ($this->teacherDutyRoster->currentPeriods((string) $user->school_id) as $period) {
+            try {
+                $this->teacherDutyAuthorization->reporter(
+                    (string) $user->school_id,
+                    (string) $period->id,
+                    (string) $user->id
+                );
+            } catch (ValidationException) {
+                continue;
+            }
+
+            if (
+                $today < $period->start_date->toDateString()
+                || $today > $period->end_date->toDateString()
+            ) {
+                continue;
+            }
+
+            $state = $this->teacherDutyDailyReports->state(
+                (string) $user->school_id,
+                (string) $period->id,
+                $today,
+                (string) $user->id
+            );
+
+            if (in_array($state['state'], ['NOT_STARTED', 'DRAFT'], true)) {
+                $tasks->push([
+                    'task_type' => 'teacher_duty_daily_report_due',
+                    'title' => 'Teacher duty daily report',
+                    'priority' => 'normal',
+                    'entity_reference' => 'teacher_duty_daily:'.$period->id.':'.$today,
+                    'status' => $state['state'],
+                    'deep_link' => '/teacher/teacher-duty/daily-reports?period='.$period->id.'&date='.$today,
+                ]);
+            }
+
+            if ($state['state'] === 'OVERDUE') {
+                $tasks->push([
+                    'task_type' => 'teacher_duty_daily_report_overdue',
+                    'title' => 'Teacher duty daily report overdue',
+                    'priority' => 'high',
+                    'entity_reference' => 'teacher_duty_daily:'.$period->id.':'.$today,
+                    'status' => 'OVERDUE',
+                    'deep_link' => '/teacher/teacher-duty/daily-reports?period='.$period->id.'&date='.$today,
+                ]);
+            }
+        }
+
+        $weeklyReports = TeacherDutyWeeklyReport::query()
+            ->withoutGlobalScopes()
+            ->where('school_id', $user->school_id)
+            ->whereIn('status', ['draft', 'changes_requested'])
+            ->whereExists(function ($query) use ($teacher): void {
+                $query->selectRaw('1')
+                    ->from('teacher_duty_assignments')
+                    ->whereColumn(
+                        'teacher_duty_assignments.duty_period_id',
+                        'teacher_duty_weekly_reports.duty_period_id'
+                    )
+                    ->whereColumn(
+                        'teacher_duty_assignments.school_id',
+                        'teacher_duty_weekly_reports.school_id'
+                    )
+                    ->where(
+                        'teacher_duty_assignments.teacher_id',
+                        $teacher->id
+                    );
+            })
+            ->get();
+
+        foreach ($weeklyReports as $report) {
+            try {
+                $this->teacherDutyAuthorization->reporter(
+                    (string) $user->school_id,
+                    (string) $report->duty_period_id,
+                    (string) $user->id
+                );
+            } catch (ValidationException) {
+                continue;
+            }
+
+            $periodEnded = DB::table('teacher_duty_periods')
+                ->where('school_id', $user->school_id)
+                ->where('id', $report->duty_period_id)
+                ->where('active', false)
+                ->whereNotNull('ended_by')
+                ->whereNotNull('ended_at')
+                ->exists();
+
+            if (! $periodEnded) {
+                continue;
+            }
+
+            $changesRequested = $report->status === 'changes_requested';
+
+            $tasks->push([
+                'task_type' => $changesRequested
+                    ? 'teacher_duty_weekly_changes_requested'
+                    : 'teacher_duty_weekly_report_due',
+                'title' => $changesRequested
+                    ? 'Teacher duty weekly report changes requested'
+                    : 'Teacher duty weekly report',
+                'priority' => $changesRequested ? 'high' : 'normal',
+                'entity_reference' => 'teacher_duty_weekly:'.$report->id,
+                'status' => $report->status,
+                'deep_link' => '/teacher/teacher-duty/weekly-reports/'.$report->id,
+            ]);
         }
 
         return $tasks->unique(fn ($item) => $item['task_type'].'|'.$item['entity_reference'])->take(50)->values();
