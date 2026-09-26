@@ -21,6 +21,7 @@ use App\Services\Finance\FinanceNotificationService;
 use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkNotificationService;
 use App\Services\ParentPortal\ParentPaymentReconciliationService;
+use App\Services\TeacherDuty\TeacherDutyNotificationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -168,6 +169,10 @@ Artisan::command('communications:cleanup', function () {
 
     $this->info('Expired '.$ids->count().' communications without deleting audit or delivery history.');
 })->purpose('Apply non-destructive communication retention rules');
+
+Artisan::command('teacher-duty:send-notifications', function (TeacherDutyNotificationService $service) {
+    $this->info('Created '.$service->generate().' teacher duty notifications.');
+})->purpose('Create idempotent teacher duty notifications and escalations');
 
 Artisan::command('teacher-workflows:generate-tasks', function () {
     $count = DB::table('teacher_workflows')->whereIn('state', ['draft', 'changes_requested', 'rejected'])->limit(500)->count();
