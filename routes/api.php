@@ -97,6 +97,7 @@ use App\Http\Controllers\Api\TeacherDutyOccurrenceCategoryController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceController;
 use App\Http\Controllers\Api\TeacherDutyRosterController;
 use App\Http\Controllers\Api\TeacherDutyWeeklyReportController;
+use App\Http\Controllers\Api\TeacherDutyWeeklyReportPdfController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
 use App\Http\Controllers\Api\TeacherPortalPhaseTwoController;
@@ -2646,6 +2647,16 @@ Route::middleware($secure)->group(function () {
             Route::get(
                 '/weekly-reports/{report}/state',
                 [TeacherDutyWeeklyReportController::class, 'state']
+            );
+
+            Route::get(
+                '/weekly-reports/{report}/pdf',
+                [TeacherDutyWeeklyReportPdfController::class, 'stream']
+            );
+
+            Route::get(
+                '/weekly-reports/{report}/pdf/download',
+                [TeacherDutyWeeklyReportPdfController::class, 'download']
             );
         });
 
