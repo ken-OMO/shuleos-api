@@ -96,6 +96,7 @@ use App\Http\Controllers\Api\TeacherDutyDailyReportController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceCategoryController;
 use App\Http\Controllers\Api\TeacherDutyOccurrenceController;
 use App\Http\Controllers\Api\TeacherDutyRosterController;
+use App\Http\Controllers\Api\TeacherDutySettingsController;
 use App\Http\Controllers\Api\TeacherDutyWeeklyReportController;
 use App\Http\Controllers\Api\TeacherDutyWeeklyReportPdfController;
 use App\Http\Controllers\Api\TeacherPortalController;
@@ -2693,6 +2694,16 @@ Route::middleware($secure)->group(function () {
     Route::prefix('teacher-duty')
         ->middleware('permission:manage_teacher_duty_roster')
         ->group(function () {
+            Route::get(
+                '/settings',
+                [TeacherDutySettingsController::class, 'show']
+            );
+
+            Route::put(
+                '/settings',
+                [TeacherDutySettingsController::class, 'update']
+            )->middleware('school.operational');
+
             Route::get(
                 '/periods',
                 [TeacherDutyRosterController::class, 'currentPeriods']
