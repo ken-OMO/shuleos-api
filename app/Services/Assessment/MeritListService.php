@@ -29,6 +29,31 @@ class MeritListService
                 throw ValidationException::withMessages(['results' => 'No processed learning area results were found for this selection.']);
             }
 
+            $learnerIds = $results->pluck('learner_id')->unique();
+
+            $existingRows = MeritList::query()
+                ->where('school_id', $schoolId)
+                ->where('exam_id', $examId)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $hasPublishedSelection = $existingRows->contains(function (MeritList $row) use ($gradeId, $streamId, $learnerIds) {
+                $matchesSelection = (! $gradeId || $row->grade_id === $gradeId)
+                    && (! $streamId || $row->stream_id === $streamId);
+
+                return $row->status === 'published'
+                    && ($matchesSelection || $learnerIds->contains($row->learner_id));
+            });
+
+            if ($hasPublishedSelection) {
+                throw ValidationException::withMessages([
+                    'merit_lists' => 'Published merit lists cannot be regenerated.',
+                ]);
+            }
+
+            $existingRows = $existingRows->keyBy('learner_id');
+
             $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($schoolId) {
                 $learner = $items->first()->learner;
                 $score = round((float) $items->sum('marks_obtained'), 2);
@@ -56,9 +81,9 @@ class MeritListService
                 return $row;
             });
 
-            return $rows->map(function (array $row) use ($schoolId, $examId, $generatedBy) {
+            return $rows->map(function (array $row) use ($schoolId, $examId, $generatedBy, $existingRows) {
                 $identity = ['school_id' => $schoolId, 'exam_id' => $examId, 'learner_id' => $row['learner']->id];
-                $model = MeritList::query()->firstOrNew($identity);
+                $model = $existingRows->get($row['learner']->id) ?? new MeritList($identity);
                 if (! $model->exists) {
                     $model->id = (string) Str::uuid();
                 }
