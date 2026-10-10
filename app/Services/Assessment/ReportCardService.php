@@ -30,17 +30,44 @@ class ReportCardService
                 throw ValidationException::withMessages(['merit_list' => 'No generated or published merit-list rows were found.']);
             }
             $learnerIds = $merits->pluck('learner_id');
+
+            // Include deleted rows: never resurrect a published card.
+            $existingCards = ReportCard::query()
+                ->where('school_id', $schoolId)
+                ->where('exam_id', $examId)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $hasPublishedCard = $existingCards->contains(
+                function (ReportCard $card) use ($learnerIds, $learnerId, $gradeId, $streamId): bool {
+                    $matchesSelection = ($learnerId === null || $card->learner_id === $learnerId)
+                        && ($gradeId === null || $card->grade_id === $gradeId)
+                        && ($streamId === null || $card->stream_id === $streamId);
+
+                    return $card->status === 'published'
+                        && ($matchesSelection || $learnerIds->contains($card->learner_id));
+                }
+            );
+
+            if ($hasPublishedCard) {
+                throw ValidationException::withMessages([
+                    'report_card' => 'Published report cards cannot be regenerated.',
+                ]);
+            }
+
+            $existingCards = $existingCards->keyBy('learner_id');
             $results = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)->whereIn('learner_id', $learnerIds)->where('processing_status', 'processed')->with('gradingScale')->get()->groupBy('learner_id');
             $missing = $learnerIds->reject(fn ($id) => $results->has($id));
             if ($missing->isNotEmpty()) {
                 throw ValidationException::withMessages(['learning_area_results' => 'Every learner requires processed learning-area results.']);
             }
 
-            return $merits->map(function ($merit) use ($schoolId, $exam, $results, $userId, $comments) {
+            return $merits->map(function ($merit) use ($schoolId, $exam, $results, $userId, $comments, $existingCards) {
                 $learner = $merit->learner;
                 $areas = $results[$learner->id];
                 $identity = ['school_id' => $schoolId, 'exam_id' => $exam->id, 'learner_id' => $learner->id];
-                $card = ReportCard::query()->firstOrNew($identity);
+                $card = $existingCards->get($learner->id) ?? new ReportCard($identity);
                 if (! $card->exists) {
                     $card->id = (string) Str::uuid();
                 }
@@ -72,8 +99,18 @@ class ReportCardService
         return DB::transaction(function () use ($schoolId, $id, $data) {
             $card = ReportCard::current()->where('school_id', $schoolId)->lockForUpdate()->find($id);
             if (! $card) {
-                throw ValidationException::withMessages(['report_card' => 'Report card not found for this school.']);
-            } foreach (['class_teacher_comment', 'principal_comment'] as $f) {
+                throw ValidationException::withMessages([
+                    'report_card' => 'Report card not found for this school.',
+                ]);
+            }
+
+            if ($card->status === 'published') {
+                throw ValidationException::withMessages([
+                    'report_card' => 'Published report card comments cannot be changed.',
+                ]);
+            }
+
+            foreach (['class_teacher_comment', 'principal_comment'] as $f) {
                 if (array_key_exists($f, $data)) {
                     $card->$f = $data[$f];
                 }

@@ -507,6 +507,178 @@ class ReportCardTest extends TestCase
             );
     }
 
+    public function test_published_card_cannot_be_regenerated(): void
+    {
+        $card = $this->generate($this->juniorLearner->id)->first();
+        $this->publishJuniorCard();
+        $before = $this->publicationSnapshot();
+
+        $this->assertPublicationRejected(
+            fn () => $this->generate($this->juniorLearner->id)
+        );
+
+        $this->assertSame($before, $this->publicationSnapshot());
+        $this->assertDatabaseHas('report_cards', [
+            'id' => $card->id,
+            'status' => 'published',
+            'published_by' => $this->user->id,
+        ]);
+    }
+
+    public function test_published_card_comments_and_details_cannot_be_changed(): void
+    {
+        $card = $this->generate($this->juniorLearner->id)->first();
+        $detail = $card->learningAreas->first();
+        $this->publishJuniorCard();
+        $before = $this->publicationSnapshot();
+
+        $this->assertPublicationRejected(
+            fn () => app(ReportCardService::class)->updateComments(
+                $this->school->id,
+                $card->id,
+                [
+                    'class_teacher_comment' => 'Changed class comment',
+                    'principal_comment' => 'Changed principal comment',
+                    'learning_areas' => [
+                        [
+                            'id' => $detail->id,
+                            'teacher_comment' => 'Changed area comment',
+                        ],
+                    ],
+                ]
+            )
+        );
+
+        $this->assertSame($before, $this->publicationSnapshot());
+    }
+
+    public function test_mixed_bulk_generation_preserves_every_existing_card(): void
+    {
+        $this->generate();
+        $this->publishJuniorCard();
+        $before = $this->publicationSnapshot();
+
+        $this->assertPublicationRejected(fn () => $this->generate());
+
+        $this->assertSame($before, $this->publicationSnapshot());
+    }
+
+    public function test_bulk_generation_does_not_create_cards_when_selection_contains_published_card(): void
+    {
+        $this->generate($this->juniorLearner->id);
+        $this->publishJuniorCard();
+        $before = $this->publicationSnapshot();
+
+        $this->assertPublicationRejected(fn () => $this->generate());
+
+        $this->assertSame($before, $this->publicationSnapshot());
+        $this->assertDatabaseMissing('report_cards', [
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->primaryLearner->id,
+        ]);
+    }
+
+    public function test_published_card_outside_selection_does_not_block_generation(): void
+    {
+        $this->generate($this->juniorLearner->id);
+        $this->publishJuniorCard();
+
+        $publishedBefore = DB::table('report_cards')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->juniorLearner->id)
+            ->first();
+
+        $primary = $this->generate(
+            null,
+            $this->primaryGrade->id,
+            $this->primaryStream->id
+        )->first();
+
+        $this->assertSame($this->primaryLearner->id, $primary->learner_id);
+        $this->assertSame('generated', $primary->status);
+        $this->assertEquals(
+            $publishedBefore,
+            DB::table('report_cards')
+                ->where('exam_id', $this->exam->id)
+                ->where('learner_id', $this->juniorLearner->id)
+                ->first()
+        );
+    }
+
+    public function test_publication_guards_return_422_through_http(): void
+    {
+        $card = $this->generate($this->juniorLearner->id)->first();
+        $this->publishJuniorCard();
+        $before = $this->publicationSnapshot();
+
+        // Verify HTTP exception mapping; authorization is outside this test.
+        $this->withoutMiddleware();
+
+        $user = new User;
+        $user->forceFill([
+            'id' => $this->user->id,
+            'school_id' => $this->school->id,
+        ]);
+        Auth::setUser($user);
+
+        $this->postJson('/api/report-cards/generate', [
+            'school_id' => $this->school->id,
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+        ])->assertStatus(422);
+
+        $this->patchJson('/api/report-cards/'.$card->id.'/comments', [
+            'school_id' => $this->school->id,
+            'principal_comment' => 'Changed through HTTP',
+        ])->assertStatus(422);
+
+        $this->assertSame($before, $this->publicationSnapshot());
+    }
+
+    private function publishJuniorCard(): void
+    {
+        app(ReportCardService::class)->publish(
+            $this->school->id,
+            $this->exam->id,
+            $this->juniorLearner->id,
+            null,
+            null,
+            $this->user->id
+        );
+    }
+
+    private function publicationSnapshot(): array
+    {
+        $cards = DB::table('report_cards')
+            ->where('school_id', $this->school->id)
+            ->where('exam_id', $this->exam->id)
+            ->orderBy('id')
+            ->get();
+
+        $details = DB::table('report_card_learning_areas')
+            ->whereIn('report_card_id', $cards->pluck('id'))
+            ->orderBy('id')
+            ->get();
+
+        return [
+            'cards' => $cards->map(fn ($row) => (array) $row)->all(),
+            'details' => $details->map(fn ($row) => (array) $row)->all(),
+        ];
+    }
+
+    private function assertPublicationRejected(callable $operation): void
+    {
+        try {
+            $operation();
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('report_card', $exception->errors());
+
+            return;
+        }
+
+        $this->fail('Expected the published report card operation to be rejected.');
+    }
+
     private function seedResults(
         object $learner,
         object $gradingSystem,
