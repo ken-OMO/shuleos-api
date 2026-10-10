@@ -21,7 +21,10 @@ class MeritListController extends BaseCrudController
         foreach (['exam_id', 'grade_id', 'stream_id', 'status'] as $field) {
             $query->when(isset($validated[$field]), fn ($q) => $q->where($field, $validated[$field]));
         }
-        $query->orderBy('school_position')->orderBy('learner_id');
+        $positionColumn = ! empty($validated['stream_id'])
+            ? 'stream_position'
+            : (! empty($validated['grade_id']) ? 'grade_position' : 'school_position');
+        $query->orderBy($positionColumn)->orderBy('learner_id');
 
         return $this->success(MeritListResource::collection($query->paginate($validated['per_page'] ?? 20)), 'Merit lists retrieved successfully.');
     }
