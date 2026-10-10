@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\CommunicationPhaseTwoController;
 use App\Http\Controllers\Api\CommunicationWebhookController;
 use App\Http\Controllers\Api\CurriculumCoverageController;
 use App\Http\Controllers\Api\ExamController;
+use App\Http\Controllers\Api\ExamLearningAreaAnalysisController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
 use App\Http\Controllers\Api\ExamPaperController;
 use App\Http\Controllers\Api\ExamResultController;
@@ -1206,6 +1207,7 @@ Route::prefix('leadership')->middleware($secure)->group(function () {
     Route::get('/kpis', [LeadershipPortalPhaseTwoController::class, 'kpis'])->middleware('permission:view_school_kpis');
     Route::get('/kpis/trends', fn () => app(LeadershipPortalPhaseTwoController::class)->kpis(true))->middleware('permission:view_school_kpis');
 
+    Route::get('/academics/exams/{exam}/learning-area-analysis', ExamLearningAreaAnalysisController::class)->middleware('permission:view_academic_insights')->whereUuid('exam');
     Route::get('/academics/summary', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('summary'))->middleware('permission:view_academic_insights');
     Route::get('/academics/grades', fn () => app(LeadershipPortalPhaseTwoController::class)->academic('grades'))->middleware('permission:view_academic_insights');
     Route::get('/academics/grades/{grade}', fn (string $grade) => app(LeadershipPortalPhaseTwoController::class)->academic('grade', $grade))->middleware('permission:view_academic_insights');
