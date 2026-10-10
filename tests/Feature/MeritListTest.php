@@ -521,6 +521,114 @@ class MeritListTest extends TestCase
         $this->assertSame($before, $this->meritSnapshot());
     }
 
+    public function test_stream_generation_uses_combined_grade_and_school_population(): void
+    {
+        $rows = $this->generate(null, $this->streamTwo->id);
+
+        $this->assertCount(1, $rows);
+        $row = $rows->first();
+        $this->assertSame($this->learnerC->id, $row->learner_id);
+        $this->assertSame(1, $row->stream_position);
+        $this->assertSame(2, $row->grade_position);
+        $this->assertSame(2, $row->school_position);
+        $this->assertDatabaseCount('merit_lists', 1);
+    }
+
+    public function test_grade_generation_uses_school_population_but_writes_only_selected_grade(): void
+    {
+        $rows = $this->generate($this->gradeTwo->id);
+
+        $this->assertCount(1, $rows);
+        $row = $rows->first();
+        $this->assertSame($this->learnerD->id, $row->learner_id);
+        $this->assertSame(1, $row->stream_position);
+        $this->assertSame(1, $row->grade_position);
+        $this->assertSame(4, $row->school_position);
+        $this->assertDatabaseCount('merit_lists', 1);
+    }
+
+    public function test_stream_regeneration_preserves_combined_ranks_and_unselected_rows(): void
+    {
+        $this->generate();
+        $this->publishSelection(null, $this->streamOne->id);
+        $before = $this->meritSnapshot();
+
+        $rows = $this->generate(null, $this->streamTwo->id);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $rows->first()->stream_position);
+        $this->assertSame(2, $rows->first()->grade_position);
+        $this->assertSame(2, $rows->first()->school_position);
+
+        $after = $this->meritSnapshot();
+        foreach ($before as $id => $row) {
+            if ($row['learner_id'] !== $this->learnerC->id) {
+                $this->assertSame($row, $after[$id]);
+            }
+        }
+        $this->assertDatabaseCount('merit_lists', 4);
+    }
+
+    public function test_generation_order_matches_selected_ranking_scope(): void
+    {
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerD->id)
+            ->update(['marks_obtained' => 95, 'percentage' => 95]);
+
+        $rows = $this->generate($this->gradeOne->id)->keyBy('learner_id');
+
+        $this->assertSame(2, $rows[$this->learnerA->id]->school_position);
+        $this->assertSame(1, $rows[$this->learnerA->id]->grade_position);
+        $this->assertSame(3, $rows[$this->learnerB->id]->school_position);
+        $this->assertSame(2, $rows[$this->learnerB->id]->grade_position);
+        $this->assertSame(3, $rows[$this->learnerC->id]->school_position);
+        $this->assertSame(2, $rows[$this->learnerC->id]->grade_position);
+        $this->assertSame(1, $rows[$this->learnerC->id]->stream_position);
+        $this->assertSame($this->learnerA->id, $rows->first()->learner_id);
+    }
+
+    public function test_listing_orders_by_stream_grade_or_school_position(): void
+    {
+        $this->generate();
+
+        // Distinct stored positions make the chosen ordering column observable.
+        DB::table('merit_lists')
+            ->where('learner_id', $this->learnerA->id)
+            ->where('exam_id', $this->exam->id)
+            ->update(['school_position' => 1, 'grade_position' => 2, 'stream_position' => 2]);
+        DB::table('merit_lists')
+            ->where('learner_id', $this->learnerB->id)
+            ->where('exam_id', $this->exam->id)
+            ->update(['school_position' => 2, 'grade_position' => 1, 'stream_position' => 1]);
+
+        $this->withoutMiddleware();
+        $user = new User;
+        $user->forceFill([
+            'id' => $this->user->id,
+            'school_id' => $this->school->id,
+        ]);
+        Auth::setUser($user);
+
+        $base = [
+            'school_id' => $this->school->id,
+            'exam_id' => $this->exam->id,
+        ];
+
+        foreach ([
+            [[], $this->learnerA->id],
+            [['grade_id' => $this->gradeOne->id], $this->learnerB->id],
+            [['stream_id' => $this->streamOne->id], $this->learnerB->id],
+        ] as [$filters, $firstLearner]) {
+            $response = $this->getJson('/api/merit-lists?'.http_build_query($base + $filters))
+                ->assertOk();
+
+            $payload = $response->json('data');
+            $items = $payload['data'] ?? $payload;
+            $this->assertSame($firstLearner, $items[0]['learner_id']);
+        }
+    }
+
     private function publishSelection(?string $grade = null, ?string $stream = null): void
     {
         app(MeritListService::class)->publish(

@@ -22,14 +22,16 @@ class MeritListService
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
             $query = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)
                 ->where('processing_status', 'processed')->with(['learner.grade.educationLevel', 'learner.stream', 'gradingScale']);
-            $query->when($gradeId, fn ($q) => $q->whereHas('learner', fn ($l) => $l->where('grade_id', $gradeId)));
-            $query->when($streamId, fn ($q) => $q->whereHas('learner', fn ($l) => $l->where('stream_id', $streamId)));
-            $results = $query->lockForUpdate()->get();
-            if ($results->isEmpty()) {
+            $results = $query->orderBy('id')->lockForUpdate()->get();
+            $selectedResults = $results->filter(function (LearningAreaResult $result) use ($gradeId, $streamId) {
+                return (! $gradeId || $result->learner->grade_id === $gradeId)
+                    && (! $streamId || $result->learner->stream_id === $streamId);
+            });
+            if ($selectedResults->isEmpty()) {
                 throw ValidationException::withMessages(['results' => 'No processed learning area results were found for this selection.']);
             }
 
-            $learnerIds = $results->pluck('learner_id')->unique();
+            $learnerIds = $selectedResults->pluck('learner_id')->unique();
 
             $existingRows = MeritList::query()
                 ->where('school_id', $schoolId)
@@ -81,6 +83,10 @@ class MeritListService
                 return $row;
             });
 
+            $rows = $rows->filter(fn (array $row) => $learnerIds->contains($row['learner']->id));
+
+            $positionColumn = $streamId ? 'stream_position' : ($gradeId ? 'grade_position' : 'school_position');
+
             return $rows->map(function (array $row) use ($schoolId, $examId, $generatedBy, $existingRows) {
                 $identity = ['school_id' => $schoolId, 'exam_id' => $examId, 'learner_id' => $row['learner']->id];
                 $model = $existingRows->get($row['learner']->id) ?? new MeritList($identity);
@@ -100,7 +106,7 @@ class MeritListService
 
                 return $model->load(['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy']);
             })->sortBy([
-                ['school_position', 'asc'],
+                [$positionColumn, 'asc'],
                 ['learner_id', 'asc'],
             ])->values();
         });
