@@ -12,7 +12,10 @@ use Illuminate\Validation\ValidationException;
 
 class ResultProcessingService
 {
-    public function __construct(private readonly GradeCalculationService $gradeCalculation) {}
+    public function __construct(
+        private readonly GradeCalculationService $gradeCalculation,
+        private readonly ExamResultLifecycleService $lifecycle
+    ) {}
 
     public function process(
         string $schoolId,
@@ -21,6 +24,22 @@ class ResultProcessingService
         string $processedBy
     ): LearningAreaResult {
         return DB::transaction(function () use ($schoolId, $examLearningAreaId, $learnerId, $processedBy) {
+            $candidate = ExamLearningArea::current()
+                ->whereKey($examLearningAreaId)
+                ->whereHas('exam', fn ($query) => $query
+                    ->where('school_id', $schoolId)
+                    ->where('is_deleted', false))
+                ->first();
+
+            if (! $candidate) {
+                throw ValidationException::withMessages([
+                    'result' => 'The learner or exam learning area is unavailable outside this school.',
+                ]);
+            }
+
+            $exam = $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
+            $this->lifecycle->assertMutable($exam);
+
             $examLearningArea = ExamLearningArea::current()
                 ->with(['exam', 'papers' => fn ($query) => $query->current()->orderBy('paper_number')])
                 ->whereKey($examLearningAreaId)
@@ -92,7 +111,10 @@ class ResultProcessingService
                 'learner_id' => $learner->id,
                 'learning_area_id' => $examLearningArea->learning_area_id,
             ];
-            $result = LearningAreaResult::query()->firstOrNew($identity);
+            $result = LearningAreaResult::query()
+                ->where($identity)
+                ->lockForUpdate()
+                ->first() ?? new LearningAreaResult($identity);
             if (! $result->exists) {
                 $result->id = (string) Str::uuid();
             }
@@ -110,6 +132,7 @@ class ResultProcessingService
                 'deleted_by' => null,
             ]);
             $result->save();
+            $this->lifecycle->invalidateOutputs($exam);
 
             return $result->load([
                 'exam',

@@ -48,7 +48,12 @@ class ExamResultController extends BaseCrudController
         }if ($x->exam->status === 'closed') {
             return $this->badRequest('Closed exam results cannot be changed.');
         }$v = $r->validate(['marks' => 'required|numeric|min:0|max:'.$x->paper->max_marks]);
-        $x->update($v);
+        $x = $this->service->updateMarks(
+            $this->school($r),
+            $x->id,
+            (float) $v['marks'],
+            auth()->id()
+        );
 
         return $this->success(new ExamResultResource($x->refresh()->load(self::RELATIONS)), 'Exam result updated successfully.');
     }
@@ -60,7 +65,8 @@ class ExamResultController extends BaseCrudController
             return $this->notFound('Exam result not found.');
         }if ($x->exam->status === 'closed') {
             return $this->badRequest('Closed exam results cannot be deleted.');
-        }$x->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        }
+        $this->service->deleteResult($this->school($r), $x->id, auth()->id());
 
         return $this->success(null, 'Exam result deleted successfully.');
     }

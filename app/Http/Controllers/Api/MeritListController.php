@@ -16,7 +16,7 @@ class MeritListController extends BaseCrudController
 
     public function index(Request $request)
     {
-        $validated = $request->validate(['exam_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $validated = $request->validate(['exam_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published,stale', 'per_page' => 'sometimes|integer|min:1|max:100']);
         $query = MeritList::current()->where('school_id', $this->school($request))->with(self::RELATIONS);
         foreach (['exam_id', 'grade_id', 'stream_id', 'status'] as $field) {
             $query->when(isset($validated[$field]), fn ($q) => $q->where($field, $validated[$field]));

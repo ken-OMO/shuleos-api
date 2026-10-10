@@ -4,11 +4,15 @@ namespace App\Services\TeacherPortal;
 
 use App\Models\MarkEntryBatch;
 use App\Models\User;
+use App\Services\Assessment\ExamResultLifecycleService;
 use Illuminate\Support\Facades\DB;
 
 class MarkModerationService
 {
-    public function __construct(private TeacherHodScopeService $hod) {}
+    public function __construct(
+        private TeacherHodScopeService $hod,
+        private ExamResultLifecycleService $lifecycle
+    ) {}
 
     public function query(User $user)
     {
@@ -44,9 +48,27 @@ class MarkModerationService
         abort_unless(in_array($decision, ['approved', 'rejected'], true), 422);
 
         return DB::transaction(function () use ($user, $requestId, $decision, $reason) {
+            $candidateRequest = DB::table('mark_correction_requests')
+                ->where('school_id', $user->school_id)
+                ->where('status', 'pending')
+                ->where('id', $requestId)
+                ->firstOrFail();
+
+            $candidateBatch = $this->query($user)
+                ->whereKey($candidateRequest->batch_id)
+                ->firstOrFail();
+
+            $exam = $this->lifecycle->lockExam($user->school_id, $candidateBatch->exam_id);
+
             $request = DB::table('mark_correction_requests')->where('school_id', $user->school_id)->where('status', 'pending')->where('id', $requestId)->lockForUpdate()->firstOrFail();
             $batch = $this->query($user)->whereKey($request->batch_id)->lockForUpdate()->firstOrFail();
             abort_if($request->requested_by === $user->id, 403);
+            abort_unless($batch->exam_id === $exam->id, 409, 'The correction batch exam changed.');
+
+            if ($decision === 'approved') {
+                $this->lifecycle->assertMutable($exam);
+                abort_unless($exam->status === 'published', 409, 'Correction approval requires a published exam.');
+            }
             abort_if($decision === 'approved' && $batch->submitted_at && $batch->submitted_at->lt(now()->subHours(config('teacher_portal_phase_two.correction_window_hours', 48))), 409, 'The mark correction window has closed.');
             DB::table('mark_correction_requests')->where('id', $request->id)->update(['status' => $decision, 'decided_by' => $user->id, 'decided_at' => now(), 'decision_reason' => $reason, 'updated_at' => now()]);
             if ($decision === 'approved') {

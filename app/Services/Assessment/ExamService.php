@@ -7,11 +7,14 @@ use App\Models\AssessmentType;
 use App\Models\Exam;
 use App\Models\Term;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ExamService
 {
+    public function __construct(private readonly ExamResultLifecycleService $lifecycle) {}
+
     public function create(array $d, string $school, ?string $user): Exam
     {
         $type = AssessmentType::current()->whereKey($d['assessment_type_id'])->where('school_id', $school)->where('active', true)->exists();
@@ -32,9 +35,21 @@ class ExamService
 
     public function transition(Exam $e, string $to): void
     {
-        $allowed = ['draft' => ['published'], 'published' => ['closed'], 'closed' => []];
-        if (! in_array($to, $allowed[$e->status] ?? [], true)) {
-            throw ValidationException::withMessages(['status' => "Cannot change exam status from {$e->status} to {$to}."]);
-        }$e->update(['status' => $to]);
+        $updated = DB::transaction(function () use ($e, $to) {
+            $locked = $this->lifecycle->lockExam($e->school_id, $e->id);
+            $allowed = ['draft' => ['published'], 'published' => ['closed'], 'closed' => []];
+
+            if (! in_array($to, $allowed[$locked->status] ?? [], true)) {
+                throw ValidationException::withMessages([
+                    'status' => "Cannot change exam status from {$locked->status} to {$to}.",
+                ]);
+            }
+
+            $locked->update(['status' => $to]);
+
+            return $locked;
+        });
+
+        $e->setRawAttributes($updated->getAttributes(), true);
     }
 }
