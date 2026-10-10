@@ -16,7 +16,7 @@ class ReportCardController extends BaseCrudController
 
     public function index(Request $r)
     {
-        $v = $r->validate(['exam_id' => 'sometimes|uuid', 'learner_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published', 'per_page' => 'sometimes|integer|min:1|max:100']);
+        $v = $r->validate(['exam_id' => 'sometimes|uuid', 'learner_id' => 'sometimes|uuid', 'grade_id' => 'sometimes|uuid', 'stream_id' => 'sometimes|uuid', 'status' => 'sometimes|in:generated,published,stale', 'per_page' => 'sometimes|integer|min:1|max:100']);
         $q = ReportCard::current()->where('school_id', $this->school($r))->with(self::RELATIONS);
         foreach (['exam_id', 'learner_id', 'grade_id', 'stream_id', 'status'] as $f) {
             $q->when(isset($v[$f]), fn ($x) => $x->where($f, $v[$f]));

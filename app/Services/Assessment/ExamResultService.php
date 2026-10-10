@@ -7,12 +7,129 @@ use App\Models\ExamResult;
 use App\Models\Learner;
 use App\Models\MarkEntryPermission;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ExamResultService
 {
+    public function __construct(private readonly ExamResultLifecycleService $lifecycle) {}
+
     public function create(array $data, string $schoolId, ?string $userId): ExamResult
+    {
+        return DB::transaction(function () use ($data, $schoolId, $userId) {
+            $paper = ExamPaper::current()
+                ->with('examLearningArea')
+                ->whereKey($data['paper_id'])
+                ->whereHas('examLearningArea.exam', fn ($query) => $query
+                    ->where('school_id', $schoolId)
+                    ->where('is_deleted', false))
+                ->first();
+
+            if (! $paper) {
+                throw ValidationException::withMessages([
+                    'result' => 'The learner or published exam paper is unavailable outside this school.',
+                ]);
+            }
+
+            $exam = $this->lifecycle->lockExam($schoolId, $paper->examLearningArea->exam_id);
+            $this->lifecycle->assertMutable($exam);
+
+            $result = $this->createValidated($data, $schoolId, $userId);
+            $this->lifecycle->invalidateLearningArea(
+                $exam,
+                $result->learner_id,
+                $result->learning_area_id
+            );
+
+            return $result;
+        });
+    }
+
+    public function updateMarks(
+        string $schoolId,
+        string $resultId,
+        float $marks,
+        ?string $userId
+    ): ExamResult {
+        return DB::transaction(function () use ($schoolId, $resultId, $marks, $userId) {
+            [$exam, $result] = $this->lockResult($schoolId, $resultId);
+            $this->assertMarkEntryPermission($exam->id, $userId);
+
+            $paper = ExamPaper::current()->find($result->paper_id);
+            if (! $paper || $marks < 0 || $marks > (float) $paper->max_marks) {
+                throw ValidationException::withMessages([
+                    'marks' => 'Marks must be within the available paper maximum.',
+                ]);
+            }
+
+            if ((float) $result->marks !== round($marks, 2)) {
+                $result->update(['marks' => $marks]);
+                $this->lifecycle->invalidateLearningArea(
+                    $exam,
+                    $result->learner_id,
+                    $result->learning_area_id
+                );
+            }
+
+            return $result;
+        });
+    }
+
+    public function deleteResult(string $schoolId, string $resultId, ?string $userId): void
+    {
+        DB::transaction(function () use ($schoolId, $resultId, $userId) {
+            [$exam, $result] = $this->lockResult($schoolId, $resultId);
+            $this->assertMarkEntryPermission($exam->id, $userId);
+
+            $result->update([
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'deleted_by' => $userId,
+            ]);
+
+            $this->lifecycle->invalidateLearningArea(
+                $exam,
+                $result->learner_id,
+                $result->learning_area_id
+            );
+        });
+    }
+
+    private function lockResult(string $schoolId, string $resultId): array
+    {
+        $candidate = ExamResult::current()
+            ->whereKey($resultId)
+            ->whereHas('exam', fn ($query) => $query
+                ->where('school_id', $schoolId)
+                ->where('is_deleted', false))
+            ->first();
+
+        if (! $candidate) {
+            throw ValidationException::withMessages([
+                'result' => 'Exam result not found for this school.',
+            ]);
+        }
+
+        $exam = $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
+        $this->lifecycle->assertMutable($exam);
+
+        $result = ExamResult::current()
+            ->whereKey($resultId)
+            ->where('exam_id', $exam->id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $result) {
+            throw ValidationException::withMessages([
+                'result' => 'Exam result not found for this school.',
+            ]);
+        }
+
+        return [$exam, $result];
+    }
+
+    private function createValidated(array $data, string $schoolId, ?string $userId): ExamResult
     {
         $paper = ExamPaper::current()
             ->with('examLearningArea.exam')
@@ -50,6 +167,27 @@ class ExamResultService
         }
 
         $area = $paper->examLearningArea;
+
+        $deletedResult = ExamResult::query()
+            ->where('exam_id', $area->exam_id)
+            ->where('learner_id', $learner->id)
+            ->where('learning_area_id', $area->learning_area_id)
+            ->where('paper_id', $paper->id)
+            ->where('is_deleted', true)
+            ->lockForUpdate()
+            ->first();
+
+        if ($deletedResult) {
+            $deletedResult->update([
+                'marks' => $data['marks'],
+                'entered_by' => $userId,
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'deleted_by' => null,
+            ]);
+
+            return $deletedResult;
+        }
 
         return ExamResult::create([
             'id' => (string) Str::uuid(),

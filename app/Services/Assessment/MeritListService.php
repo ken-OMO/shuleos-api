@@ -14,12 +14,17 @@ use Illuminate\Validation\ValidationException;
 
 class MeritListService
 {
-    public function __construct(private readonly GradeCalculationService $gradeCalculation) {}
+    public function __construct(
+        private readonly GradeCalculationService $gradeCalculation,
+        private readonly ExamResultLifecycleService $lifecycle
+    ) {}
 
     public function generate(string $schoolId, string $examId, ?string $gradeId, ?string $streamId, string $generatedBy): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $gradeId, $streamId, $generatedBy) {
+            $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
+            $this->lifecycle->assertProcessedResultsFresh($exam);
             $query = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)
                 ->where('processing_status', 'processed')->with(['learner.grade.educationLevel', 'learner.stream', 'gradingScale']);
             $results = $query->orderBy('id')->lockForUpdate()->get();
@@ -53,6 +58,24 @@ class MeritListService
                     'merit_lists' => 'Published merit lists cannot be regenerated.',
                 ]);
             }
+
+            if (DB::table('report_cards')
+                ->where('school_id', $schoolId)
+                ->where('exam_id', $examId)
+                ->whereIn('learner_id', $learnerIds)
+                ->where('status', 'published')
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'report_cards' => 'Merit entries used by published report cards cannot be regenerated.',
+                ]);
+            }
+
+            DB::table('report_cards')
+                ->where('school_id', $schoolId)
+                ->where('exam_id', $examId)
+                ->whereIn('learner_id', $learnerIds)
+                ->where('status', 'generated')
+                ->update(['status' => 'stale']);
 
             $existingRows = $existingRows->keyBy('learner_id');
 
@@ -115,7 +138,9 @@ class MeritListService
     public function publish(string $schoolId, string $examId, ?string $gradeId, ?string $streamId): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $gradeId, $streamId) {
+            $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
+            $this->lifecycle->assertProcessedResultsFresh($exam);
             $query = MeritList::current()->where('school_id', $schoolId)->where('exam_id', $examId)->where('status', 'generated');
             $query->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
             $rows = $query->lockForUpdate()->get();

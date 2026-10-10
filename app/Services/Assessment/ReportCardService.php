@@ -20,10 +20,14 @@ class ReportCardService
 {
     private const RELATIONS = ['learner', 'exam', 'academicYear', 'term', 'meritList', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'pathwayRecommendation', 'generatedBy', 'publishedBy', 'learningAreas.learningArea', 'learningAreas.gradingScale'];
 
+    public function __construct(private readonly ExamResultLifecycleService $lifecycle) {}
+
     public function generate(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId, array $comments = []): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId, $comments) {
-            $exam = $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
+            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
+            $this->lifecycle->assertProcessedResultsFresh($exam);
             $merits = MeritList::current()->where('school_id', $schoolId)->where('exam_id', $examId)->whereIn('status', ['generated', 'published'])->with('learner.grade.educationLevel')
                 ->when($learnerId, fn ($q) => $q->where('learner_id', $learnerId))->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))->when($streamId, fn ($q) => $q->where('stream_id', $streamId))->lockForUpdate()->get();
             if ($merits->isEmpty()) {
@@ -97,6 +101,17 @@ class ReportCardService
     public function updateComments(string $schoolId, string $id, array $data): ReportCard
     {
         return DB::transaction(function () use ($schoolId, $id, $data) {
+            $candidate = ReportCard::current()
+                ->where('school_id', $schoolId)
+                ->find($id);
+
+            if (! $candidate) {
+                throw ValidationException::withMessages([
+                    'report_card' => 'Report card not found for this school.',
+                ]);
+            }
+
+            $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
             $card = ReportCard::current()->where('school_id', $schoolId)->lockForUpdate()->find($id);
             if (! $card) {
                 throw ValidationException::withMessages([
@@ -129,7 +144,9 @@ class ReportCardService
     public function publish(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId) {
+            $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
+            $this->lifecycle->assertProcessedResultsFresh($exam);
             $q = ReportCard::current()->where('school_id', $schoolId)->where('exam_id', $examId)->where('status', 'generated')->when($learnerId, fn ($x) => $x->where('learner_id', $learnerId))->when($gradeId, fn ($x) => $x->where('grade_id', $gradeId))->when($streamId, fn ($x) => $x->where('stream_id', $streamId));
             $cards = $q->lockForUpdate()->get();
             if ($cards->isEmpty()) {

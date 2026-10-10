@@ -5,6 +5,7 @@ namespace App\Services\TeacherPortal;
 use App\Models\MarkEntryBatch;
 use App\Models\MarkEntryBatchItem;
 use App\Models\User;
+use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\ExamResultService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -12,7 +13,11 @@ use Illuminate\Validation\ValidationException;
 
 class MarkEntryBatchService
 {
-    public function __construct(private TeacherPortalAccessService $access, private ExamResultService $results) {}
+    public function __construct(
+        private TeacherPortalAccessService $access,
+        private ExamResultService $results,
+        private ExamResultLifecycleService $lifecycle
+    ) {}
 
     public function query(User $user)
     {
@@ -27,6 +32,10 @@ class MarkEntryBatchService
         $roster = $this->roster($user, $assignment)->pluck('id');
 
         return DB::transaction(function () use ($user, $paper, $assignment, $marks, $roster) {
+            $exam = $this->lifecycle->lockExam($user->school_id, $paper->exam_id);
+            $this->lifecycle->assertMutable($exam);
+            abort_unless($exam->status === 'published', 409, 'Mark entry requires a published exam.');
+
             $teacher = $this->access->teacher($user);
             $batch = MarkEntryBatch::withoutGlobalScopes()->where('school_id', $user->school_id)->where('exam_paper_id', $paper->id)->where('teacher_assignment_id', $assignment->id)->lockForUpdate()->first();
             if ($batch && ! in_array($batch->status, ['draft', 'reopened', 'changes_requested'], true)) {
@@ -54,21 +63,63 @@ class MarkEntryBatchService
     public function submit(User $user, string $batchId): MarkEntryBatch
     {
         return DB::transaction(function () use ($user, $batchId) {
+            $candidate = $this->query($user)->whereKey($batchId)->firstOrFail();
+            $exam = $this->lifecycle->lockExam($user->school_id, $candidate->exam_id);
+            $this->lifecycle->assertMutable($exam);
+            abort_unless($exam->status === 'published', 409, 'Mark submission requires a published exam.');
+
             $batch = $this->query($user)->whereKey($batchId)->lockForUpdate()->firstOrFail();
             abort_unless(in_array($batch->status, ['draft', 'reopened', 'changes_requested'], true), 409);
             $items = $batch->items()->lockForUpdate()->get();
             if ($items->count() !== $batch->expected_learner_count) {
                 throw ValidationException::withMessages(['batch' => 'Every expected learner must have a mark before submission.']);
             }
+            $paper = DB::table('exam_papers as paper')
+                ->join('exam_learning_areas as area', 'area.id', '=', 'paper.exam_learning_area_id')
+                ->where('paper.id', $batch->exam_paper_id)
+                ->where('paper.is_deleted', false)
+                ->where('area.is_deleted', false)
+                ->where('area.exam_id', $exam->id)
+                ->select('paper.max_marks', 'area.learning_area_id')
+                ->first();
+
+            abort_unless($paper, 409, 'The batch paper is unavailable.');
+
             foreach ($items as $item) {
+                abort_unless($item->school_id === $user->school_id, 409, 'The batch item belongs to another school.');
+
+                if ((float) $item->marks < 0 || (float) $item->marks > (float) $paper->max_marks) {
+                    throw ValidationException::withMessages([
+                        'marks' => "Marks must be between 0 and {$paper->max_marks}.",
+                    ]);
+                }
+
                 if (! $item->exam_result_id) {
                     $result = $this->results->create(['paper_id' => $batch->exam_paper_id, 'learner_id' => $item->learner_id, 'marks' => $item->marks], $user->school_id, $user->id);
                     $item->update(['exam_result_id' => $result->id]);
-                } elseif ($batch->status === 'reopened') {
-                    $result = DB::table('exam_results')->where('id', $item->exam_result_id)->where('is_deleted', false)->lockForUpdate()->first();
-                    abort_unless($result, 409);
-                    $item->update(['previous_marks' => $result->marks]);
-                    DB::table('exam_results')->where('id', $result->id)->update(['marks' => $item->marks]);
+                } elseif (in_array($batch->status, ['reopened', 'changes_requested'], true)) {
+                    $result = DB::table('exam_results')
+                        ->where('id', $item->exam_result_id)
+                        ->where('exam_id', $exam->id)
+                        ->where('paper_id', $batch->exam_paper_id)
+                        ->where('learner_id', $item->learner_id)
+                        ->where('learning_area_id', $paper->learning_area_id)
+                        ->where('is_deleted', false)
+                        ->lockForUpdate()
+                        ->first();
+
+                    abort_unless($result, 409, 'The linked result does not belong to this batch item.');
+
+                    if ((float) $result->marks !== (float) $item->marks) {
+                        $item->update(['previous_marks' => $result->marks]);
+                        DB::table('exam_results')->where('id', $result->id)->update(['marks' => $item->marks]);
+
+                        $this->lifecycle->invalidateLearningArea(
+                            $exam,
+                            $result->learner_id,
+                            $result->learning_area_id
+                        );
+                    }
                 }
             }
             $batch->update(['status' => 'submitted', 'submitted_at' => now(), 'version' => $batch->version + 1]);
