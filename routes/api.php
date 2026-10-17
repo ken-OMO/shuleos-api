@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\ExamLearningAreaAnalysisController;
 use App\Http\Controllers\Api\ExamLearningAreaController;
 use App\Http\Controllers\Api\ExamPaperController;
 use App\Http\Controllers\Api\ExamResultController;
+use App\Http\Controllers\Api\ExamRosterController;
 use App\Http\Controllers\Api\FeeCategoryController;
 use App\Http\Controllers\Api\FeeInvoiceController;
 use App\Http\Controllers\Api\FeeStructureController;
@@ -1789,6 +1790,10 @@ Route::prefix('assessment-registrations')
 Route::prefix('exams')
     ->middleware($secure)
     ->group(function () {
+
+        Route::get('/{id}/roster', [ExamRosterController::class, 'show'])->whereUuid('id');
+        Route::put('/{id}/roster', [ExamRosterController::class, 'update'])->whereUuid('id');
+        Route::get('/{id}/completeness', [ExamRosterController::class, 'completeness'])->whereUuid('id');
 
         Route::get('/', [ExamController::class, 'index']);
 
