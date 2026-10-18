@@ -10,6 +10,7 @@ use App\Services\Assessment\ReportCardService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\Database\AcademicYearBuilder;
@@ -72,6 +73,13 @@ class ReportCardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (! Schema::hasColumn('report_cards', 'has_absence')) {
+            $migration = require database_path(
+                'migrations/2026_10_18_070000_add_report_card_absence_snapshots.php'
+            );
+            $migration->up();
+        }
 
         $this->school = SchoolBuilder::create();
         $this->otherSchool = SchoolBuilder::create();

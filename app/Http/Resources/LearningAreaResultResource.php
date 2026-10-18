@@ -15,7 +15,7 @@ class LearningAreaResultResource extends JsonResource
             'exam_id' => $this->exam_id,
             'learner_id' => $this->learner_id,
             'learning_area_id' => $this->learning_area_id,
-            'marks_obtained' => $this->marks_obtained,
+            'marks_obtained' => $this->marks_obtained, 'is_absent' => $this->is_absent,
             'maximum_marks' => $this->maximum_marks,
             'percentage' => $this->percentage,
             'grade_code' => $this->gradingScale?->grade_code,

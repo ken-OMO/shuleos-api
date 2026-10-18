@@ -24,7 +24,8 @@ class MeritListController extends BaseCrudController
         $positionColumn = ! empty($validated['stream_id'])
             ? 'stream_position'
             : (! empty($validated['grade_id']) ? 'grade_position' : 'school_position');
-        $query->orderBy($positionColumn)->orderBy('learner_id');
+        $query->orderByRaw("CASE WHEN {$positionColumn} IS NULL THEN 1 ELSE 0 END")
+            ->orderBy($positionColumn)->orderBy('learner_id');
 
         return $this->success(MeritListResource::collection($query->paginate($validated['per_page'] ?? 20)), 'Merit lists retrieved successfully.');
     }

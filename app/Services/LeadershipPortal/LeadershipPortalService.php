@@ -189,7 +189,14 @@ class LeadershipPortalService
             $q->whereIn('learning_area_id', $s['learning_area_ids']);
         }
 
-        return ['average_percentage' => round((float) $q->avg('percentage'), 2), 'processed_results' => $q->count()];
+        $average = (clone $q)->where('is_absent', false)->avg('percentage');
+
+        return [
+            'average_percentage' => $average === null ? null : round((float) $average, 2),
+            'processed_results' => $q->count(),
+            'assessed_results' => (clone $q)->where('is_absent', false)->count(),
+            'absent_results' => (clone $q)->where('is_absent', true)->count(),
+        ];
     }
 
     public function discipline(User $u)

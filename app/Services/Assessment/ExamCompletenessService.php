@@ -3,6 +3,7 @@
 namespace App\Services\Assessment;
 
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ExamCompletenessService
 {
@@ -68,6 +69,7 @@ class ExamCompletenessService
                     $issues = [];
                     $missing = [];
                     $invalid = [];
+                    $absent = [];
                     $total = 0.0;
                     $maximum = (float) $papers->sum('maximum_marks');
                     $snapshot = $papers->first();
@@ -111,15 +113,25 @@ class ExamCompletenessService
 
                         if ($matches->isEmpty()) {
                             $missing[] = $paper->paper_id;
-                        } elseif ($matches->count() !== 1
-                            || $matches->first()->marks === null
-                            || ! is_numeric($matches->first()->marks)
-                            || ! is_finite((float) $matches->first()->marks)
-                            || (float) $matches->first()->marks < 0
-                            || (float) $matches->first()->marks > (float) $paper->maximum_marks) {
+                        } elseif ($matches->count() !== 1) {
                             $invalid[] = $paper->paper_id;
                         } else {
-                            $total += (float) $matches->first()->marks;
+                            $rawResult = $matches->first();
+
+                            try {
+                                $value = app(PaperResultValueService::class)->normalize([
+                                    'is_absent' => $rawResult->is_absent,
+                                    'marks' => $rawResult->marks,
+                                ], (float) $paper->maximum_marks);
+
+                                if ($value['is_absent']) {
+                                    $absent[] = $paper->paper_id;
+                                } else {
+                                    $total += $value['marks'];
+                                }
+                            } catch (ValidationException $exception) {
+                                $invalid[] = $paper->paper_id;
+                            }
                         }
                     }
 
@@ -142,11 +154,32 @@ class ExamCompletenessService
                         $issues[] = 'invalid_processed_results';
                     } elseif ($result->processing_status !== 'processed') {
                         $issues[] = 'stale_or_unprocessed';
-                    } elseif ($missing === [] && $invalid === [] && $maximum > 0
-                        && (abs((float) $result->marks_obtained - round($total, 2)) > 0.001
-                            || abs((float) $result->maximum_marks - $maximum) > 0.001
-                            || abs((float) $result->percentage - round($total / $maximum * 100, 2)) > 0.001)) {
-                        $issues[] = 'processed_values_mismatch';
+                    } elseif ($missing === [] && $invalid === [] && $maximum > 0) {
+                        $expectsAbsence = $absent !== [];
+                        $maximumMatches = is_numeric($result->maximum_marks)
+                            && is_finite((float) $result->maximum_marks)
+                            && abs((float) $result->maximum_marks - $maximum) <= 0.001;
+
+                        if ($expectsAbsence) {
+                            $valuesMatch = $result->marks_obtained === null
+                                && $result->percentage === null
+                                && $result->grading_system_id === null
+                                && $result->grading_scale_id === null;
+                        } else {
+                            $valuesMatch = is_numeric($result->marks_obtained)
+                                && is_finite((float) $result->marks_obtained)
+                                && is_numeric($result->percentage)
+                                && is_finite((float) $result->percentage)
+                                && abs((float) $result->marks_obtained - round($total, 2)) <= 0.001
+                                && abs((float) $result->percentage - round($total / $maximum * 100, 2)) <= 0.001
+                                && $result->grading_system_id !== null
+                                && $result->grading_scale_id !== null;
+                        }
+
+                        if ((bool) $result->is_absent !== $expectsAbsence
+                            || ! $maximumMatches || ! $valuesMatch) {
+                            $issues[] = 'processed_values_mismatch';
+                        }
                     }
 
                     $areas[] = [
@@ -154,6 +187,8 @@ class ExamCompletenessService
                         'expected_paper_count' => $papers->count(),
                         'missing_paper_ids' => $missing,
                         'invalid_paper_ids' => $invalid,
+                        'absent_paper_ids' => $absent,
+                        'absent_paper_count' => count($absent),
                         'complete' => $issues === [],
                         'issues' => array_values(array_unique($issues)),
                     ];

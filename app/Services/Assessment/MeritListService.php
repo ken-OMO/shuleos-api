@@ -81,6 +81,20 @@ class MeritListService
 
             $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($schoolId) {
                 $learner = $items->first()->learner;
+
+                if ($items->contains(fn (LearningAreaResult $item) => (bool) $item->is_absent)) {
+                    return [
+                        'learner' => $learner,
+                        'total_score' => null,
+                        'maximum_marks' => round((float) $items->sum('maximum_marks'), 2),
+                        'average_percentage' => null,
+                        'total_points' => null,
+                        'grading_system_id' => null,
+                        'grading_scale_id' => null,
+                        'ranking_method' => 'not_ranked_absent',
+                    ];
+                }
+
                 $score = round((float) $items->sum('marks_obtained'), 2);
                 $maximum = round((float) $items->sum('maximum_marks'), 2);
                 $average = round((float) $items->avg('percentage'), 2);
@@ -94,14 +108,17 @@ class MeritListService
                 ];
             })->values();
 
-            $schoolPositions = $this->positions($rows);
-            $gradePositions = $rows->groupBy(fn ($row) => $row['learner']->grade_id)->flatMap(fn ($group) => $this->positions($group));
-            $streamPositions = $rows->groupBy(fn ($row) => $row['learner']->stream_id)->flatMap(fn ($group) => $this->positions($group));
+            $rankedRows = $rows->reject(
+                fn (array $row) => ($row['ranking_method'] ?? 'competition') === 'not_ranked_absent'
+            );
+            $schoolPositions = $this->positions($rankedRows);
+            $gradePositions = $rankedRows->groupBy(fn ($row) => $row['learner']->grade_id)->flatMap(fn ($group) => $this->positions($group));
+            $streamPositions = $rankedRows->groupBy(fn ($row) => $row['learner']->stream_id)->flatMap(fn ($group) => $this->positions($group));
             $rows = $rows->map(function ($row) use ($schoolPositions, $gradePositions, $streamPositions) {
                 $id = $row['learner']->id;
-                $row['school_position'] = $schoolPositions[$id];
-                $row['grade_position'] = $gradePositions[$id];
-                $row['stream_position'] = $streamPositions[$id];
+                $row['school_position'] = $schoolPositions->get($id);
+                $row['grade_position'] = $gradePositions->get($id);
+                $row['stream_position'] = $streamPositions->get($id);
 
                 return $row;
             });
@@ -122,16 +139,17 @@ class MeritListService
                     'average_percentage' => $row['average_percentage'], 'total_points' => $row['total_points'],
                     'overall_grading_system_id' => $row['grading_system_id'], 'overall_grading_scale_id' => $row['grading_scale_id'],
                     'stream_position' => $row['stream_position'], 'grade_position' => $row['grade_position'],
-                    'school_position' => $row['school_position'], 'ranking_method' => 'competition',
+                    'school_position' => $row['school_position'], 'ranking_method' => $row['ranking_method'] ?? 'competition',
                     'status' => 'generated', 'generated_by' => $generatedBy, 'generated_at' => now(),
                     'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null,
                 ])->save();
 
                 return $model->load(['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy']);
-            })->sortBy([
-                [$positionColumn, 'asc'],
-                ['learner_id', 'asc'],
-            ])->values();
+            })->sort(function (MeritList $a, MeritList $b) use ($positionColumn) {
+                return (($a->{$positionColumn} === null) <=> ($b->{$positionColumn} === null))
+                    ?: ($a->{$positionColumn} <=> $b->{$positionColumn})
+                    ?: strcmp($a->learner_id, $b->learner_id);
+            })->values();
         });
     }
 

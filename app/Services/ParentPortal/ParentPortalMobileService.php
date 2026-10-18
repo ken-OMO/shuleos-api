@@ -218,7 +218,7 @@ class ParentPortalMobileService
             ->where('result.processing_status', 'processed')->where('result.is_deleted', false)
             ->where('exam.status', 'published')->where('exam.is_deleted', false)
             ->when($examId, fn ($q) => $q->where('exam.id', $examId))
-            ->select('exam.id as exam_id', 'exam.exam_name', 'result.id', 'area.learning_area_name', 'result.marks_obtained', 'result.maximum_marks', 'result.percentage', 'scale.grade_code', 'scale.grade_description', 'scale.points', 'result.processed_at')
+            ->select('exam.id as exam_id', 'exam.exam_name', 'result.id', 'area.learning_area_name', 'result.is_absent', 'result.marks_obtained', 'result.maximum_marks', 'result.percentage', 'scale.grade_code', 'scale.grade_description', 'scale.points', 'result.processed_at')
             ->orderByDesc('exam.end_date')->orderBy('area.learning_area_name')->limit(200)->get();
         if ($examId) {
             abort_if($exams->isEmpty(), 404);
@@ -227,9 +227,12 @@ class ParentPortalMobileService
         return $exams->groupBy('exam_id')->map(fn ($rows) => [
             'exam' => ['id' => $rows->first()->exam_id, 'name' => $rows->first()->exam_name],
             'learning_areas' => $rows->map(fn ($row) => collect((array) $row)->except(['exam_id', 'exam_name'])->all())->values(),
-            'total_score' => round((float) $rows->sum('marks_obtained'), 2),
+            'has_absence' => $rows->contains(fn ($row) => (bool) $row->is_absent),
+            'total_score' => $rows->contains(fn ($row) => (bool) $row->is_absent)
+                ? null : round((float) $rows->sum('marks_obtained'), 2),
             'maximum_marks' => round((float) $rows->sum('maximum_marks'), 2),
-            'average_percentage' => round((float) $rows->avg('percentage'), 2),
+            'average_percentage' => $rows->contains(fn ($row) => (bool) $row->is_absent)
+                ? null : round((float) $rows->avg('percentage'), 2),
         ])->values()->all();
     }
 

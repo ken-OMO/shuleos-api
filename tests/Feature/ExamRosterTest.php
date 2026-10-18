@@ -52,6 +52,11 @@ class ExamRosterTest extends TestCase
     {
         parent::setUp();
 
+        if (! Schema::hasColumn('exam_results', 'is_absent')) {
+            $migration = require database_path('migrations/2026_10_17_090000_add_exam_absence_fields.php');
+            $migration->up();
+        }
+
         if (! Schema::hasTable('exam_rosters')) {
             $migration = require database_path('migrations/2026_10_17_060000_create_exam_roster_tables.php');
             $migration->up();
@@ -305,6 +310,81 @@ class ExamRosterTest extends TestCase
         $this->reject(fn () => app(
             ExamCompletenessService::class
         )->report($other->id, $this->exam->id), 'exam_id');
+    }
+
+    public function test_processed_absence_is_complete_and_numeric_absence_is_detected(): void
+    {
+        $this->save();
+        $this->insertCompletenessMarks(20);
+
+        $paperId = DB::table('exam_papers')
+            ->where('exam_learning_area_id', $this->area->id)
+            ->orderBy('paper_number')->value('id');
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->learner->id)
+            ->where('paper_id', $paperId)
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $beforeProcessing = $this->completeness();
+        $area = $beforeProcessing['learners'][0]['learning_areas'][0];
+
+        $this->assertFalse($beforeProcessing['complete']);
+        $this->assertSame([], $area['missing_paper_ids']);
+        $this->assertSame([], $area['invalid_paper_ids']);
+        $this->assertSame([$paperId], $area['absent_paper_ids']);
+        $this->assertContains('unprocessed', $area['issues']);
+
+        $this->processCompletenessMarks();
+
+        $report = $this->completeness();
+        $area = $report['learners'][0]['learning_areas'][0];
+
+        $this->assertTrue($report['complete']);
+        $this->assertSame(1, $area['absent_paper_count']);
+        $this->assertSame([], $area['issues']);
+
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learner->id)
+            ->update(['marks_obtained' => 0, 'percentage' => 0]);
+
+        $report = $this->completeness();
+        $this->assertFalse($report['complete']);
+        $this->assertContains(
+            'processed_values_mismatch',
+            $report['learners'][0]['learning_areas'][0]['issues']
+        );
+    }
+
+    public function test_completeness_keeps_missing_paper_unresolved_alongside_absence(): void
+    {
+        $this->save();
+        $this->insertCompletenessMarks(20);
+
+        $papers = DB::table('exam_papers')
+            ->where('exam_learning_area_id', $this->area->id)
+            ->orderBy('paper_number')->pluck('id');
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->learner->id)
+            ->where('paper_id', $papers[0])
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->learner->id)
+            ->where('paper_id', $papers[1])
+            ->delete();
+
+        $report = $this->completeness();
+        $area = $report['learners'][0]['learning_areas'][0];
+
+        $this->assertFalse($report['complete']);
+        $this->assertSame([$papers[0]], $area['absent_paper_ids']);
+        $this->assertSame([$papers[1]], $area['missing_paper_ids']);
+        $this->assertSame([], $area['invalid_paper_ids']);
+        $this->assertContains('missing_papers', $area['issues']);
+        $this->assertContains('unprocessed', $area['issues']);
     }
 
     private function completeness(): array

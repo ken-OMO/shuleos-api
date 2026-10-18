@@ -29,6 +29,7 @@ class ExamResult extends Model
         'paper_id',
 
         'marks',
+        'is_absent',
 
         'entered_by',
 
@@ -40,6 +41,7 @@ class ExamResult extends Model
     protected $casts = [
 
         'marks' => 'decimal:2',
+        'is_absent' => 'boolean',
 
         'created_at' => 'datetime',
         'is_deleted' => 'boolean', 'deleted_at' => 'datetime',

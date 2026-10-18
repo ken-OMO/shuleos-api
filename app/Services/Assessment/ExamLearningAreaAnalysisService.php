@@ -88,7 +88,7 @@ class ExamLearningAreaAnalysisService
         $rows = $query->orderBy('results.learning_area_id')
             ->orderBy('results.learner_id')
             ->get([
-                'results.learner_id', 'results.learning_area_id',
+                'results.learner_id', 'results.learning_area_id', 'results.is_absent',
                 'results.marks_obtained', 'results.maximum_marks',
                 'results.percentage', 'results.grading_system_id',
                 'results.grading_scale_id', 'learners.grade_id',
@@ -110,6 +110,22 @@ class ExamLearningAreaAnalysisService
             ->groupBy('grading_system_id');
 
         foreach ($rows as $row) {
+            if ((bool) $row->is_absent) {
+                if ($row->marks_obtained !== null
+                    || $row->percentage !== null
+                    || $row->grading_system_id !== null
+                    || $row->grading_scale_id !== null
+                    || ! is_numeric($row->maximum_marks)
+                    || ! is_finite((float) $row->maximum_marks)
+                    || (float) $row->maximum_marks <= 0) {
+                    throw ValidationException::withMessages([
+                        'analysis' => 'An absent processed result has invalid scores or grading references.',
+                    ]);
+                }
+
+                continue;
+            }
+
             $systemScales = $scales->get($row->grading_system_id, collect());
             $storedScale = $systemScales->firstWhere('id', $row->grading_scale_id);
 
@@ -133,7 +149,8 @@ class ExamLearningAreaAnalysisService
             ->map(function (Collection $areaRows, string $id) use ($systems, $scales, $includeLearners, $topLimit) {
                 return [
                     'learning_area_id' => $id,
-                    'assessed_learners' => $areaRows->pluck('learner_id')->unique()->count(),
+                    'assessed_learners' => $areaRows->reject(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
+                    'absent_learners' => $areaRows->filter(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
                     'grading_summaries' => $this->summaries(
                         $areaRows, $systems, $scales, $includeLearners, $topLimit
                     ),
@@ -142,6 +159,8 @@ class ExamLearningAreaAnalysisService
                     )->map(fn (Collection $streamRows) => [
                         'grade_id' => $streamRows->first()->grade_id,
                         'stream_id' => $streamRows->first()->stream_id,
+                        'assessed_learners' => $streamRows->reject(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
+                        'absent_learners' => $streamRows->filter(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
                         'grading_summaries' => $this->summaries(
                             $streamRows, $systems, $scales, $includeLearners, $topLimit
                         ),
@@ -160,7 +179,8 @@ class ExamLearningAreaAnalysisService
             'membership_basis' => 'current',
             'grading_basis' => 'stored_system_current_scale_boundaries',
             'ranking_method' => 'competition',
-            'assessed_learners' => $rows->pluck('learner_id')->unique()->count(),
+            'assessed_learners' => $rows->reject(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
+            'absent_learners' => $rows->filter(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
             'learning_areas' => $areas,
         ];
     }
@@ -172,7 +192,8 @@ class ExamLearningAreaAnalysisService
         bool $includeLearners,
         int $topLimit
     ): array {
-        return $rows->groupBy('grading_system_id')->sortKeys()
+        return $rows->reject(fn ($row) => (bool) $row->is_absent)
+            ->groupBy('grading_system_id')->sortKeys()
             ->map(function (Collection $items, string $systemId) use ($systems, $scales, $includeLearners, $topLimit) {
                 $mean = round((float) $items->avg('percentage'), 2);
                 $systemScales = $scales->get($systemId, collect());

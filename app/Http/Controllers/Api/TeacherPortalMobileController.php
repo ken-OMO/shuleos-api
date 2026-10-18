@@ -186,7 +186,7 @@ class TeacherPortalMobileController extends BaseApiController
                 foreach ($assignments as $assignment) {
                     $query->orWhere(fn ($item) => $item->where('learner.grade_id', $assignment->grade_id)->where('learner.stream_id', $assignment->stream_id));
                 }
-            })->select('result.id', 'result.learner_id', 'result.marks', 'result.created_at')->get();
+            })->select('result.id', 'result.learner_id', 'result.marks', 'result.is_absent', 'result.created_at')->get();
 
         return $this->success(new TeacherPortalSafeResource([
             'paper' => $paperRow,
@@ -196,7 +196,7 @@ class TeacherPortalMobileController extends BaseApiController
 
     public function enterMarks(Request $request, string $paper)
     {
-        $marks = $request->validate(['marks' => ['required', 'array', 'min:1', 'max:'.config('teacher_portal.batch_limit', 100)], 'marks.*.learner_id' => 'required|uuid', 'marks.*.marks' => 'required|numeric|min:0'])['marks'];
+        $marks = $request->validate(['marks' => ['required', 'array', 'min:1', 'max:'.config('teacher_portal.batch_limit', 100)], 'marks.*.learner_id' => 'required|uuid', 'marks.*.marks' => 'nullable|numeric|min:0', 'marks.*.is_absent' => 'sometimes|boolean'])['marks'];
         [, $assignments] = $this->paperScope($paper);
         $created = DB::transaction(function () use ($marks, $paper, $assignments) {
             return collect($marks)->map(function ($mark) use ($paper, $assignments) {

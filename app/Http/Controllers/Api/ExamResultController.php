@@ -34,7 +34,7 @@ class ExamResultController extends BaseCrudController
 
     public function store(Request $r)
     {
-        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'learner_id' => 'required|uuid|exists:learners,id', 'paper_id' => 'required|uuid|exists:exam_papers,id', 'marks' => 'required|numeric|min:0', 'entered_by' => 'sometimes|nullable|uuid|exists:users,id']);
+        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'learner_id' => 'required|uuid|exists:learners,id', 'paper_id' => 'required|uuid|exists:exam_papers,id', 'marks' => 'nullable|numeric|min:0', 'is_absent' => 'sometimes|boolean', 'entered_by' => 'sometimes|nullable|uuid|exists:users,id']);
         $x = $this->service->create($v, $this->school($r, $v), auth()->id());
 
         return $this->created(new ExamResultResource($x->load(self::RELATIONS)), 'Exam result created successfully.');
@@ -47,12 +47,13 @@ class ExamResultController extends BaseCrudController
             return $this->notFound('Exam result not found.');
         }if ($x->exam->status === 'closed') {
             return $this->badRequest('Closed exam results cannot be changed.');
-        }$v = $r->validate(['marks' => 'required|numeric|min:0|max:'.$x->paper->max_marks]);
+        }$v = $r->validate(['marks' => 'nullable|numeric|min:0|max:'.$x->paper->max_marks, 'is_absent' => 'sometimes|boolean']);
         $x = $this->service->updateMarks(
             $this->school($r),
             $x->id,
-            (float) $v['marks'],
-            auth()->id()
+            isset($v['marks']) ? (float) $v['marks'] : null,
+            auth()->id(),
+            in_array($v['is_absent'] ?? false, [true, 1, '1'], true)
         );
 
         return $this->success(new ExamResultResource($x->refresh()->load(self::RELATIONS)), 'Exam result updated successfully.');
