@@ -53,8 +53,6 @@ class ResultProcessingService
                 ->with('grade.educationLevel')
                 ->whereKey($learnerId)
                 ->where('school_id', $schoolId)
-                ->where('active', true)
-                ->where('is_deleted', false)
                 ->lockForUpdate()
                 ->first();
 

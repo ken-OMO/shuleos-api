@@ -30,12 +30,13 @@ class MarkEntryBatchService
     public function save(User $user, string $paperId, array $marks, ?string $assignmentId = null): MarkEntryBatch
     {
         [$paper, $assignment] = $this->scope($user, $paperId, $assignmentId);
-        $roster = $this->roster($user, $assignment)->pluck('id');
 
-        return DB::transaction(function () use ($user, $paper, $assignment, $marks, $roster) {
+        return DB::transaction(function () use ($user, $paper, $assignment, $marks) {
             $exam = $this->lifecycle->lockExam($user->school_id, $paper->exam_id);
             $this->lifecycle->assertMutable($exam);
             abort_unless($exam->status === 'published', 409, 'Mark entry requires a published exam.');
+
+            $roster = $this->roster($user, $assignment, $paper)->pluck('id');
 
             $teacher = $this->access->teacher($user);
             $batch = MarkEntryBatch::withoutGlobalScopes()->where('school_id', $user->school_id)->where('exam_paper_id', $paper->id)->where('teacher_assignment_id', $assignment->id)->lockForUpdate()->first();
@@ -84,6 +85,19 @@ class MarkEntryBatchService
                 ->first();
 
             abort_unless($paper, 409, 'The batch paper is unavailable.');
+
+            [$scopedPaper, $assignment] = $this->scope(
+                $user, $batch->exam_paper_id, $batch->teacher_assignment_id
+            );
+            $expected = $this->roster($user, $assignment, $scopedPaper)
+                ->pluck('id')->sort()->values()->all();
+            $actual = $items->pluck('learner_id')->sort()->values()->all();
+
+            if ($expected === [] || $expected !== $actual) {
+                throw ValidationException::withMessages([
+                    'batch' => 'Batch items must match the current exam paper roster exactly.',
+                ]);
+            }
 
             foreach ($items as $item) {
                 abort_unless($item->school_id === $user->school_id, 409, 'The batch item belongs to another school.');
@@ -166,8 +180,28 @@ class MarkEntryBatchService
         return [$paper, $assignment];
     }
 
-    private function roster(User $user, $assignment)
+    private function roster(User $user, $assignment, $paper)
     {
+        $roster = DB::table('exam_rosters')
+            ->where('school_id', $user->school_id)
+            ->where('exam_id', $paper->exam_id)->first();
+
+        if ($roster) {
+            return DB::table('exam_roster_learners as participants')
+                ->where('participants.roster_id', $roster->id)
+                ->where('participants.school_id', $user->school_id)
+                ->where('participants.exam_id', $paper->exam_id)
+                ->where('participants.grade_id', $assignment->grade_id)
+                ->where('participants.stream_id', $assignment->stream_id)
+                ->whereExists(function ($query) use ($paper) {
+                    $query->selectRaw('1')
+                        ->from('exam_roster_papers as requirements')
+                        ->whereColumn('requirements.roster_learner_id', 'participants.id')
+                        ->where('requirements.paper_id', $paper->id);
+                })
+                ->select('participants.learner_id as id');
+        }
+
         return DB::table('learners')->where('school_id', $user->school_id)->where('grade_id', $assignment->grade_id)->where('stream_id', $assignment->stream_id)->where('active', true)->where('is_deleted', false);
     }
 }

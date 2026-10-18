@@ -890,6 +890,51 @@ class ExamRosterTest extends TestCase
         return $token;
     }
 
+    public function test_existing_roster_retains_inactive_and_archived_participants(): void
+    {
+        $this->save();
+
+        foreach (['withdrawn', 'transferred', 'graduated', 'archived'] as $index => $state) {
+            DB::table('learners')->where('id', $this->learner->id)->update([
+                'active' => false,
+                'lifecycle_status' => $state === 'archived' ? 'active' : $state,
+                'is_deleted' => $state === 'archived',
+            ]);
+
+            $before = (array) DB::table('learners')
+                ->where('id', $this->learner->id)->first();
+            $result = $this->save($index + 1);
+
+            $this->assertSame($index + 2, $result['version']);
+            $this->assertSame(1, $result['learner_count']);
+            $this->assertDatabaseHas('exam_roster_learners', [
+                'exam_id' => $this->exam->id,
+                'learner_id' => $this->learner->id,
+                'grade_id' => $this->learner->grade_id,
+                'stream_id' => $this->learner->stream_id,
+            ]);
+            $this->assertSame(
+                $before,
+                (array) DB::table('learners')->where('id', $this->learner->id)->first()
+            );
+        }
+    }
+
+    public function test_new_roster_rejects_inactive_and_archived_learners(): void
+    {
+        foreach (['withdrawn', 'transferred', 'graduated', 'archived'] as $state) {
+            DB::table('learners')->where('id', $this->learner->id)->update([
+                'active' => false,
+                'lifecycle_status' => $state === 'archived' ? 'active' : $state,
+                'is_deleted' => $state === 'archived',
+            ]);
+
+            $before = $this->snapshot();
+            $this->reject(fn () => $this->save(), 'learners');
+            $this->assertSame($before, $this->snapshot());
+        }
+    }
+
     private function selection(): array
     {
         return [

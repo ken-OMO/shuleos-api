@@ -415,6 +415,31 @@ class ReportCardTest extends TestCase
         $this->assertSame($old['id'], $new['id']);
     }
 
+    public function test_individual_card_generation_and_publication_keep_archived_participant(): void
+    {
+        DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+            'lifecycle_status' => 'active',
+            'active' => false,
+            'is_deleted' => true,
+        ]);
+        $before = (array) DB::table('learners')
+            ->where('id', $this->juniorLearner->id)->first();
+
+        $card = $this->generate($this->juniorLearner->id)->first();
+        $this->assertSame($this->juniorLearner->id, $card->learner_id);
+        $this->assertSame($this->juniorGrade->id, $card->grade_id);
+        $this->assertSame($this->juniorStream->id, $card->stream_id);
+
+        $this->publishJuniorCard();
+
+        $this->assertSame('published', $card->fresh()->status);
+        $this->assertSame(
+            $before,
+            (array) DB::table('learners')
+                ->where('id', $this->juniorLearner->id)->first()
+        );
+    }
+
     public function test_generates_card_copies_overall_data_and_details(): void
     {
         $card = $this->generate(
