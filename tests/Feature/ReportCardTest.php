@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\LearnerController;
 use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -299,6 +301,118 @@ class ReportCardTest extends TestCase
                 'confidence_score' => 90,
             ]
         );
+    }
+
+    public function test_archive_restore_preserves_published_academic_history(): void
+    {
+        $card = $this->generate($this->juniorLearner->id)->first();
+        $this->publishJuniorCard();
+
+        $user = User::withoutGlobalScopes()->findOrFail($this->user->id);
+        Auth::setUser($user);
+
+        DB::table('learners')
+            ->where('id', $this->juniorLearner->id)
+            ->update(['lifecycle_status' => 'active']);
+
+        $queries = [
+            'exam_results' => fn () => DB::table('exam_results')
+                ->where('exam_id', $this->exam->id)
+                ->where('learner_id', $this->juniorLearner->id),
+            'learning_area_results' => fn () => DB::table('learning_area_results')
+                ->where('exam_id', $this->exam->id)
+                ->where('learner_id', $this->juniorLearner->id),
+            'merit_lists' => fn () => DB::table('merit_lists')
+                ->where('exam_id', $this->exam->id)
+                ->where('learner_id', $this->juniorLearner->id),
+            'report_cards' => fn () => DB::table('report_cards')
+                ->where('id', $card->id),
+            'report_card_learning_areas' => fn () => DB::table('report_card_learning_areas')
+                ->where('report_card_id', $card->id),
+            'exam_roster_learners' => fn () => DB::table('exam_roster_learners')
+                ->where('exam_id', $this->exam->id)
+                ->where('learner_id', $this->juniorLearner->id),
+            'exam_grading_snapshots' => fn () => DB::table('exam_grading_snapshots')
+                ->where('exam_id', $this->exam->id),
+        ];
+
+        $before = [];
+        foreach ($queries as $table => $query) {
+            $before[$table] = $query()->orderBy('id')->get()
+                ->map(fn ($row) => (array) $row)->all();
+            $this->assertNotEmpty($before[$table], "Missing {$table} fixture.");
+        }
+
+        $controller = app(LearnerController::class);
+        $archiveRequest = Request::create(
+            '/api/learners/'.$this->juniorLearner->id, 'DELETE'
+        );
+        $archiveRequest->setUserResolver(fn () => $user);
+        $archiveRequest->attributes->set('tenant_school_id', $this->school->id);
+
+        $response = $controller->destroy(
+            $archiveRequest, $this->juniorLearner->id
+        );
+        $this->assertSame(200, $response->getStatusCode());
+
+        foreach ($queries as $table => $query) {
+            $this->assertSame(
+                $before[$table],
+                $query()->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all(),
+                "Archiving changed {$table}."
+            );
+        }
+
+        $restoreRequest = Request::create(
+            '/api/learners/'.$this->juniorLearner->id.'/restore',
+            'POST',
+            ['reason' => 'Restore learner while retaining published academic history.']
+        );
+        $restoreRequest->setUserResolver(fn () => $user);
+        $restoreRequest->attributes->set('tenant_school_id', $this->school->id);
+
+        $response = $controller->restore(
+            $restoreRequest, $this->juniorLearner->id
+        );
+        $this->assertSame(200, $response->getStatusCode());
+
+        foreach ($queries as $table => $query) {
+            $this->assertSame(
+                $before[$table],
+                $query()->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all(),
+                "Restoration changed {$table}."
+            );
+        }
+
+        $this->assertDatabaseHas('report_cards', [
+            'id' => $card->id,
+            'status' => 'published',
+        ]);
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->juniorLearner->id,
+            'is_deleted' => false,
+            'active' => true,
+        ]);
+
+        $audit = DB::table('audit_logs')
+            ->where('record_id', $this->juniorLearner->id)
+            ->where('action', 'Restore')->first();
+
+        $this->assertNotNull($audit);
+        $this->assertSame($this->school->id, $audit->school_id);
+        $this->assertSame($user->id, $audit->user_id);
+        $this->assertStringContainsString(
+            'Restore learner while retaining published academic history.',
+            $audit->description
+        );
+
+        $old = json_decode($audit->old_values, true, 512, JSON_THROW_ON_ERROR);
+        $new = json_decode($audit->new_values, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertTrue((bool) $old['is_deleted']);
+        $this->assertFalse((bool) $new['is_deleted']);
+        $this->assertSame($old['id'], $new['id']);
     }
 
     public function test_generates_card_copies_overall_data_and_details(): void
