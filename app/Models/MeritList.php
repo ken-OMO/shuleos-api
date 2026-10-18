@@ -17,13 +17,14 @@ class MeritList extends TenantModel
     protected $fillable = [
         'id', 'school_id', 'exam_id', 'learner_id', 'grade_id', 'stream_id',
         'total_score', 'maximum_marks', 'average_percentage', 'total_points',
-        'overall_grading_system_id', 'overall_grading_scale_id',
+        'overall_grading_system_id', 'overall_grading_scale_id', 'grading_snapshot',
         'stream_position', 'grade_position', 'school_position', 'ranking_method',
         'status', 'generated_by', 'generated_at', 'published_at', 'is_deleted',
         'deleted_at', 'deleted_by',
     ];
 
     protected $casts = [
+        'grading_snapshot' => 'array',
         'total_score' => 'decimal:2', 'maximum_marks' => 'decimal:2',
         'average_percentage' => 'decimal:2', 'total_points' => 'integer',
         'stream_position' => 'integer', 'grade_position' => 'integer',

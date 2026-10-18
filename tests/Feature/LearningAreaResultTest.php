@@ -69,6 +69,13 @@ class LearningAreaResultTest extends TestCase
     {
         parent::setUp();
 
+        if (! Schema::hasTable('exam_grading_snapshots')) {
+            $migration = require database_path(
+                'migrations/2026_10_18_140000_add_exam_grading_snapshots.php'
+            );
+            $migration->up();
+        }
+
         if (! Schema::hasColumn('report_cards', 'has_absence')) {
             $migration = require database_path(
                 'migrations/2026_10_18_070000_add_report_card_absence_snapshots.php'

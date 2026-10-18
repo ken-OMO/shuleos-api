@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\ReportCardLearningAreaResource;
+use App\Http\Resources\ReportCardResource;
 use App\Models\ReportCard;
 use App\Models\User;
 use App\Services\Assessment\ReportCardService;
@@ -9,6 +11,7 @@ use App\Services\Pdf\ReportCardPdfService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ReportCardPdfTest extends ReportCardTest
 {
@@ -27,6 +30,110 @@ class ReportCardPdfTest extends ReportCardTest
             'report_footer' => 'End of Report',
             'pathway_enabled' => true,
         ]);
+    }
+
+    public function test_captured_card_grades_survive_live_edits_before_and_after_publication(): void
+    {
+        $context = $this->context();
+        $original = $context['card']->fresh()->load('learningAreas');
+        $award = $original->grading_snapshot;
+        $detailAwards = $original->learningAreas->pluck('grading_snapshot', 'id')->all();
+
+        $this->assertNotNull($award);
+        foreach ($detailAwards as $detailAward) {
+            $this->assertNotNull($detailAward);
+        }
+
+        $systemIds = DB::table('learning_area_results')
+            ->where('exam_id', $context['exam']->id)
+            ->pluck('grading_system_id')->filter()->unique();
+
+        DB::table('grading_scales')->whereIn('grading_system_id', $systemIds)->update([
+            'grade_code' => 'LIVE_CHANGED',
+            'grade_description' => 'LIVE DESCRIPTION CHANGED',
+            'points' => 1,
+        ]);
+        DB::table('grading_systems')->whereIn('id', $systemIds)
+            ->update(['active' => false]);
+
+        $card = app(ReportCardService::class)->generate(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        )->first();
+
+        $this->assertSame($award, $card->grading_snapshot);
+        $this->assertSame($award['grade_code'], $card->overall_grade);
+        $this->assertSame(
+            $detailAwards, $card->learningAreas->pluck('grading_snapshot', 'id')->all()
+        );
+
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        DB::table('grading_scales')->whereIn('grading_system_id', $systemIds)->update([
+            'grade_code' => 'LATER_CHANGED',
+            'grade_description' => 'LATER DESCRIPTION CHANGED',
+            'points' => 2,
+        ]);
+
+        $card = $card->fresh()->load([
+            'school.settings', 'learner', 'exam', 'academicYear', 'term',
+            'grade', 'stream', 'overallGradingScale', 'pathwayRecommendation',
+            'learningAreas.learningArea', 'learningAreas.gradingScale',
+        ]);
+
+        $data = (new ReportCardResource($card))->resolve(request());
+        $this->assertSame('published', $card->status);
+        $this->assertSame($award['grade_code'], $data['overall_grade']);
+        $this->assertSame($award['grade_description'], $data['grade_description']);
+        $this->assertSame($award['points'], $data['overall_points']);
+
+        foreach ($card->learningAreas as $detail) {
+            $detailData = (new ReportCardLearningAreaResource($detail))
+                ->resolve(request());
+            $this->assertSame($detailAwards[$detail->id], $detail->grading_snapshot);
+            $this->assertSame(
+                $detail->grading_snapshot['grade_description'],
+                $detailData['grade_description']
+            );
+            $this->assertSame($detail->grading_snapshot['points'], $detailData['points']);
+        }
+
+        $html = view('pdf.report-card', [
+            'card' => $card, 'settings' => null, 'logo' => null, 'signature' => null,
+        ])->render();
+
+        $this->assertStringContainsString($award['grade_description'], $html);
+        $this->assertStringNotContainsString('LIVE_CHANGED', $html);
+        $this->assertStringNotContainsString('LATER_CHANGED', $html);
+        $this->assertStringNotContainsString('LATER DESCRIPTION CHANGED', $html);
+
+        $document = app(ReportCardPdfService::class)->make(
+            $context['exam']->school_id, $card->id
+        );
+        $this->assertStringStartsWith('%PDF', $document['pdf']->output());
+    }
+
+    public function test_card_generation_rejects_legacy_merit_without_writing_cards(): void
+    {
+        $exam = DB::table('exams')->where('exam_name', 'Report Card Exam')->first();
+        $userId = DB::table('users')->where('school_id', $exam->school_id)->value('id');
+
+        DB::table('merit_lists')->where('exam_id', $exam->id)
+            ->update(['grading_snapshot' => null]);
+
+        try {
+            app(ReportCardService::class)->generate(
+                $exam->school_id, $exam->id, null, null, null, $userId
+            );
+            $this->fail('Expected legacy merit grading to block card generation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('grading_snapshot', $exception->errors());
+        }
+
+        $this->assertSame(0, DB::table('report_cards')->where('exam_id', $exam->id)->count());
     }
 
     private function context(bool $primary = false): array

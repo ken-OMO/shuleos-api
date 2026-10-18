@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\MeritListResource;
 use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamService;
@@ -781,6 +782,44 @@ class MeritListTest extends TestCase
             'grade_id' => $this->gradeTwo->id,
             'stream_id' => $this->streamThree->id,
         ]);
+    }
+
+    public function test_merit_grades_and_points_survive_live_scale_edits(): void
+    {
+        DB::table('grading_scales')->where('id', $this->highScale->id)->update([
+            'grade_code' => 'CHANGED',
+            'grade_description' => 'Changed description',
+            'points' => 1,
+            'min_score' => 95,
+        ]);
+        DB::table('grading_systems')->where('id', $this->gradingSystem->id)
+            ->update(['active' => false]);
+
+        $row = $this->generate()->firstWhere('learner_id', $this->learnerA->id);
+        $data = (new MeritListResource($row))->resolve(request());
+
+        $this->assertSame(16, $row->total_points);
+        $this->assertSame('EE', $data['overall_grade']);
+        $this->assertSame('Exceeding', $data['grade_description']);
+        $this->assertSame(8, $data['overall_points']);
+    }
+
+    public function test_legacy_processed_result_requires_reprocessing_before_merit_generation(): void
+    {
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerA->id)
+            ->update(['grading_snapshot' => null]);
+
+        try {
+            $this->generate();
+            $this->fail('Expected legacy processed results to require reprocessing.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('results', $exception->errors());
+        }
+
+        $this->assertSame(0, DB::table('merit_lists')
+            ->where('exam_id', $this->exam->id)->count());
     }
 
     private function publishSelection(?string $grade = null, ?string $stream = null): void

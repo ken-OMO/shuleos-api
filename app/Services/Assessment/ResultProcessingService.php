@@ -115,7 +115,17 @@ class ResultProcessingService
             }
 
             $percentage = $isAbsent ? null : round(($marksObtained / $maximumMarks) * 100, 2);
-            $grade = $isAbsent ? null : $this->gradeCalculation->calculate($learner, $schoolId, $percentage);
+            $grade = $isAbsent ? [
+                'format_version' => 1,
+                'rules_snapshot_id' => null,
+                'grading_system_id' => null,
+                'grading_scale_id' => null,
+                'grade_code' => null,
+                'grade_description' => null,
+                'points' => null,
+            ] : app(ExamGradingSnapshotService::class)->calculate(
+                $schoolId, $exam->id, $learner, $percentage, $processedBy
+            );
 
             $identity = [
                 'school_id' => $schoolId,
@@ -135,8 +145,9 @@ class ResultProcessingService
                 'maximum_marks' => $maximumMarks,
                 'percentage' => $percentage,
                 'is_absent' => $isAbsent,
-                'grading_system_id' => $isAbsent ? null : $grade['grading_system']->id,
-                'grading_scale_id' => $isAbsent ? null : $grade['grading_scale']->id,
+                'grading_system_id' => $grade['grading_system_id'],
+                'grading_scale_id' => $grade['grading_scale_id'],
+                'grading_snapshot' => $grade,
                 'processing_status' => 'processed',
                 'processed_by' => $processedBy,
                 'processed_at' => now(),

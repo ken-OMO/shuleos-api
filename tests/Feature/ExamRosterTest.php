@@ -56,6 +56,13 @@ class ExamRosterTest extends TestCase
     {
         parent::setUp();
 
+        if (! Schema::hasTable('exam_grading_snapshots')) {
+            $migration = require database_path(
+                'migrations/2026_10_18_140000_add_exam_grading_snapshots.php'
+            );
+            $migration->up();
+        }
+
         if (! Schema::hasColumn('exam_results', 'is_absent')) {
             $migration = require database_path('migrations/2026_10_17_090000_add_exam_absence_fields.php');
             $migration->up();

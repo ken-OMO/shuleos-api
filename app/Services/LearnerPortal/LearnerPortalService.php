@@ -88,9 +88,24 @@ class LearnerPortalService
         $l = $this->a->learner($u);
         if (($s = $this->settings($u)) && ! $s->learner_portal_show_results) {
             throw new AuthorizationException('Results are disabled.');
-        }$q = DB::table('learning_area_results as r')->leftJoin('grading_scales as gs', 'gs.id', '=', 'r.grading_scale_id')->join('exams as e', 'e.id', '=', 'r.exam_id')->where('r.school_id', $u->school_id)->where('r.learner_id', $l->id)->where('r.processing_status', 'processed')->where('r.is_deleted', false)->where('e.status', 'published')->where('e.is_deleted', false)->when($f['exam_id'] ?? null, fn ($x, $v) => $x->where('r.exam_id', $v))->select('r.id', 'r.exam_id', 'r.learning_area_id', 'r.is_absent', 'r.marks_obtained', 'r.maximum_marks', 'r.percentage', 'gs.grade_code', 'gs.grade_description', 'gs.points');
+        }$q = DB::table('learning_area_results as r')->leftJoin('grading_scales as gs', 'gs.id', '=', 'r.grading_scale_id')->join('exams as e', 'e.id', '=', 'r.exam_id')->where('r.school_id', $u->school_id)->where('r.learner_id', $l->id)->where('r.processing_status', 'processed')->where('r.is_deleted', false)->where('e.status', 'published')->where('e.is_deleted', false)->when($f['exam_id'] ?? null, fn ($x, $v) => $x->where('r.exam_id', $v))->select('r.id', 'r.exam_id', 'r.learning_area_id', 'r.is_absent', 'r.marks_obtained', 'r.maximum_marks', 'r.percentage', 'r.grading_snapshot', 'gs.grade_code', 'gs.grade_description', 'gs.points');
 
-        return $q->get();
+        return $q->get()->map(function ($row) {
+            $award = $row->grading_snapshot === null
+                ? null : json_decode($row->grading_snapshot, true, 512, JSON_THROW_ON_ERROR);
+
+            foreach (['grade_code', 'grade_description', 'points'] as $field) {
+                if ((bool) $row->is_absent) {
+                    $row->$field = null;
+                } elseif ($award !== null) {
+                    $row->$field = $award[$field];
+                }
+            }
+
+            unset($row->grading_snapshot);
+
+            return $row;
+        });
     }
 
     public function reportCards(User $u)

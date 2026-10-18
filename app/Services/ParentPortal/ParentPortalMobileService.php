@@ -218,8 +218,25 @@ class ParentPortalMobileService
             ->where('result.processing_status', 'processed')->where('result.is_deleted', false)
             ->where('exam.status', 'published')->where('exam.is_deleted', false)
             ->when($examId, fn ($q) => $q->where('exam.id', $examId))
-            ->select('exam.id as exam_id', 'exam.exam_name', 'result.id', 'area.learning_area_name', 'result.is_absent', 'result.marks_obtained', 'result.maximum_marks', 'result.percentage', 'scale.grade_code', 'scale.grade_description', 'scale.points', 'result.processed_at')
+            ->select('exam.id as exam_id', 'exam.exam_name', 'result.id', 'area.learning_area_name', 'result.is_absent', 'result.marks_obtained', 'result.maximum_marks', 'result.percentage', 'result.grading_snapshot', 'scale.grade_code', 'scale.grade_description', 'scale.points', 'result.processed_at')
             ->orderByDesc('exam.end_date')->orderBy('area.learning_area_name')->limit(200)->get();
+        $exams = $exams->map(function ($row) {
+            $award = $row->grading_snapshot === null
+                ? null : json_decode($row->grading_snapshot, true, 512, JSON_THROW_ON_ERROR);
+
+            foreach (['grade_code', 'grade_description', 'points'] as $field) {
+                if ((bool) $row->is_absent) {
+                    $row->$field = null;
+                } elseif ($award !== null) {
+                    $row->$field = $award[$field];
+                }
+            }
+
+            unset($row->grading_snapshot);
+
+            return $row;
+        });
+
         if ($examId) {
             abort_if($exams->isEmpty(), 404);
         }

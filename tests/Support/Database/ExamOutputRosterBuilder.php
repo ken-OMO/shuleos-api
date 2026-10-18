@@ -2,6 +2,8 @@
 
 namespace Tests\Support\Database;
 
+use App\Models\Learner;
+use App\Services\Assessment\ExamGradingSnapshotService;
 use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamRosterService;
@@ -23,6 +25,13 @@ final class ExamOutputRosterBuilder
         array $learningAreas,
         array $scores
     ): void {
+        if (! Schema::hasTable('exam_grading_snapshots')) {
+            $migration = require database_path(
+                'migrations/2026_10_18_140000_add_exam_grading_snapshots.php'
+            );
+            $migration->up();
+        }
+
         if (! Schema::hasTable('exam_rosters')) {
             $migration = require database_path(
                 'migrations/2026_10_17_060000_create_exam_roster_tables.php'
@@ -86,5 +95,26 @@ final class ExamOutputRosterBuilder
                 'exam_learning_area_ids' => $areaIds,
             ], $learners)
         );
+
+        DB::transaction(function () use ($school, $exam, $actor, $learners, $learningAreas, $scores) {
+            foreach ($learners as $learner) {
+                $model = Learner::withoutGlobalScopes()->findOrFail($learner->id);
+                $award = app(ExamGradingSnapshotService::class)->calculate(
+                    $school->id, $exam->id, $model,
+                    (float) $scores[$learner->id], $actor->id
+                );
+
+                DB::table('learning_area_results')
+                    ->where('school_id', $school->id)
+                    ->where('exam_id', $exam->id)
+                    ->where('learner_id', $learner->id)
+                    ->whereIn('learning_area_id', array_map(fn ($area) => $area->id, $learningAreas))
+                    ->update([
+                        'grading_system_id' => $award['grading_system_id'],
+                        'grading_scale_id' => $award['grading_scale_id'],
+                        'grading_snapshot' => json_encode($award, JSON_THROW_ON_ERROR),
+                    ]);
+            }
+        });
     }
 }

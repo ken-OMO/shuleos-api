@@ -24,6 +24,7 @@ class LearningAreaResult extends TenantModel
         'percentage',
         'grading_system_id',
         'grading_scale_id',
+        'grading_snapshot',
         'processing_status',
         'processed_by',
         'processed_at',
@@ -33,6 +34,7 @@ class LearningAreaResult extends TenantModel
     ];
 
     protected $casts = [
+        'grading_snapshot' => 'array',
         'marks_obtained' => 'decimal:2',
         'is_absent' => 'boolean',
         'maximum_marks' => 'decimal:2',

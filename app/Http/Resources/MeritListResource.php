@@ -14,9 +14,13 @@ class MeritListResource extends JsonResource
             'learner_id' => $this->learner_id, 'grade_id' => $this->grade_id, 'stream_id' => $this->stream_id,
             'total_score' => $this->total_score, 'maximum_marks' => $this->maximum_marks,
             'average_percentage' => $this->average_percentage, 'total_points' => $this->total_points,
-            'overall_grade' => $this->overallGradingScale?->grade_code,
-            'grade_description' => $this->overallGradingScale?->grade_description,
-            'overall_points' => $this->overallGradingScale?->points,
+            'overall_grade' => $this->grading_snapshot !== null
+                ? $this->grading_snapshot['grade_code'] : $this->overallGradingScale?->grade_code,
+            'grade_description' => $this->grading_snapshot !== null
+                ? $this->grading_snapshot['grade_description'] : $this->overallGradingScale?->grade_description,
+            'overall_points' => $this->grading_snapshot !== null
+                ? $this->grading_snapshot['points'] : $this->overallGradingScale?->points,
+            'grading_snapshot' => $this->grading_snapshot,
             'stream_position' => $this->stream_position, 'grade_position' => $this->grade_position,
             'school_position' => $this->school_position, 'ranking_method' => $this->ranking_method,
             'status' => $this->status, 'generated_by' => $this->generated_by,
