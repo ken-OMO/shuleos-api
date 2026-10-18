@@ -149,8 +149,7 @@ class ExamResultService
 
         $learner = Learner::whereKey($data['learner_id'])
             ->where('school_id', $schoolId)
-            ->where('active', true)
-            ->where('is_deleted', false)
+            ->lockForUpdate()
             ->first();
 
         if (! $paper || ! $learner) {
@@ -158,6 +157,10 @@ class ExamResultService
                 'result' => 'The learner or published exam paper is unavailable outside this school.',
             ]);
         }
+
+        $learner = app(ExamMembershipService::class)->learnerAtExam(
+            $schoolId, $paper->examLearningArea->exam_id, $learner
+        );
 
         $this->assertMarkEntryPermission($paper->examLearningArea->exam_id, $userId);
 

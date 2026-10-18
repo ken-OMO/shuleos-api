@@ -74,13 +74,12 @@ class ExamRosterService
 
             $learnerIds = collect($validated['learners'])->pluck('learner_id');
             $learners = DB::table('learners')->where('school_id', $schoolId)
-                ->whereIn('id', $learnerIds)->where('active', true)
-                ->where('is_deleted', false)->orderBy('id')
+                ->whereIn('id', $learnerIds)->orderBy('id')
                 ->lockForUpdate()->get()->keyBy('id');
 
             if ($learners->count() !== $learnerIds->count()) {
                 throw ValidationException::withMessages([
-                    'learners' => 'Every learner must be active and belong to this school.',
+                    'learners' => 'Every learner must belong to this school.',
                 ]);
             }
 
@@ -123,6 +122,12 @@ class ExamRosterService
             foreach ($learners as $learner) {
                 if ($previous->has($learner->id)) {
                     continue;
+                }
+
+                if (! $learner->active || $learner->is_deleted) {
+                    throw ValidationException::withMessages([
+                        'learners' => 'New exam participants must be active and unarchived.',
+                    ]);
                 }
 
                 $gradeValid = DB::table('grades')->where('id', $learner->grade_id)

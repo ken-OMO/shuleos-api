@@ -1450,6 +1450,110 @@ class LearningAreaResultTest extends TestCase
         $this->assertNotNull($processed->grading_scale_id);
     }
 
+    public function test_rostered_learners_remain_processable_after_leaving_or_archiving(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        foreach (['withdrawn', 'transferred', 'graduated', 'archived'] as $state) {
+            DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+                'lifecycle_status' => $state === 'archived' ? 'active' : $state,
+                'active' => false,
+                'is_deleted' => $state === 'archived',
+            ]);
+            $before = (array) DB::table('learners')
+                ->where('id', $this->juniorLearner->id)->first();
+
+            $result = $this->process($this->juniorLearner);
+
+            $this->assertSame('processed', $result->processing_status);
+            $this->assertFalse($result->is_absent);
+            $this->assertNotNull($result->marks_obtained);
+            $this->assertNotNull($result->grading_snapshot);
+            $this->assertSame(
+                $before,
+                (array) DB::table('learners')
+                    ->where('id', $this->juniorLearner->id)->first()
+            );
+        }
+    }
+
+    public function test_inactive_or_archived_learner_without_roster_cannot_be_processed(): void
+    {
+        // Remove only this test exam's roster; child selections cascade.
+        DB::table('exam_rosters')
+            ->where('school_id', $this->school->id)
+            ->where('exam_id', $this->exam->id)->delete();
+
+        $this->assertFalse(DB::table('exam_rosters')
+            ->where('exam_id', $this->exam->id)->exists());
+
+        foreach (['withdrawn', 'transferred', 'graduated', 'archived'] as $state) {
+            DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+                'lifecycle_status' => $state === 'archived' ? 'active' : $state,
+                'active' => false,
+                'is_deleted' => $state === 'archived',
+            ]);
+
+            $before = DB::table('learning_area_results')
+                ->where('exam_id', $this->exam->id)
+                ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
+
+            $this->assertFreshnessRejected(
+                fn () => $this->process($this->juniorLearner), 'learner_id'
+            );
+
+            $this->assertSame(
+                $before,
+                DB::table('learning_area_results')
+                    ->where('exam_id', $this->exam->id)
+                    ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all()
+            );
+        }
+    }
+
+    public function test_teacher_can_complete_existing_exam_batch_for_archived_participant(): void
+    {
+        $this->prepareFreshnessOutputs();
+        [$teacher, $assignment] = $this->freshnessTeacherAssignment();
+        $rawId = $this->freshnessRawId($this->juniorLearner);
+
+        DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+            'lifecycle_status' => 'active',
+            'active' => false,
+            'is_deleted' => true,
+        ]);
+        $before = (array) DB::table('learners')
+            ->where('id', $this->juniorLearner->id)->first();
+
+        $service = app(MarkEntryBatchService::class);
+        $batch = $service->save($teacher, $this->paperOne->id, [
+            ['learner_id' => $this->juniorLearner->id, 'marks' => 25],
+        ], $assignment->id);
+
+        $this->assertSame(1, (int) $batch->expected_learner_count);
+        $batch->items->first()->update(['exam_result_id' => $rawId]);
+        $batch->update(['status' => 'reopened']);
+
+        $submitted = $service->submit($teacher, $batch->id);
+        $this->assertSame('submitted', $submitted->status);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'marks' => 25,
+            'is_absent' => false,
+        ]);
+        $this->assertDatabaseHas('learning_area_results', [
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+            'processing_status' => 'stale',
+        ]);
+        $this->assertSame('processed', $this->process($this->juniorLearner)->processing_status);
+        $this->assertSame(
+            $before,
+            (array) DB::table('learners')
+                ->where('id', $this->juniorLearner->id)->first()
+        );
+    }
+
     private function process(object $learner)
     {
         return app(ResultProcessingService::class)->process(

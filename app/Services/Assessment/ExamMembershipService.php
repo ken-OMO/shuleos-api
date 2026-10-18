@@ -39,6 +39,12 @@ class ExamMembershipService
         // Legacy processing remains possible before an explicit roster is established.
         // Output generation independently requires a complete configured roster.
         if (! $roster) {
+            if (! $learner->active || $learner->is_deleted) {
+                throw ValidationException::withMessages([
+                    'learner_id' => 'An inactive or archived learner requires existing exam roster membership.',
+                ]);
+            }
+
             return $copy;
         }
 

@@ -201,7 +201,16 @@ class ReportCardService
         $exam = Exam::current()->whereKey($examId)->where('school_id', $schoolId)->first();
         if (! $exam) {
             throw ValidationException::withMessages(['exam_id' => 'The exam does not belong to this school.']);
-        } if ($learnerId && ! Learner::query()->whereKey($learnerId)->where('school_id', $schoolId)->where('is_deleted', false)->exists()) {
+        } if ($learnerId && ! Learner::query()->whereKey($learnerId)->where('school_id', $schoolId)
+            ->where(function ($query) use ($schoolId, $examId, $learnerId) {
+                $query->where('is_deleted', false)
+                    ->orWhereExists(function ($participants) use ($schoolId, $examId, $learnerId) {
+                        $participants->selectRaw('1')->from('exam_roster_learners')
+                            ->where('school_id', $schoolId)
+                            ->where('exam_id', $examId)
+                            ->where('learner_id', $learnerId);
+                    });
+            })->exists()) {
             throw ValidationException::withMessages(['learner_id' => 'The learner does not belong to this school.']);
         } if ($gradeId && ! Grade::whereKey($gradeId)->where('school_id', $schoolId)->exists()) {
             throw ValidationException::withMessages(['grade_id' => 'The grade does not belong to this school.']);
