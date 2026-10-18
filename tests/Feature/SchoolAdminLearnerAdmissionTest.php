@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\LearnerController;
+use App\Models\AuditLog;
 use App\Models\Grade;
 use App\Models\Learner;
 use App\Models\Role;
@@ -9,6 +11,7 @@ use App\Models\School;
 use App\Models\Stream;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
@@ -560,6 +563,409 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
                 ->where('permission_id', $permissionId)
                 ->exists()
         );
+    }
+
+    public function test_archived_listing_is_paginated_and_tenant_scoped(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $archived = $this->learner($school, $grade, $stream, 'ARCHIVED-001');
+        $this->learner($school, $grade, $stream, 'CURRENT-001');
+
+        $otherSchool = $this->school();
+        [$otherGrade, $otherStream] = $this->gradeAndStream($otherSchool);
+        $foreign = $this->learner(
+            $otherSchool, $otherGrade, $otherStream, 'FOREIGN-ARCHIVED'
+        );
+
+        DB::table('learners')->whereIn('id', [$archived->id, $foreign->id])
+            ->update(['is_deleted' => true, 'active' => false, 'deleted_at' => now()]);
+
+        $response = $this->withToken($this->tokenFor($user))
+            ->getJson('/api/learners/archived?per_page=1&school_id='.$otherSchool->id)
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('meta.per_page', 1);
+
+        $this->assertSame([$archived->id], array_column($response->json('data'), 'id'));
+
+        $this->getJson('/api/learners/archived?per_page=101')
+            ->assertUnprocessable()->assertJsonValidationErrors('per_page');
+    }
+
+    public function test_deleted_learner_can_be_restored_with_same_identity_and_profile(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $learner = $this->learner($school, $grade, $stream);
+        DB::table('learners')->where('id', $learner->id)->update([
+            'lifecycle_status' => 'active',
+        ]);
+        $before = (array) DB::table('learners')->where('id', $learner->id)->first();
+        $count = DB::table('learners')->where('school_id', $school->id)->count();
+
+        $this->withToken($this->tokenFor($user))
+            ->deleteJson('/api/learners/'.$learner->id)->assertSuccessful();
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id, 'is_deleted' => true, 'active' => false,
+        ]);
+        $this->getJson('/api/learners/'.$learner->id)->assertNotFound();
+
+        $this->postJson('/api/learners/'.$learner->id.'/restore', [
+            'reason' => 'Archived in error; restore the existing record.',
+        ])->assertSuccessful();
+
+        $after = (array) DB::table('learners')->where('id', $learner->id)->first();
+        foreach ([
+            'id', 'school_id', 'admission_no', 'upi', 'assessment_no',
+            'first_name', 'middle_name', 'last_name', 'grade_id', 'stream_id',
+            'lifecycle_status', 'user_id', 'portal_enabled', 'created_at',
+        ] as $field) {
+            $this->assertSame($before[$field], $after[$field], $field.' changed.');
+        }
+        $this->assertFalse((bool) $after['is_deleted']);
+        $this->assertTrue((bool) $after['active']);
+        $this->assertNull($after['deleted_at']);
+        $this->assertNull($after['deleted_by']);
+        $this->assertSame($count, DB::table('learners')
+            ->where('school_id', $school->id)->count());
+        $this->getJson('/api/learners/'.$learner->id)->assertOk();
+    }
+
+    public function test_restoration_preserves_terminal_and_unclassified_lifecycle(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $this->withToken($this->tokenFor($user));
+
+        foreach (['withdrawn', 'transferred', 'graduated', null] as $index => $status) {
+            $learner = $this->learner($school, $grade, $stream, 'STATE-'.$index);
+            DB::table('learners')->where('id', $learner->id)->update([
+                'lifecycle_status' => $status,
+                'active' => false,
+                'is_deleted' => true,
+                'deleted_at' => now(),
+            ]);
+
+            $this->postJson('/api/learners/'.$learner->id.'/restore', [
+                'reason' => 'Recover retained records without changing enrolment.',
+            ])->assertSuccessful();
+
+            $row = DB::table('learners')->where('id', $learner->id)->first();
+            $this->assertSame($status, $row->lifecycle_status);
+            $this->assertFalse((bool) $row->active);
+            $this->assertFalse((bool) $row->is_deleted);
+        }
+    }
+
+    public function test_restore_requires_reason_and_rejects_current_or_foreign_learner(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $learner = $this->learner($school, $grade, $stream);
+        $otherSchool = $this->school();
+        [$otherGrade, $otherStream] = $this->gradeAndStream($otherSchool);
+        $foreign = $this->learner($otherSchool, $otherGrade, $otherStream);
+
+        DB::table('learners')->where('id', $foreign->id)->update([
+            'is_deleted' => true, 'active' => false,
+        ]);
+
+        $this->withToken($this->tokenFor($user))
+            ->postJson('/api/learners/'.$learner->id.'/restore', [])
+            ->assertUnprocessable()->assertJsonValidationErrors('reason');
+
+        $this->postJson('/api/learners/'.$learner->id.'/restore', [
+            'reason' => 'Already current.',
+        ])->assertUnprocessable()->assertJsonValidationErrors('learner');
+
+        $this->postJson('/api/learners/'.$foreign->id.'/restore', [
+            'reason' => 'Attempt another school.',
+            'school_id' => $otherSchool->id,
+        ])->assertNotFound();
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $foreign->id, 'is_deleted' => true,
+        ]);
+    }
+
+    public function test_archive_endpoints_require_authentication_and_permission(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $learner = $this->learner($school, $grade, $stream);
+        DB::table('learners')->where('id', $learner->id)->update([
+            'is_deleted' => true, 'active' => false,
+        ]);
+
+        $this->getJson('/api/learners/archived')->assertUnauthorized();
+        $this->postJson('/api/learners/'.$learner->id.'/restore', [
+            'reason' => 'Restore.',
+        ])->assertUnauthorized();
+
+        DB::table('role_permissions')->where('role_id', $user->role_id)->delete();
+
+        $this->withToken($this->tokenFor($user))
+            ->getJson('/api/learners/archived')->assertForbidden();
+        $this->postJson('/api/learners/'.$learner->id.'/restore', [
+            'reason' => 'Restore.',
+        ])->assertForbidden();
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id, 'is_deleted' => true,
+        ]);
+    }
+
+    public function test_archive_restore_preserves_linked_records(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $learner = $this->learner($school, $grade, $stream);
+
+        DB::table('learners')->where('id', $learner->id)->update([
+            'lifecycle_status' => 'active',
+        ]);
+
+        $parentId = (string) Str::uuid();
+        DB::table('parents')->insert([
+            'id' => $parentId,
+            'school_id' => $school->id,
+            'first_name' => 'Archive',
+            'last_name' => 'Guardian',
+            'phone' => '+254700000001',
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        DB::table('learner_parents')->insert([
+            'id' => (string) Str::uuid(),
+            'learner_id' => $learner->id,
+            'parent_id' => $parentId,
+            'relationship' => 'Parent',
+            'is_primary_contact' => true,
+            'active' => true,
+            'portal_enabled' => false,
+            'is_deleted' => false,
+        ]);
+
+        DB::table('learner_fee_accounts')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'learner_id' => $learner->id,
+            'account_number' => 'ARCHIVE-'.Str::random(12),
+            'current_balance' => 1250,
+            'active' => true,
+        ]);
+
+        $year = DB::table('academic_years')
+            ->where('school_id', $school->id)->first();
+        $term = DB::table('terms')
+            ->where('school_id', $school->id)
+            ->where('academic_year_id', $year->id)->first();
+
+        $invoiceId = (string) Str::uuid();
+        DB::table('fee_invoices')->insert([
+            'id' => $invoiceId,
+            'school_id' => $school->id,
+            'learner_id' => $learner->id,
+            'academic_year_id' => $year->id,
+            'term_id' => $term->id,
+            'invoice_number' => 'ARCHIVE-'.Str::random(12),
+            'total_amount' => 2000,
+            'amount_paid' => 750,
+            'balance' => 1250,
+            'status' => 'UNPAID',
+            'invoice_date' => now()->toDateString(),
+        ]);
+
+        DB::table('learner_fee_ledger')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $school->id,
+            'learner_id' => $learner->id,
+            'academic_year_id' => $year->id,
+            'term_id' => $term->id,
+            'transaction_date' => now(),
+            'transaction_type' => 'INVOICE',
+            'reference_type' => 'fee_invoice',
+            'reference_id' => $invoiceId,
+            'debit_amount' => 2000,
+            'credit_amount' => 0,
+            'running_balance' => 2000,
+            'created_by' => $user->id,
+        ]);
+
+        DB::table('learner_medical_profiles')->insert([
+            'id' => (string) Str::uuid(),
+            'learner_id' => $learner->id,
+            'allergies' => 'Fixture allergy',
+            'emergency_contact' => '+254700000002',
+        ]);
+
+        $tables = [
+            'learner_parents',
+            'learner_fee_accounts',
+            'fee_invoices',
+            'learner_fee_ledger',
+            'learner_medical_profiles',
+        ];
+        $before = [];
+        foreach ($tables as $table) {
+            $before[$table] = DB::table($table)
+                ->where('learner_id', $learner->id)
+                ->orderBy('id')->get()
+                ->map(fn ($row) => (array) $row)->all();
+            $this->assertNotEmpty($before[$table]);
+        }
+        $parentBefore = (array) DB::table('parents')
+            ->where('id', $parentId)->first();
+
+        $headers = ['Authorization' => 'Bearer '.$this->tokenFor($user)];
+
+        $this->withHeaders($headers)
+            ->deleteJson('/api/learners/'.$learner->id)
+            ->assertSuccessful();
+
+        foreach ($tables as $table) {
+            $this->assertSame(
+                $before[$table],
+                DB::table($table)->where('learner_id', $learner->id)
+                    ->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all(),
+                "Archiving changed {$table}."
+            );
+        }
+
+        $this->withHeaders($headers)
+            ->postJson('/api/learners/'.$learner->id.'/restore', [
+                'reason' => 'Restore learner with existing linked records.',
+            ])->assertSuccessful();
+
+        foreach ($tables as $table) {
+            $this->assertSame(
+                $before[$table],
+                DB::table($table)->where('learner_id', $learner->id)
+                    ->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all(),
+                "Restoration changed {$table}."
+            );
+        }
+
+        $this->assertSame(
+            $parentBefore,
+            (array) DB::table('parents')->where('id', $parentId)->first()
+        );
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id,
+            'is_deleted' => false,
+            'active' => true,
+            'lifecycle_status' => 'active',
+        ]);
+    }
+
+    public function test_restore_rejects_reused_identifiers_without_changing_either_learner(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $headers = ['Authorization' => 'Bearer '.$this->tokenFor($user)];
+
+        foreach (['admission_no', 'upi', 'assessment_no'] as $field) {
+            $archived = $this->learner(
+                $school, $grade, $stream, 'OLD-'.Str::random(12)
+            );
+            $value = 'REUSED-'.Str::random(12);
+
+            DB::table('learners')->where('id', $archived->id)->update([
+                $field => $value,
+                'is_deleted' => true,
+                'active' => false,
+                'deleted_at' => now(),
+                'deleted_by' => $user->id,
+            ]);
+
+            $current = $this->learner(
+                $school, $grade, $stream, 'NEW-'.Str::random(12)
+            );
+            DB::table('learners')->where('id', $current->id)->update([
+                $field => $value,
+            ]);
+
+            $before = DB::table('learners')
+                ->whereIn('id', [$archived->id, $current->id])
+                ->orderBy('id')->get()
+                ->map(fn ($row) => (array) $row)->all();
+
+            $this->withHeaders($headers)
+                ->postJson('/api/learners/'.$archived->id.'/restore', [
+                    'reason' => 'Attempt restoration with an identifier conflict.',
+                ])->assertUnprocessable()
+                ->assertJsonValidationErrors($field);
+
+            $this->assertSame(
+                $before,
+                DB::table('learners')
+                    ->whereIn('id', [$archived->id, $current->id])
+                    ->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all()
+            );
+        }
+    }
+
+    public function test_restoration_rolls_back_when_audit_fails(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $learner = $this->learner($school, $grade, $stream);
+
+        DB::table('learners')->where('id', $learner->id)->update([
+            'lifecycle_status' => 'active',
+            'is_deleted' => true,
+            'active' => false,
+            'deleted_at' => now(),
+            'deleted_by' => $user->id,
+        ]);
+
+        $before = (array) DB::table('learners')
+            ->where('id', $learner->id)->first();
+        $auditCount = DB::table('audit_logs')->count();
+
+        $dispatcher = AuditLog::getEventDispatcher();
+        AuditLog::setEventDispatcher(clone $dispatcher);
+
+        try {
+            AuditLog::creating(function ($audit) {
+                if ($audit->action === 'Restore') {
+                    throw new \RuntimeException('Simulated restoration audit failure.');
+                }
+            });
+
+            $request = Request::create(
+                '/api/learners/'.$learner->id.'/restore',
+                'POST',
+                ['reason' => 'Test atomic restoration.']
+            );
+            $request->setUserResolver(fn () => $user);
+            $request->attributes->set('tenant_school_id', $school->id);
+
+            try {
+                app(LearnerController::class)
+                    ->restore($request, $learner->id);
+                $this->fail('Restoration should fail when its audit fails.');
+            } catch (\RuntimeException $exception) {
+                $this->assertSame(
+                    'Simulated restoration audit failure.',
+                    $exception->getMessage()
+                );
+            }
+        } finally {
+            AuditLog::setEventDispatcher($dispatcher);
+        }
+
+        $this->assertSame(
+            $before,
+            (array) DB::table('learners')->where('id', $learner->id)->first()
+        );
+        $this->assertSame($auditCount, DB::table('audit_logs')->count());
     }
 
     private function schoolAdminWithPermission(): array

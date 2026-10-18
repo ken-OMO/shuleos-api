@@ -1359,6 +1359,15 @@ Route::prefix('learners')
         Route::patch('/{learner}/portal-account/status', [LearnerPortalAdminController::class, 'status']);
         Route::post('/{learner}/portal-account/reset-password', [LearnerPortalAdminController::class, 'reset']);
 
+        Route::get('/archived', [LearnerController::class, 'archived'])
+            ->middleware('permission:manage_learners');
+
+        Route::post('/{id}/restore', [LearnerController::class, 'restore'])
+            ->middleware([
+                'permission:manage_learners',
+                'school.operational',
+            ]);
+
         Route::get('/{id}', [LearnerController::class, 'show'])
             ->middleware('permission:manage_learners');
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\LearnerResource;
+use App\Models\AuditLog;
 use App\Models\Grade;
 use App\Models\Learner;
 use App\Models\Stream;
@@ -21,6 +22,109 @@ class LearnerController extends BaseCrudController
         'grade',
         'stream',
     ];
+
+    public function archived(Request $request)
+    {
+        $validated = $request->validate([
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $learners = $this->learnerQuery($request)
+            ->with(self::RELATIONS)
+            ->where('is_deleted', true)
+            ->orderByDesc('deleted_at')
+            ->orderBy('id')
+            ->paginate((int) ($validated['per_page'] ?? 25));
+
+        return LearnerResource::collection($learners);
+    }
+
+    public function restore(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+        $reason = trim($validated['reason']);
+        if ($reason === '') {
+            throw ValidationException::withMessages([
+                'reason' => 'A restoration reason is required.',
+            ]);
+        }
+
+        $learner = DB::transaction(function () use ($request, $id, $reason) {
+            $learner = $this->learnerQuery($request)
+                ->whereKey($id)
+                ->lockForUpdate()
+                ->first();
+
+            if (! $learner) {
+                abort(404, 'Learner not found.');
+            }
+
+            if (! $learner->is_deleted) {
+                throw ValidationException::withMessages([
+                    'learner' => 'This learner is not archived.',
+                ]);
+            }
+
+            // Reuse the existing identity; never recreate linked records.
+            foreach (['admission_no', 'upi', 'assessment_no'] as $field) {
+                $value = $learner->getAttribute($field);
+                if (blank($value)) {
+                    continue;
+                }
+
+                if ($this->learnerQuery($request)
+                    ->where('is_deleted', false)
+                    ->whereKeyNot($learner->id)
+                    ->whereRaw('LOWER('.$field.') = ?', [mb_strtolower((string) $value)])
+                    ->exists()) {
+                    throw ValidationException::withMessages([
+                        $field => 'Another current learner uses this identifier. Resolve the conflict before restoration.',
+                    ]);
+                }
+            }
+
+            $oldValues = $learner->toArray();
+
+            // A terminal or unclassified lifecycle remains inactive.
+            // Portal settings and linked user-account state are not rewritten.
+            $learner->forceFill([
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'deleted_by' => null,
+                'active' => $learner->lifecycle_status === 'active',
+            ])->save();
+
+            // Restoration and its audit must commit together.
+            $audit = new AuditLog;
+            $audit->forceFill([
+                'school_id' => $learner->school_id,
+                'user_id' => $request->user()->id,
+                'module' => self::MODULE,
+                'action' => 'Restore',
+                'table_name' => $learner->getTable(),
+                'record_id' => $learner->getKey(),
+                'old_values' => $oldValues,
+                'new_values' => $learner->fresh()->toArray(),
+                'description' => 'Restored archived learner. Reason: '.$reason,
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'created_at' => now(),
+            ]);
+
+            if (! $audit->save()) {
+                throw new \RuntimeException('The restoration audit could not be saved.');
+            }
+
+            return $learner->fresh()->load(self::RELATIONS);
+        });
+
+        return $this->success(
+            new LearnerResource($learner),
+            'Learner restored successfully.'
+        );
+    }
 
     public function index(Request $request)
     {
