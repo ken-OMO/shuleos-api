@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\ReportCardLearningAreaResource;
+use App\Http\Resources\ReportCardResource;
 use App\Models\TeacherAssignment;
 use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
@@ -12,10 +14,14 @@ use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
+use App\Services\Pdf\ReportCardPdfService;
 use App\Services\TeacherPortal\MarkEntryBatchService;
+use App\Services\TeacherPortal\MarkModerationService;
+use App\Services\TeacherPortal\TeacherHodScopeService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\Database\AcademicYearBuilder;
@@ -61,6 +67,18 @@ class LearningAreaResultTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (! Schema::hasColumn('report_cards', 'has_absence')) {
+            $migration = require database_path(
+                'migrations/2026_10_18_070000_add_report_card_absence_snapshots.php'
+            );
+            $migration->up();
+        }
+
+        if (! Schema::hasColumn('exam_results', 'is_absent')) {
+            $migration = require database_path('migrations/2026_10_17_090000_add_exam_absence_fields.php');
+            $migration->up();
+        }
 
         $this->school = SchoolBuilder::create();
         $this->otherSchool = SchoolBuilder::create();
@@ -650,6 +668,230 @@ class LearningAreaResultTest extends TestCase
             ->get()->map(fn ($row) => (array) $row)->all());
     }
 
+    public function test_absence_clears_existing_merit_ranks_and_scored_correction_restores_them(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        $identity = [
+            'school_id' => $this->school->id,
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+        ];
+
+        $before = DB::table('merit_lists')->where($identity)->first();
+        $this->assertNotNull($before->school_position);
+
+        DB::table('exam_results')
+            ->where('id', $this->freshnessRawId($this->juniorLearner))
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $this->process($this->juniorLearner);
+        $this->generateFreshnessMerits();
+
+        $absent = DB::table('merit_lists')->where($identity)->first();
+
+        $this->assertSame($before->id, $absent->id);
+        $this->assertSame('not_ranked_absent', $absent->ranking_method);
+        $this->assertSame('generated', $absent->status);
+
+        foreach ([
+            'total_score', 'average_percentage', 'total_points',
+            'overall_grading_system_id', 'overall_grading_scale_id',
+            'school_position', 'grade_position', 'stream_position',
+        ] as $field) {
+            $this->assertNull($absent->{$field}, $field);
+        }
+
+        $other = DB::table('merit_lists')
+            ->where('school_id', $this->school->id)
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->primaryLearner->id)
+            ->first();
+
+        $this->assertSame(1, (int) $other->school_position);
+
+        DB::table('exam_results')
+            ->where('id', $this->freshnessRawId($this->juniorLearner))
+            ->update(['is_absent' => false, 'marks' => 40]);
+
+        $this->process($this->juniorLearner);
+        $this->generateFreshnessMerits();
+
+        $restored = DB::table('merit_lists')->where($identity)->first();
+
+        $this->assertSame($before->id, $restored->id);
+        $this->assertSame('competition', $restored->ranking_method);
+        $this->assertSame(75.0, (float) $restored->total_score);
+        $this->assertNotNull($restored->overall_grading_scale_id);
+        $this->assertNotNull($restored->school_position);
+        $this->assertNotNull($restored->grade_position);
+        $this->assertNotNull($restored->stream_position);
+    }
+
+    public function test_all_absent_learners_keep_merit_entries_without_any_rank(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        foreach ([$this->juniorLearner, $this->primaryLearner] as $learner) {
+            DB::table('exam_results')
+                ->where('id', $this->freshnessRawId($learner))
+                ->update(['is_absent' => true, 'marks' => null]);
+
+            $this->process($learner);
+        }
+
+        $this->generateFreshnessMerits();
+
+        $rows = DB::table('merit_lists')
+            ->where('school_id', $this->school->id)
+            ->where('exam_id', $this->exam->id)
+            ->get();
+
+        $this->assertCount(2, $rows);
+
+        foreach ($rows as $row) {
+            $this->assertSame('not_ranked_absent', $row->ranking_method);
+            $this->assertNull($row->total_score);
+            $this->assertNull($row->average_percentage);
+            $this->assertNull($row->total_points);
+            $this->assertNull($row->overall_grading_scale_id);
+            $this->assertNull($row->school_position);
+            $this->assertNull($row->grade_position);
+            $this->assertNull($row->stream_position);
+        }
+    }
+
+    public function test_report_card_snapshots_absence_and_restores_scores_after_correction(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        $identity = [
+            'school_id' => $this->school->id,
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+        ];
+
+        $originalId = DB::table('report_cards')->where($identity)->value('id');
+
+        $generateCard = function () {
+            return app(ReportCardService::class)->generate(
+                $this->school->id,
+                $this->exam->id,
+                $this->juniorLearner->id,
+                null,
+                null,
+                $this->user->id
+            )->first();
+        };
+
+        DB::table('exam_results')
+            ->where('id', $this->freshnessRawId($this->juniorLearner))
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $this->process($this->juniorLearner);
+        $this->generateFreshnessMerits();
+        $card = $generateCard();
+        $detail = $card->learningAreas->first();
+
+        $this->assertSame($originalId, $card->id);
+        $this->assertTrue($card->has_absence);
+        $this->assertTrue($detail->is_absent);
+        $this->assertNull($card->overall_score);
+        $this->assertNull($card->average_percentage);
+        $this->assertNull($card->overall_grading_scale_id);
+        $this->assertNull($card->total_points);
+        $this->assertNull($card->school_position);
+        $this->assertNull($card->grade_position);
+        $this->assertNull($card->stream_position);
+        $this->assertNull($detail->marks_obtained);
+        $this->assertNull($detail->percentage);
+        $this->assertNull($detail->grade_code);
+        $this->assertNull($detail->points);
+
+        $resource = (new ReportCardResource($card))
+            ->resolve(request());
+        $areaResource = (new ReportCardLearningAreaResource($detail))
+            ->resolve(request());
+
+        $this->assertTrue($resource['has_absence']);
+        $this->assertTrue($areaResource['is_absent']);
+        $this->assertNull($areaResource['marks']);
+
+        $card->load('school.settings');
+        $html = view('pdf.report-card', [
+            'card' => $card,
+            'settings' => $card->school->settings,
+            'logo' => null,
+            'signature' => null,
+        ])->render();
+
+        $this->assertStringContainsString('Not ranked (absence)', $html);
+        $this->assertStringContainsString('<td>ABS</td>', $html);
+
+        $pdf = app(ReportCardPdfService::class)->make(
+            $this->school->id,
+            $card->id
+        );
+        $this->assertStringStartsWith('%PDF', $pdf['pdf']->output());
+
+        $detailId = $detail->id;
+
+        DB::table('exam_results')
+            ->where('id', $this->freshnessRawId($this->juniorLearner))
+            ->update(['is_absent' => false, 'marks' => 40]);
+
+        $this->process($this->juniorLearner);
+        $this->generateFreshnessMerits();
+        $restored = $generateCard();
+        $restoredDetail = $restored->learningAreas->first();
+
+        $this->assertSame($originalId, $restored->id);
+        $this->assertSame($detailId, $restoredDetail->id);
+        $this->assertFalse($restored->has_absence);
+        $this->assertFalse($restoredDetail->is_absent);
+        $this->assertSame(75.0, (float) $restored->overall_score);
+        $this->assertSame(75.0, (float) $restoredDetail->marks_obtained);
+        $this->assertNotNull($restored->school_position);
+        $this->assertNotNull($restoredDetail->grade_code);
+    }
+
+    public function test_absent_merit_entries_follow_ranked_entries_in_generation_and_listing(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        DB::table('exam_results')
+            ->where('id', $this->freshnessRawId($this->juniorLearner))
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $this->process($this->juniorLearner);
+        $rows = $this->generateFreshnessMerits();
+
+        $expected = [$this->primaryLearner->id, $this->juniorLearner->id];
+        $this->assertSame($expected, $rows->pluck('learner_id')->all());
+        $this->assertSame(1, $rows->first()->school_position);
+        $this->assertNull($rows->last()->school_position);
+
+        $this->withoutMiddleware();
+        $user = new User;
+        $user->forceFill([
+            'id' => $this->user->id,
+            'school_id' => $this->school->id,
+        ]);
+        Auth::setUser($user);
+
+        $response = $this->getJson('/api/merit-lists?'.http_build_query([
+            'school_id' => $this->school->id,
+            'exam_id' => $this->exam->id,
+        ]))->assertOk();
+
+        $payload = $response->json('data');
+        $items = $payload['data'] ?? $payload;
+
+        $this->assertSame($expected, array_column($items, 'learner_id'));
+        $this->assertNull($items[1]['school_position']);
+        $this->assertSame('not_ranked_absent', $items[1]['ranking_method']);
+    }
+
     private function freshnessTeacherAssignment(): array
     {
         DB::table('academic_years')->where('id', $this->exam->academic_year_id)->update([
@@ -733,6 +975,429 @@ class LearningAreaResultTest extends TestCase
                 'is_deleted' => false,
             ]);
         }
+    }
+
+    public function test_absent_paper_produces_no_learning_area_score_or_grade(): void
+    {
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $result = $this->process($this->juniorLearner);
+
+        $this->assertTrue($result->is_absent);
+        $this->assertNull($result->marks_obtained);
+        $this->assertNull($result->percentage);
+        $this->assertNull($result->grading_system_id);
+        $this->assertNull($result->grading_scale_id);
+        $this->assertNull($result->gradingScale);
+        $this->assertSame('100.00', $result->maximum_marks);
+        $this->assertSame('processed', $result->processing_status);
+    }
+
+    public function test_absence_does_not_hide_a_missing_required_paper(): void
+    {
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperTwo->id)
+            ->delete();
+
+        $this->expectException(ValidationException::class);
+        $this->process($this->juniorLearner);
+    }
+
+    public function test_unflagged_null_marks_are_not_processed_as_zero(): void
+    {
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => false, 'marks' => null]);
+
+        $this->expectException(ValidationException::class);
+        $this->process($this->juniorLearner);
+    }
+
+    public function test_absent_paper_with_numeric_marks_is_rejected(): void
+    {
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => true, 'marks' => 0]);
+
+        $this->expectException(ValidationException::class);
+        $this->process($this->juniorLearner);
+    }
+
+    public function test_reprocessing_clears_and_restores_grade_without_changing_identity(): void
+    {
+        $scored = $this->process($this->juniorLearner);
+        $id = $scored->id;
+        $scaleId = $scored->grading_scale_id;
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $absent = $this->process($this->juniorLearner);
+        $this->assertSame($id, $absent->id);
+        $this->assertTrue($absent->is_absent);
+        $this->assertNull($absent->grading_scale_id);
+        $this->assertNull($absent->percentage);
+
+        DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->update(['is_absent' => false, 'marks' => 40]);
+
+        $restored = $this->process($this->juniorLearner);
+        $this->assertSame($id, $restored->id);
+        $this->assertFalse($restored->is_absent);
+        $this->assertSame('75.00', $restored->marks_obtained);
+        $this->assertSame('75.00', $restored->percentage);
+        $this->assertSame($scaleId, $restored->grading_scale_id);
+    }
+
+    public function test_direct_absence_update_invalidates_processing_and_can_return_to_zero(): void
+    {
+        $this->prepareAbsenceEntryPermission();
+
+        $processed = $this->process($this->juniorLearner);
+        $rawId = DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->value('id');
+
+        $service = app(ExamResultService::class);
+        $absent = $service->updateMarks(
+            $this->school->id, $rawId, null, $this->user->id, true
+        );
+
+        $this->assertTrue($absent->is_absent);
+        $this->assertNull($absent->marks);
+        $this->assertDatabaseHas('learning_area_results', [
+            'id' => $processed->id,
+            'processing_status' => 'stale',
+        ]);
+
+        $absentProcessed = $this->process($this->juniorLearner);
+        $this->assertTrue($absentProcessed->is_absent);
+        $this->assertNull($absentProcessed->grading_scale_id);
+
+        $scored = $service->updateMarks(
+            $this->school->id, $rawId, 0, $this->user->id
+        );
+
+        $this->assertSame($rawId, $scored->id);
+        $this->assertFalse($scored->is_absent);
+        $this->assertSame('0.00', $scored->marks);
+        $this->assertDatabaseHas('learning_area_results', [
+            'id' => $processed->id,
+            'processing_status' => 'stale',
+        ]);
+
+        $restored = $this->process($this->juniorLearner);
+        $this->assertFalse($restored->is_absent);
+        $this->assertSame('35.00', $restored->marks_obtained);
+        $this->assertNotNull($restored->grading_scale_id);
+    }
+
+    public function test_direct_creation_restores_deleted_result_as_absent_with_same_identity(): void
+    {
+        $this->prepareAbsenceEntryPermission();
+
+        $rawId = DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->value('id');
+
+        $service = app(ExamResultService::class);
+        $service->deleteResult($this->school->id, $rawId, $this->user->id);
+
+        $result = $service->create([
+            'learner_id' => $this->juniorLearner->id,
+            'paper_id' => $this->paperOne->id,
+            'is_absent' => true,
+        ], $this->school->id, $this->user->id);
+
+        $this->assertSame($rawId, $result->id);
+        $this->assertTrue($result->is_absent);
+        $this->assertNull($result->marks);
+        $this->assertFalse($result->is_deleted);
+        $this->assertNull($result->deleted_at);
+        $this->assertNull($result->deleted_by);
+    }
+
+    public function test_conflicting_direct_absence_update_leaves_result_and_processing_unchanged(): void
+    {
+        $this->prepareAbsenceEntryPermission();
+
+        $processed = $this->process($this->juniorLearner);
+        $rawId = DB::table('exam_results')
+            ->where('learner_id', $this->juniorLearner->id)
+            ->where('paper_id', $this->paperOne->id)
+            ->value('id');
+
+        try {
+            app(ExamResultService::class)->updateMarks(
+                $this->school->id, $rawId, 0, $this->user->id, true
+            );
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('marks', $exception->errors());
+            $this->assertDatabaseHas('exam_results', [
+                'id' => $rawId,
+                'marks' => 40,
+                'is_absent' => false,
+            ]);
+            $this->assertDatabaseHas('learning_area_results', [
+                'id' => $processed->id,
+                'processing_status' => 'processed',
+                'is_absent' => false,
+            ]);
+
+            return;
+        }
+
+        $this->fail('Expected conflicting absence and marks to be rejected.');
+    }
+
+    private function prepareAbsenceEntryPermission(): void
+    {
+        app(ExamService::class)->transition($this->exam, 'published');
+        $this->exam = $this->exam->fresh();
+
+        $permission = MarkEntryPermissionBuilder::create($this->exam);
+        $roleName = DB::table('users')
+            ->join('roles', 'roles.id', '=', 'users.role_id')
+            ->where('users.id', $this->user->id)
+            ->value('roles.role_name');
+
+        DB::table('mark_entry_permissions')
+            ->where('id', $permission->id)
+            ->update([
+                'role_name' => $roleName,
+                'active' => true,
+                'opens_at' => now()->subHour(),
+                'closes_at' => now()->addDay(),
+            ]);
+    }
+
+    public function test_teacher_batch_absence_round_trip_preserves_previous_state(): void
+    {
+        $this->prepareFreshnessOutputs();
+        [$teacher, $assignment] = $this->freshnessTeacherAssignment();
+        $service = app(MarkEntryBatchService::class);
+        $rawId = $this->freshnessRawId($this->juniorLearner);
+
+        $batch = $service->save($teacher, $this->paperOne->id, [
+            ['learner_id' => $this->juniorLearner->id, 'is_absent' => true],
+        ], $assignment->id);
+
+        $this->assertTrue($batch->items->first()->is_absent);
+        $this->assertNull($batch->items->first()->marks);
+
+        $batch->items->first()->update(['exam_result_id' => $rawId]);
+        $batch->update(['status' => 'changes_requested']);
+
+        $submitted = $service->submit($teacher, $batch->id);
+        $item = $submitted->items->first();
+
+        $this->assertSame('submitted', $submitted->status);
+        $this->assertSame('40.00', $item->previous_marks);
+        $this->assertFalse($item->previous_is_absent);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'is_absent' => true,
+            'marks' => null,
+        ]);
+        $this->assertDatabaseHas('learning_area_results', [
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+            'processing_status' => 'stale',
+        ]);
+
+        $processed = $this->process($this->juniorLearner);
+        $this->assertTrue($processed->is_absent);
+        $this->assertNull($processed->percentage);
+
+        $submitted->update(['status' => 'reopened']);
+        $service->save($teacher, $this->paperOne->id, [
+            ['learner_id' => $this->juniorLearner->id, 'marks' => 0],
+        ], $assignment->id);
+
+        $restored = $service->submit($teacher, $batch->id);
+        $item = $restored->items->first();
+
+        $this->assertFalse($item->is_absent);
+        $this->assertSame('0.00', $item->marks);
+        $this->assertTrue($item->previous_is_absent);
+        $this->assertNull($item->previous_marks);
+        $this->assertSame($rawId, $item->exam_result_id);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'is_absent' => false,
+            'marks' => 0,
+        ]);
+
+        $processed = $this->process($this->juniorLearner);
+        $this->assertFalse($processed->is_absent);
+        $this->assertSame('35.00', $processed->marks_obtained);
+    }
+
+    public function test_teacher_batch_rejects_missing_marks_without_creating_a_batch(): void
+    {
+        $this->prepareFreshnessOutputs();
+        [$teacher, $assignment] = $this->freshnessTeacherAssignment();
+
+        $this->assertFreshnessRejected(fn () => app(MarkEntryBatchService::class)->save(
+            $teacher, $this->paperOne->id, [
+                ['learner_id' => $this->juniorLearner->id],
+            ], $assignment->id
+        ), 'marks');
+
+        $this->assertDatabaseMissing('mark_entry_batches', [
+            'exam_paper_id' => $this->paperOne->id,
+            'teacher_assignment_id' => $assignment->id,
+        ]);
+    }
+
+    public function test_published_card_blocks_teacher_absence_submission(): void
+    {
+        $this->prepareFreshnessOutputs();
+        [$teacher, $assignment] = $this->freshnessTeacherAssignment();
+        $service = app(MarkEntryBatchService::class);
+
+        $batch = $service->save($teacher, $this->paperOne->id, [
+            ['learner_id' => $this->juniorLearner->id, 'is_absent' => true],
+        ], $assignment->id);
+
+        $batch->items->first()->update([
+            'exam_result_id' => $this->freshnessRawId($this->juniorLearner),
+        ]);
+        $batch->update(['status' => 'reopened']);
+
+        app(ReportCardService::class)->publish(
+            $this->school->id, $this->exam->id, $this->juniorLearner->id,
+            null, null, $this->user->id
+        );
+
+        $before = $this->freshnessSnapshot();
+        $this->assertFreshnessRejected(
+            fn () => $service->submit($teacher, $batch->id), 'results'
+        );
+        $this->assertSame($before, $this->freshnessSnapshot());
+        $this->assertSame('reopened', $batch->fresh()->status);
+    }
+
+    public function test_approved_absence_corrections_change_source_only_on_resubmission(): void
+    {
+        $this->prepareFreshnessOutputs();
+        [$teacher, $assignment] = $this->freshnessTeacherAssignment();
+        $service = app(MarkEntryBatchService::class);
+        $rawId = $this->freshnessRawId($this->juniorLearner);
+
+        $batch = $service->save($teacher, $this->paperOne->id, [
+            ['learner_id' => $this->juniorLearner->id, 'marks' => 40],
+        ], $assignment->id);
+        $item = $batch->items->first();
+        $item->update(['exam_result_id' => $rawId]);
+        $batch->update(['status' => 'submitted', 'submitted_at' => now()]);
+
+        $moderator = User::withoutGlobalScopes()->findOrFail($this->user->id);
+        $scope = \Mockery::mock(TeacherHodScopeService::class);
+        $scope->shouldReceive('scope')
+            ->with(\Mockery::on(fn ($user) => $user->id === $moderator->id))
+            ->andReturn([
+                'whole_school' => true,
+                'school_id' => $this->school->id,
+                'learning_area_ids' => [],
+            ]);
+        $this->app->instance(
+            TeacherHodScopeService::class,
+            $scope
+        );
+        $moderation = app(MarkModerationService::class);
+
+        $requestId = $service->correction($teacher, $batch->id, [
+            'batch_item_id' => $item->id,
+            'reason' => 'Confirm absence from the paper register.',
+            'proposed_is_absent' => true,
+        ]);
+
+        $this->assertDatabaseHas('mark_correction_requests', [
+            'id' => $requestId,
+            'previous_marks' => 40,
+            'previous_is_absent' => false,
+            'proposed_marks' => null,
+            'proposed_is_absent' => true,
+            'status' => 'pending',
+        ]);
+
+        $moderation->decideCorrection($moderator, $requestId, 'approved', 'Register checked.');
+
+        $this->assertSame('reopened', $batch->fresh()->status);
+        $this->assertTrue($item->fresh()->is_absent);
+        $this->assertNull($item->fresh()->marks);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'marks' => 40,
+            'is_absent' => false,
+        ]);
+        $this->assertDatabaseHas('learning_area_results', [
+            'exam_id' => $this->exam->id,
+            'learner_id' => $this->juniorLearner->id,
+            'processing_status' => 'processed',
+        ]);
+
+        $service->submit($teacher, $batch->id);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'marks' => null,
+            'is_absent' => true,
+        ]);
+        $this->assertTrue($this->process($this->juniorLearner)->is_absent);
+
+        $secondId = $service->correction($teacher, $batch->id, [
+            'batch_item_id' => $item->id,
+            'reason' => 'The script was located and scored zero.',
+            'proposed_is_absent' => false,
+            'proposed_marks' => 0,
+        ]);
+
+        $this->assertDatabaseHas('mark_correction_requests', [
+            'id' => $secondId,
+            'previous_marks' => null,
+            'previous_is_absent' => true,
+            'proposed_marks' => 0,
+            'proposed_is_absent' => false,
+        ]);
+
+        $moderation->decideCorrection($moderator, $secondId, 'approved', 'Script checked.');
+
+        $this->assertFalse($item->fresh()->is_absent);
+        $this->assertSame('0.00', $item->fresh()->marks);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $rawId,
+            'is_absent' => true,
+            'marks' => null,
+        ]);
+
+        $submitted = $service->submit($teacher, $batch->id);
+        $this->assertSame($rawId, $submitted->items->first()->exam_result_id);
+        $this->assertTrue($submitted->items->first()->previous_is_absent);
+        $this->assertNull($submitted->items->first()->previous_marks);
+
+        $processed = $this->process($this->juniorLearner);
+        $this->assertFalse($processed->is_absent);
+        $this->assertSame('35.00', $processed->marks_obtained);
+        $this->assertNotNull($processed->grading_scale_id);
     }
 
     private function process(object $learner)

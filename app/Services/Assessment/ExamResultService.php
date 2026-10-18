@@ -49,22 +49,29 @@ class ExamResultService
     public function updateMarks(
         string $schoolId,
         string $resultId,
-        float $marks,
-        ?string $userId
+        ?float $marks,
+        ?string $userId,
+        bool $isAbsent = false
     ): ExamResult {
-        return DB::transaction(function () use ($schoolId, $resultId, $marks, $userId) {
+        return DB::transaction(function () use ($schoolId, $resultId, $marks, $userId, $isAbsent) {
             [$exam, $result] = $this->lockResult($schoolId, $resultId);
             $this->assertMarkEntryPermission($exam->id, $userId);
 
             $paper = ExamPaper::current()->find($result->paper_id);
-            if (! $paper || $marks < 0 || $marks > (float) $paper->max_marks) {
+            if (! $paper) {
                 throw ValidationException::withMessages([
                     'marks' => 'Marks must be within the available paper maximum.',
                 ]);
             }
 
-            if ((float) $result->marks !== round($marks, 2)) {
-                $result->update(['marks' => $marks]);
+            $value = app(PaperResultValueService::class)->normalize([
+                'is_absent' => $isAbsent,
+                'marks' => $marks,
+            ], (float) $paper->max_marks);
+
+            $storedMarks = $result->marks === null ? null : (float) $result->marks;
+            if ($result->is_absent !== $value['is_absent'] || $storedMarks !== $value['marks']) {
+                $result->update($value);
                 $this->lifecycle->invalidateLearningArea(
                     $exam,
                     $result->learner_id,
@@ -154,11 +161,10 @@ class ExamResultService
 
         $this->assertMarkEntryPermission($paper->examLearningArea->exam_id, $userId);
 
-        if ($data['marks'] < 0 || $data['marks'] > $paper->max_marks) {
-            throw ValidationException::withMessages([
-                'marks' => "Marks must be between 0 and {$paper->max_marks}.",
-            ]);
-        }
+        $value = app(PaperResultValueService::class)->normalize(
+            $data,
+            (float) $paper->max_marks
+        );
 
         if (ExamResult::current()->where('learner_id', $learner->id)->where('paper_id', $paper->id)->exists()) {
             throw ValidationException::withMessages([
@@ -179,7 +185,7 @@ class ExamResultService
 
         if ($deletedResult) {
             $deletedResult->update([
-                'marks' => $data['marks'],
+                'marks' => $value['marks'], 'is_absent' => $value['is_absent'],
                 'entered_by' => $userId,
                 'is_deleted' => false,
                 'deleted_at' => null,
@@ -195,7 +201,7 @@ class ExamResultService
             'learner_id' => $learner->id,
             'learning_area_id' => $area->learning_area_id,
             'paper_id' => $paper->id,
-            'marks' => $data['marks'],
+            'marks' => $value['marks'], 'is_absent' => $value['is_absent'],
             'entered_by' => $userId,
             'is_deleted' => false,
             'created_at' => now(),

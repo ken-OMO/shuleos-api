@@ -125,7 +125,7 @@ class TeacherPortalPhaseTwoController extends BaseApiController
 
     public function saveMarks(Request $request, string $paper)
     {
-        $data = $request->validate(['teacher_assignment_id' => 'nullable|uuid', 'marks' => ['required', 'array', 'min:1', 'max:100'], 'marks.*.learner_id' => 'required|uuid', 'marks.*.marks' => 'required|numeric|min:0']);
+        $data = $request->validate(['teacher_assignment_id' => 'nullable|uuid', 'marks' => ['required', 'array', 'min:1', 'max:100'], 'marks.*.learner_id' => 'required|uuid', 'marks.*.marks' => 'nullable|numeric|min:0', 'marks.*.is_absent' => 'sometimes|boolean']);
 
         return $this->success(new MarkEntryBatchResource($this->batches->save($this->user(), $paper, $data['marks'], $data['teacher_assignment_id'] ?? null)));
     }
@@ -137,7 +137,7 @@ class TeacherPortalPhaseTwoController extends BaseApiController
 
     public function correction(Request $request, string $batch)
     {
-        $data = $request->validate(['batch_item_id' => 'nullable|uuid', 'reason' => 'required|string|max:4000', 'proposed_marks' => 'nullable|numeric|min:0']);
+        $data = $request->validate(['batch_item_id' => 'nullable|uuid', 'reason' => 'required|string|max:4000', 'proposed_marks' => 'nullable|numeric|min:0', 'proposed_is_absent' => 'sometimes|boolean']);
         $id = $this->batches->correction($this->user(), $batch, $data);
 
         return $this->created(['id' => $id]);
@@ -166,7 +166,7 @@ class TeacherPortalPhaseTwoController extends BaseApiController
             $query->where('requested_by', $this->user()->id);
         }
 
-        return $this->success(MarkCorrectionRequestResource::collection($query->select('id', 'batch_id', 'status', 'reason', 'proposed_marks', 'created_at')->paginate(30)));
+        return $this->success(MarkCorrectionRequestResource::collection($query->select('id', 'batch_id', 'status', 'reason', 'previous_marks', 'previous_is_absent', 'proposed_marks', 'proposed_is_absent', 'created_at')->paginate(30)));
     }
 
     public function decideCorrection(Request $request, string $correction, string $decision)

@@ -19,6 +19,7 @@ class LearningAreaResult extends TenantModel
         'learner_id',
         'learning_area_id',
         'marks_obtained',
+        'is_absent',
         'maximum_marks',
         'percentage',
         'grading_system_id',
@@ -33,6 +34,7 @@ class LearningAreaResult extends TenantModel
 
     protected $casts = [
         'marks_obtained' => 'decimal:2',
+        'is_absent' => 'boolean',
         'maximum_marks' => 'decimal:2',
         'percentage' => 'decimal:2',
         'processed_at' => 'datetime',

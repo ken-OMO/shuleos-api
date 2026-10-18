@@ -7,6 +7,7 @@ use App\Models\MarkEntryBatchItem;
 use App\Models\User;
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\ExamResultService;
+use App\Services\Assessment\PaperResultValueService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -44,14 +45,13 @@ class MarkEntryBatchService
             $batch ??= MarkEntryBatch::create(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'exam_id' => $paper->exam_id, 'exam_paper_id' => $paper->id, 'teacher_assignment_id' => $assignment->id, 'teacher_id' => $teacher->id, 'entered_by' => $user->id, 'expected_learner_count' => $roster->count(), 'status' => 'draft']);
             foreach ($marks as $mark) {
                 abort_unless($roster->contains($mark['learner_id']), 422, 'Learner is outside this mark batch roster.');
-                if ((float) $mark['marks'] < 0 || (float) $mark['marks'] > (float) $paper->max_marks) {
-                    throw ValidationException::withMessages(['marks' => "Marks must be between 0 and {$paper->max_marks}."]);
-                }
+                $value = app(PaperResultValueService::class)
+                    ->normalize($mark, (float) $paper->max_marks);
                 $item = MarkEntryBatchItem::withoutGlobalScopes()->where('batch_id', $batch->id)->where('learner_id', $mark['learner_id'])->lockForUpdate()->first();
                 if ($item) {
-                    $item->update(['marks' => $mark['marks'], 'version' => $item->version + 1]);
+                    $item->update($value + ['version' => $item->version + 1]);
                 } else {
-                    MarkEntryBatchItem::create(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'batch_id' => $batch->id, 'learner_id' => $mark['learner_id'], 'marks' => $mark['marks']]);
+                    MarkEntryBatchItem::create(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'batch_id' => $batch->id, 'learner_id' => $mark['learner_id'], 'marks' => $value['marks'], 'is_absent' => $value['is_absent']]);
                 }
             }
             $batch->update(['entered_count' => MarkEntryBatchItem::withoutGlobalScopes()->where('batch_id', $batch->id)->count(), 'version' => $batch->version + 1]);
@@ -88,14 +88,13 @@ class MarkEntryBatchService
             foreach ($items as $item) {
                 abort_unless($item->school_id === $user->school_id, 409, 'The batch item belongs to another school.');
 
-                if ((float) $item->marks < 0 || (float) $item->marks > (float) $paper->max_marks) {
-                    throw ValidationException::withMessages([
-                        'marks' => "Marks must be between 0 and {$paper->max_marks}.",
-                    ]);
-                }
+                $value = app(PaperResultValueService::class)->normalize([
+                    'is_absent' => $item->is_absent,
+                    'marks' => $item->marks,
+                ], (float) $paper->max_marks);
 
                 if (! $item->exam_result_id) {
-                    $result = $this->results->create(['paper_id' => $batch->exam_paper_id, 'learner_id' => $item->learner_id, 'marks' => $item->marks], $user->school_id, $user->id);
+                    $result = $this->results->create(['paper_id' => $batch->exam_paper_id, 'learner_id' => $item->learner_id, 'marks' => $value['marks'], 'is_absent' => $value['is_absent']], $user->school_id, $user->id);
                     $item->update(['exam_result_id' => $result->id]);
                 } elseif (in_array($batch->status, ['reopened', 'changes_requested'], true)) {
                     $result = DB::table('exam_results')
@@ -110,9 +109,13 @@ class MarkEntryBatchService
 
                     abort_unless($result, 409, 'The linked result does not belong to this batch item.');
 
-                    if ((float) $result->marks !== (float) $item->marks) {
-                        $item->update(['previous_marks' => $result->marks]);
-                        DB::table('exam_results')->where('id', $result->id)->update(['marks' => $item->marks]);
+                    $storedMarks = $result->marks === null ? null : (float) $result->marks;
+                    if ((bool) $result->is_absent !== $value['is_absent'] || $storedMarks !== $value['marks']) {
+                        $item->update([
+                            'previous_marks' => $result->marks,
+                            'previous_is_absent' => (bool) $result->is_absent,
+                        ]);
+                        DB::table('exam_results')->where('id', $result->id)->update($value);
 
                         $this->lifecycle->invalidateLearningArea(
                             $exam,
@@ -133,13 +136,22 @@ class MarkEntryBatchService
         $batch = $this->query($user)->whereKey($batchId)->whereIn('status', ['submitted', 'approved', 'locked'])->firstOrFail();
         abort_if(DB::table('mark_correction_requests')->where('batch_id', $batch->id)->where('status', 'pending')->exists(), 409, 'A correction request is already pending.');
         $item = isset($data['batch_item_id']) ? $batch->items()->whereKey($data['batch_item_id'])->firstOrFail() : null;
-        if (isset($data['proposed_marks'])) {
-            $maximum = DB::table('exam_papers')->where('id', $batch->exam_paper_id)->value('max_marks');
-            abort_if((float) $data['proposed_marks'] > (float) $maximum, 422, 'Proposed marks exceed the paper maximum.');
+        $proposal = null;
+        if (isset($data['proposed_marks']) || array_key_exists('proposed_is_absent', $data)) {
+            abort_unless($item, 422, 'A result proposal requires a batch item.');
+            $maximum = DB::table('exam_papers')
+                ->where('id', $batch->exam_paper_id)
+                ->where('is_deleted', false)
+                ->value('max_marks');
+
+            $proposal = app(PaperResultValueService::class)->normalize([
+                'marks' => $data['proposed_marks'] ?? null,
+                'is_absent' => $data['proposed_is_absent'] ?? false,
+            ], (float) $maximum);
         }
 
         $id = (string) Str::uuid();
-        DB::table('mark_correction_requests')->insert(['id' => $id, 'school_id' => $user->school_id, 'batch_id' => $batch->id, 'batch_item_id' => $item?->id, 'requested_by' => $user->id, 'reason' => $data['reason'], 'previous_marks' => $item?->marks, 'proposed_marks' => $data['proposed_marks'] ?? null, 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        DB::table('mark_correction_requests')->insert(['id' => $id, 'school_id' => $user->school_id, 'batch_id' => $batch->id, 'batch_item_id' => $item?->id, 'requested_by' => $user->id, 'reason' => $data['reason'], 'previous_marks' => $item?->marks, 'previous_is_absent' => $item?->is_absent, 'proposed_marks' => $proposal['marks'] ?? null, 'proposed_is_absent' => $proposal['is_absent'] ?? null, 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
 
         return $id;
     }

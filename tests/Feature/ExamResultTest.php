@@ -9,6 +9,7 @@ use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
@@ -43,6 +44,13 @@ class ExamResultTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        if (! Schema::hasColumn('exam_results', 'is_absent')) {
+            $migration = require database_path(
+                'migrations/2026_10_17_090000_add_exam_absence_fields.php'
+            );
+            $migration->up();
+        }
 
         $this->school = SchoolBuilder::create();
 

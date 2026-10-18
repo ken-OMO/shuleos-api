@@ -10,5 +10,10 @@ class MarkEntryBatchItem extends TenantModel
 
     protected $keyType = 'string';
 
-    protected $casts = ['marks' => 'decimal:2', 'previous_marks' => 'decimal:2'];
+    protected $casts = [
+        'marks' => 'decimal:2',
+        'previous_marks' => 'decimal:2',
+        'is_absent' => 'boolean',
+        'previous_is_absent' => 'boolean',
+    ];
 }

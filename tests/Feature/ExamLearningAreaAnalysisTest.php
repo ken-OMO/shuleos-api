@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Assessment\ExamLearningAreaAnalysisService;
 use App\Services\Assessment\ResultProcessingService;
+use App\Services\LeadershipPortal\LeadershipPortalPhaseTwoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
@@ -205,6 +206,162 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
             75.0,
             $data['learning_areas'][0]['grading_summaries'][0]['mean_percentage']
         );
+    }
+
+    public function test_analysis_excludes_absence_but_keeps_zero_in_means_and_rankings(): void
+    {
+        $this->initialiseAnalysis();
+        $high = $this->addLearner(95);
+        $zero = $this->addLearner(0);
+
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->where('learner_id', $this->analysisLearner->id)
+            ->update([
+                'is_absent' => true,
+                'marks_obtained' => null,
+                'percentage' => null,
+                'grading_system_id' => null,
+                'grading_scale_id' => null,
+            ]);
+
+        $data = $this->analysis([
+            'grade_id' => $this->analysisLearner->grade_id,
+        ]);
+        $area = $data['learning_areas'][0];
+        $summary = $area['grading_summaries'][0];
+
+        $this->assertSame(2, $data['assessed_learners']);
+        $this->assertSame(1, $data['absent_learners']);
+        $this->assertSame(2, $area['assessed_learners']);
+        $this->assertSame(1, $area['absent_learners']);
+        $this->assertSame(2, $area['streams'][0]['assessed_learners']);
+        $this->assertSame(1, $area['streams'][0]['absent_learners']);
+        $this->assertSame(47.5, $summary['mean_percentage']);
+        $this->assertSame(47.5, $summary['mark_summaries'][0]['mean_score']);
+        $this->assertSame(0.0, $summary['lowest_percentage']);
+        $this->assertSame(95.0, $summary['highest_percentage']);
+        $this->assertSame(
+            2,
+            collect($summary['grade_distribution'])->sum('learner_count')
+        );
+        $this->assertSame(
+            [$high->id, $zero->id],
+            array_column($summary['top_learners'], 'learner_id')
+        );
+        $this->assertSame([1, 2], array_column($summary['top_learners'], 'rank'));
+    }
+
+    public function test_all_absent_analysis_keeps_counts_without_fabricating_statistics(): void
+    {
+        $this->initialiseAnalysis();
+
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->update([
+                'is_absent' => true,
+                'marks_obtained' => null,
+                'percentage' => null,
+                'grading_system_id' => null,
+                'grading_scale_id' => null,
+            ]);
+
+        $data = $this->analysis();
+
+        $this->assertSame(0, $data['assessed_learners']);
+        $this->assertSame(2, $data['absent_learners']);
+        $this->assertCount(1, $data['learning_areas']);
+
+        $area = $data['learning_areas'][0];
+        $this->assertSame(0, $area['assessed_learners']);
+        $this->assertSame(2, $area['absent_learners']);
+        $this->assertSame([], $area['grading_summaries']);
+        $this->assertCount(2, $area['streams']);
+
+        foreach ($area['streams'] as $stream) {
+            $this->assertSame(0, $stream['assessed_learners']);
+            $this->assertSame(1, $stream['absent_learners']);
+            $this->assertSame([], $stream['grading_summaries']);
+        }
+
+        $this->withToken(JWTAuth::fromUser($this->analyst))
+            ->getJson($this->endpoint())
+            ->assertOk()
+            ->assertJsonPath('data.assessed_learners', 0)
+            ->assertJsonPath('data.absent_learners', 2)
+            ->assertJsonPath('data.learning_areas.0.grading_summaries', []);
+    }
+
+    public function test_analysis_rejects_absence_with_scores_or_grading_references(): void
+    {
+        $this->initialiseAnalysis();
+
+        $row = DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->where('learner_id', $this->analysisLearner->id)
+            ->first();
+
+        $absence = [
+            'is_absent' => true,
+            'marks_obtained' => null,
+            'percentage' => null,
+            'grading_system_id' => null,
+            'grading_scale_id' => null,
+        ];
+
+        $invalidValues = [
+            'marks_obtained' => 0,
+            'percentage' => 0,
+            'grading_system_id' => $row->grading_system_id,
+            'grading_scale_id' => $row->grading_scale_id,
+            'maximum_marks' => 0,
+        ];
+
+        foreach ($invalidValues as $field => $value) {
+            DB::table('learning_area_results')
+                ->where('id', $row->id)
+                ->update(array_replace(
+                    $absence,
+                    ['maximum_marks' => $row->maximum_marks],
+                    [$field => $value]
+                ));
+
+            $this->withToken(JWTAuth::fromUser($this->analyst))
+                ->getJson($this->endpoint())
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('analysis');
+        }
+    }
+
+    public function test_leadership_summary_counts_absence_without_a_zero_mean(): void
+    {
+        $this->initialiseAnalysis();
+
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->update([
+                'is_absent' => true,
+                'marks_obtained' => null,
+                'percentage' => null,
+                'grading_system_id' => null,
+                'grading_scale_id' => null,
+            ]);
+
+        $service = app(LeadershipPortalPhaseTwoService::class);
+        $summary = $service->academic($this->analyst, 'summary');
+
+        $this->assertSame(2, $summary['processed_results']);
+        $this->assertSame(0, $summary['assessed_results']);
+        $this->assertSame(2, $summary['absent_results']);
+        $this->assertNull($summary['average_percentage']);
+        $this->assertNull($summary['minimum_percentage']);
+        $this->assertNull($summary['maximum_percentage']);
+
+        $groups = $service->academic($this->analyst, 'learning-areas')['items'];
+        $this->assertCount(1, $groups);
+        $this->assertSame(0, (int) $groups->first()->assessed_results);
+        $this->assertSame(2, (int) $groups->first()->absent_results);
+        $this->assertNull($groups->first()->average_percentage);
     }
 
     private function analysis(array $filters = []): array

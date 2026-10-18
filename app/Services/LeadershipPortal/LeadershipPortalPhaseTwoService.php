@@ -211,6 +211,8 @@ class LeadershipPortalPhaseTwoService
 
         $summary = [
             'processed_results' => (clone $results)->count(),
+            'assessed_results' => (clone $results)->where('results.is_absent', false)->count(),
+            'absent_results' => (clone $results)->where('results.is_absent', true)->count(),
             'average_percentage' => $this->nullableRound((clone $results)->avg('percentage')),
             'minimum_percentage' => $this->nullableRound((clone $results)->min('percentage')),
             'maximum_percentage' => $this->nullableRound((clone $results)->max('percentage')),
@@ -638,7 +640,7 @@ class LeadershipPortalPhaseTwoService
             $query->join('learners', 'learners.id', '=', 'results.learner_id');
         }
 
-        return $query->selectRaw($column.' AS '.$alias.', COUNT(*) AS processed_results, ROUND(AVG(results.percentage), 2) AS average_percentage')->groupBy($column)->orderBy($column)->limit(100)->get();
+        return $query->selectRaw($column.' AS '.$alias.', COUNT(*) AS processed_results, SUM(CASE WHEN results.is_absent THEN 0 ELSE 1 END) AS assessed_results, SUM(CASE WHEN results.is_absent THEN 1 ELSE 0 END) AS absent_results, ROUND(AVG(results.percentage), 2) AS average_percentage')->groupBy($column)->orderBy($column)->limit(100)->get();
     }
 
     private function curriculumCoverage(array $scope): array

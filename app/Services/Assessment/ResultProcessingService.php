@@ -87,7 +87,15 @@ class ResultProcessingService
                 ]);
             }
 
-            $marksObtained = round((float) $results->sum('marks'), 2);
+            $values = app(PaperResultValueService::class);
+            $papersById = $papers->keyBy('id');
+            $normalized = $results->map(fn (ExamResult $result) => $values->normalize([
+                'is_absent' => $result->is_absent,
+                'marks' => $result->marks,
+            ], (float) $papersById[$result->paper_id]->max_marks));
+
+            $isAbsent = $normalized->contains(fn (array $value) => $value['is_absent']);
+            $marksObtained = $isAbsent ? null : round((float) $normalized->sum('marks'), 2);
             $maximumMarks = round((float) $papers->sum('max_marks'), 2);
 
             if ($maximumMarks <= 0 || abs($maximumMarks - (float) $examLearningArea->total_marks) > 0.001) {
@@ -102,8 +110,8 @@ class ResultProcessingService
                 ]);
             }
 
-            $percentage = round(($marksObtained / $maximumMarks) * 100, 2);
-            $grade = $this->gradeCalculation->calculate($learner, $schoolId, $percentage);
+            $percentage = $isAbsent ? null : round(($marksObtained / $maximumMarks) * 100, 2);
+            $grade = $isAbsent ? null : $this->gradeCalculation->calculate($learner, $schoolId, $percentage);
 
             $identity = [
                 'school_id' => $schoolId,
@@ -122,8 +130,9 @@ class ResultProcessingService
                 'marks_obtained' => $marksObtained,
                 'maximum_marks' => $maximumMarks,
                 'percentage' => $percentage,
-                'grading_system_id' => $grade['grading_system']->id,
-                'grading_scale_id' => $grade['grading_scale']->id,
+                'is_absent' => $isAbsent,
+                'grading_system_id' => $isAbsent ? null : $grade['grading_system']->id,
+                'grading_scale_id' => $isAbsent ? null : $grade['grading_scale']->id,
                 'processing_status' => 'processed',
                 'processed_by' => $processedBy,
                 'processed_at' => now(),

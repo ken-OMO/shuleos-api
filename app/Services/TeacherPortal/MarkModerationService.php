@@ -5,6 +5,7 @@ namespace App\Services\TeacherPortal;
 use App\Models\MarkEntryBatch;
 use App\Models\User;
 use App\Services\Assessment\ExamResultLifecycleService;
+use App\Services\Assessment\PaperResultValueService;
 use Illuminate\Support\Facades\DB;
 
 class MarkModerationService
@@ -73,8 +74,39 @@ class MarkModerationService
             DB::table('mark_correction_requests')->where('id', $request->id)->update(['status' => $decision, 'decided_by' => $user->id, 'decided_at' => now(), 'decision_reason' => $reason, 'updated_at' => now()]);
             if ($decision === 'approved') {
                 $batch->update(['status' => 'reopened', 'version' => $batch->version + 1]);
-                if ($request->batch_item_id && $request->proposed_marks !== null) {
-                    DB::table('mark_entry_batch_items')->where('id', $request->batch_item_id)->update(['marks' => $request->proposed_marks, 'version' => DB::raw('version + 1'), 'updated_at' => now()]);
+                if ($request->batch_item_id
+                    && ($request->proposed_marks !== null || $request->proposed_is_absent !== null)) {
+                    $item = DB::table('mark_entry_batch_items')
+                        ->where('id', $request->batch_item_id)
+                        ->where('batch_id', $batch->id)
+                        ->where('school_id', $user->school_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    abort_unless($item, 409, 'The correction item is unavailable.');
+
+                    $paper = DB::table('exam_papers as paper')
+                        ->join('exam_learning_areas as area', 'area.id', '=', 'paper.exam_learning_area_id')
+                        ->where('paper.id', $batch->exam_paper_id)
+                        ->where('paper.is_deleted', false)
+                        ->where('area.is_deleted', false)
+                        ->where('area.exam_id', $exam->id)
+                        ->select('paper.max_marks')
+                        ->first();
+
+                    abort_unless($paper, 409, 'The correction paper is unavailable.');
+
+                    $value = app(PaperResultValueService::class)->normalize([
+                        'marks' => $request->proposed_marks,
+                        'is_absent' => $request->proposed_is_absent ?? false,
+                    ], (float) $paper->max_marks);
+
+                    DB::table('mark_entry_batch_items')
+                        ->where('id', $item->id)
+                        ->update($value + [
+                            'version' => DB::raw('version + 1'),
+                            'updated_at' => now(),
+                        ]);
                 }
             }
 

@@ -35,13 +35,24 @@ class ParentLearnerProgressService
         $rows = DB::table('learning_area_results as result')->join('exams as exam', 'exam.id', '=', 'result.exam_id')
             ->where('result.school_id', $user->school_id)->where('result.learner_id', $learnerId)->where('result.processing_status', 'processed')
             ->where('result.is_deleted', false)->where('exam.status', 'published')->orderBy('result.processed_at')->limit(100)
-            ->get(['result.learning_area_id', 'result.percentage', 'result.processed_at'])->groupBy('learning_area_id');
+            ->get(['result.learning_area_id', 'result.percentage', 'result.is_absent', 'result.processed_at'])->groupBy('learning_area_id');
 
         return $rows->map(function ($values, $area) {
-            $first = (float) $values->first()->percentage;
-            $last = (float) $values->last()->percentage;
+            $scored = $values->reject(fn ($row) => (bool) $row->is_absent)
+                ->whereNotNull('percentage')->values();
+            $first = $scored->isEmpty() ? null : (float) $scored->first()->percentage;
+            $last = $scored->isEmpty() ? null : (float) $scored->last()->percentage;
+            $change = $scored->count() > 1 ? round($last - $first, 2) : null;
 
-            return ['learning_area_id' => $area, 'first_percentage' => $first, 'latest_percentage' => $last, 'change' => round($last - $first, 2), 'indicator' => $last > $first ? 'improving' : ($last < $first ? 'declining' : 'stable')];
+            return [
+                'learning_area_id' => $area,
+                'first_percentage' => $first,
+                'latest_percentage' => $last,
+                'scored_periods' => $scored->count(),
+                'absent_periods' => $values->filter(fn ($row) => (bool) $row->is_absent)->count(),
+                'change' => $change,
+                'indicator' => $change === null ? 'insufficient_data' : ($change > 0 ? 'improving' : ($change < 0 ? 'declining' : 'stable')),
+            ];
         })->values()->all();
     }
 }

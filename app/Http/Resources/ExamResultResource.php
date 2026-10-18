@@ -14,7 +14,7 @@ class ExamResultResource extends JsonResource
             'id' => $this->id,
             'exam_id' => $this->exam_id, 'learner_id' => $this->learner_id, 'learning_area_id' => $this->learning_area_id, 'paper_id' => $this->paper_id,
 
-            'marks' => $this->marks,
+            'marks' => $this->marks, 'is_absent' => $this->is_absent,
 
             'exam' => $this->whenLoaded('exam'),
 
