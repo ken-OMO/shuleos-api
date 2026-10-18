@@ -25,6 +25,7 @@ class MeritListService
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
+            app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
             $query = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)
                 ->where('processing_status', 'processed')->with(['learner.grade.educationLevel', 'learner.stream', 'gradingScale']);
             $results = $query->orderBy('id')->lockForUpdate()->get();
@@ -159,6 +160,10 @@ class MeritListService
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
+            app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
+            app(ExamCompletenessService::class)->assertOutputCoverage(
+                'merit_lists', $schoolId, $examId, null, $gradeId, $streamId
+            );
             $query = MeritList::current()->where('school_id', $schoolId)->where('exam_id', $examId)->where('status', 'generated');
             $query->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))->when($streamId, fn ($q) => $q->where('stream_id', $streamId));
             $rows = $query->lockForUpdate()->get();

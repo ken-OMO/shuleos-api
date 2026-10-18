@@ -10,6 +10,7 @@ use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultService;
+use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
@@ -249,6 +250,30 @@ class LearningAreaResultTest extends TestCase
 
         $this->insertRawResults($this->juniorLearner, 40, 35);
         $this->insertRawResults($this->primaryLearner, 40, 35);
+
+        if (! Schema::hasTable('exam_rosters')) {
+            $migration = require database_path(
+                'migrations/2026_10_17_060000_create_exam_roster_tables.php'
+            );
+            $migration->up();
+        }
+
+        app(ExamRosterService::class)->replace(
+            $this->school->id,
+            $this->exam->id,
+            $this->user->id,
+            0,
+            [
+                [
+                    'learner_id' => $this->juniorLearner->id,
+                    'exam_learning_area_ids' => [$this->examLearningArea->id],
+                ],
+                [
+                    'learner_id' => $this->primaryLearner->id,
+                    'exam_learning_area_ids' => [$this->examLearningArea->id],
+                ],
+            ]
+        );
     }
 
     public function test_it_aggregates_two_papers_and_applies_junior_grade_and_points(): void

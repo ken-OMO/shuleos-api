@@ -9,6 +9,8 @@ use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ExamService;
+use App\Services\Assessment\MeritListService;
+use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
 use App\Services\Auth\AuthContextService;
 use Illuminate\Contracts\Http\Kernel;
@@ -385,6 +387,178 @@ class ExamRosterTest extends TestCase
         $this->assertSame([], $area['invalid_paper_ids']);
         $this->assertContains('missing_papers', $area['issues']);
         $this->assertContains('unprocessed', $area['issues']);
+    }
+
+    public function test_published_exam_without_outputs_can_establish_one_explicit_roster(): void
+    {
+        app(ExamService::class)->transition($this->exam, 'published');
+
+        $result = $this->save();
+
+        $this->assertSame(1, $result['version']);
+        $this->assertSame(1, $result['learner_count']);
+        $this->assertSame('published', DB::table('exams')
+            ->where('id', $this->exam->id)->value('status'));
+
+        $before = $this->snapshot();
+
+        $this->reject(fn () => $this->save(1), 'exam_id');
+        $this->assertSame($before, $this->snapshot());
+    }
+
+    public function test_closed_exam_cannot_establish_an_initial_roster(): void
+    {
+        app(ExamService::class)->transition($this->exam, 'published');
+        app(ExamService::class)->transition($this->exam, 'closed');
+
+        $before = $this->snapshot();
+
+        $this->reject(fn () => $this->save(), 'exam_id');
+        $this->assertSame($before, $this->snapshot());
+    }
+
+    public function test_initial_published_roster_still_validates_explicit_selections(): void
+    {
+        app(ExamService::class)->transition($this->exam, 'published');
+
+        $selection = $this->selection();
+        $selection['exam_learning_area_ids'] = [(string) Str::uuid()];
+        $before = $this->snapshot();
+
+        $this->reject(fn () => $this->save(0, [$selection]), 'learning_areas');
+
+        $this->assertSame($before, $this->snapshot());
+        $this->assertSame('published', DB::table('exams')
+            ->where('id', $this->exam->id)->value('status'));
+    }
+
+    public function test_completeness_guard_rejects_an_unconfigured_roster_without_writes(): void
+    {
+        $before = $this->snapshot();
+
+        $this->reject(fn () => DB::transaction(
+            fn () => app(ExamCompletenessService::class)
+                ->assertComplete($this->school->id, $this->exam->id)
+        ), 'completeness');
+
+        $this->assertSame($before, $this->snapshot());
+    }
+
+    public function test_completeness_guard_rejects_missing_papers_without_writes(): void
+    {
+        $this->save();
+        $before = $this->snapshot();
+
+        $this->reject(fn () => DB::transaction(
+            fn () => app(ExamCompletenessService::class)
+                ->assertComplete($this->school->id, $this->exam->id)
+        ), 'completeness');
+
+        $this->assertSame($before, $this->snapshot());
+        $this->assertSame(0, DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)->count());
+    }
+
+    public function test_completeness_guard_accepts_processed_zero_marks(): void
+    {
+        $this->save();
+        $this->insertCompletenessMarks(0);
+        $this->processCompletenessMarks();
+
+        $report = DB::transaction(
+            fn () => app(ExamCompletenessService::class)
+                ->assertComplete($this->school->id, $this->exam->id)
+        );
+
+        $this->assertTrue($report['complete']);
+        $this->assertSame(1, $report['complete_learner_count']);
+    }
+
+    public function test_completeness_guard_accepts_processed_explicit_absence(): void
+    {
+        $this->save();
+        $this->insertCompletenessMarks(20);
+
+        $paperId = DB::table('exam_papers')
+            ->where('exam_learning_area_id', $this->area->id)
+            ->orderBy('paper_number')->value('id');
+
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learner->id)
+            ->where('paper_id', $paperId)
+            ->update(['is_absent' => true, 'marks' => null]);
+
+        $this->processCompletenessMarks();
+
+        $report = DB::transaction(
+            fn () => app(ExamCompletenessService::class)
+                ->assertComplete($this->school->id, $this->exam->id)
+        );
+
+        $this->assertTrue($report['complete']);
+        $this->assertSame(
+            1, $report['learners'][0]['learning_areas'][0]['absent_paper_count']
+        );
+    }
+
+    public function test_all_output_operations_reject_an_unconfigured_roster(): void
+    {
+        $this->assertOutputOperationsRejectIncompleteExam();
+    }
+
+    public function test_all_output_operations_reject_missing_roster_papers(): void
+    {
+        $this->save();
+
+        $this->assertOutputOperationsRejectIncompleteExam();
+    }
+
+    private function assertOutputOperationsRejectIncompleteExam(): void
+    {
+        $merits = app(MeritListService::class);
+        $cards = app(ReportCardService::class);
+
+        $operations = [
+            fn () => $merits->generate(
+                $this->school->id, $this->exam->id,
+                null, null, $this->user->id
+            ),
+            fn () => $merits->publish(
+                $this->school->id, $this->exam->id, null, null
+            ),
+            fn () => $cards->generate(
+                $this->school->id, $this->exam->id,
+                null, null, null, $this->user->id
+            ),
+            fn () => $cards->publish(
+                $this->school->id, $this->exam->id,
+                null, null, null, $this->user->id
+            ),
+        ];
+
+        $tables = [
+            'exam_rosters', 'exam_roster_learners', 'exam_roster_papers',
+            'exam_results', 'learning_area_results', 'merit_lists',
+            'report_cards', 'report_card_learning_areas',
+        ];
+
+        $snapshot = function () use ($tables): array {
+            $rows = [];
+            foreach ($tables as $table) {
+                $rows[$table] = DB::table($table)->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all();
+            }
+
+            return $rows;
+        };
+
+        $before = $snapshot();
+
+        foreach ($operations as $operation) {
+            $this->reject($operation, 'completeness');
+            $this->assertSame($before, $snapshot());
+        }
     }
 
     private function completeness(): array

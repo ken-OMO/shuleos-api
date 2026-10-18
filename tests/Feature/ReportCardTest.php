@@ -15,6 +15,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\EducationLevelBuilder;
+use Tests\Support\Database\ExamOutputRosterBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\GradingScaleBuilder;
 use Tests\Support\Database\GradingSystemBuilder;
@@ -269,6 +270,16 @@ class ReportCardTest extends TestCase
             $this->primaryLearner,
             $this->primarySystem,
             $this->primaryScale
+        );
+
+        ExamOutputRosterBuilder::create(
+            $this->school, $this->exam, $this->user,
+            [$this->juniorLearner, $this->primaryLearner],
+            [$this->learningAreaOne, $this->learningAreaTwo],
+            [
+                $this->juniorLearner->id => 80,
+                $this->primaryLearner->id => 80,
+            ]
         );
 
         app(MeritListService::class)->generate(
@@ -639,6 +650,43 @@ class ReportCardTest extends TestCase
             'school_id' => $this->school->id,
             'principal_comment' => 'Changed through HTTP',
         ])->assertStatus(422);
+
+        $this->assertSame($before, $this->publicationSnapshot());
+    }
+
+    public function test_bulk_generation_rejects_partial_merit_coverage(): void
+    {
+        DB::table('merit_lists')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->primaryLearner->id)
+            ->delete();
+
+        $before = $this->publicationSnapshot();
+
+        try {
+            $this->generate();
+            $this->fail('Expected incomplete merit coverage to block card generation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('merit_lists', $exception->errors());
+        }
+
+        $this->assertSame($before, $this->publicationSnapshot());
+    }
+
+    public function test_bulk_publication_rejects_partial_report_card_coverage(): void
+    {
+        $this->generate($this->juniorLearner->id);
+        $before = $this->publicationSnapshot();
+
+        try {
+            app(ReportCardService::class)->publish(
+                $this->school->id, $this->exam->id,
+                null, null, null, $this->user->id
+            );
+            $this->fail('Expected incomplete card coverage to block publication.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('report_cards', $exception->errors());
+        }
 
         $this->assertSame($before, $this->publicationSnapshot());
     }

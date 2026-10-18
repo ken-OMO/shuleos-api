@@ -38,12 +38,6 @@ class ExamRosterService
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->lifecycle->assertMutable($exam);
 
-            if ($exam->status !== 'draft') {
-                throw ValidationException::withMessages([
-                    'exam_id' => 'Exam rosters can only be edited while the exam is draft.',
-                ]);
-            }
-
             $actor = DB::table('users')->where('id', $userId)
                 ->where('school_id', $schoolId)->where('active', true)
                 ->where('is_deleted', false)->exists();
@@ -57,6 +51,15 @@ class ExamRosterService
             $roster = DB::table('exam_rosters')
                 ->where('school_id', $schoolId)->where('exam_id', $examId)
                 ->lockForUpdate()->first();
+
+            // Existing published exams may establish their first explicit roster.
+            // Replacement remains draft-only; assertMutable also protects published outputs.
+            if ($exam->status !== 'draft'
+                && ! ($exam->status === 'published' && ! $roster && $expectedVersion === 0)) {
+                throw ValidationException::withMessages([
+                    'exam_id' => 'Only an initial roster may be established after an exam is published.',
+                ]);
+            }
 
             if (($roster ? (int) $roster->version : 0) !== $expectedVersion) {
                 throw ValidationException::withMessages([
