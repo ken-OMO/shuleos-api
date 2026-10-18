@@ -287,6 +287,24 @@ class LearningAreaResultTest extends TestCase
         $this->assertSame(7, $result->gradingScale->points);
     }
 
+    public function test_processing_uses_roster_education_level_after_transfer(): void
+    {
+        DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+            'grade_id' => $this->primaryLearner->grade_id,
+            'stream_id' => $this->primaryLearner->stream_id,
+        ]);
+
+        $result = $this->process($this->juniorLearner);
+
+        $this->assertSame('EE2', $result->gradingScale->grade_code);
+        $this->assertSame(7, $result->gradingScale->points);
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->juniorLearner->id,
+            'grade_id' => $this->primaryLearner->grade_id,
+            'stream_id' => $this->primaryLearner->stream_id,
+        ]);
+    }
+
     public function test_primary_grade_has_null_points(): void
     {
         $result = $this->process($this->primaryLearner);

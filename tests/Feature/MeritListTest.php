@@ -460,7 +460,7 @@ class MeritListTest extends TestCase
         }
     }
 
-    public function test_published_learner_moved_into_selection_cannot_be_overwritten(): void
+    public function test_transferred_published_learner_remains_outside_another_roster_stream(): void
     {
         $this->generate();
         $this->publishSelection(null, $this->streamTwo->id);
@@ -470,9 +470,22 @@ class MeritListTest extends TestCase
             ->update(['stream_id' => $this->streamOne->id]);
 
         $before = $this->meritSnapshot();
+        $rows = $this->generate(null, $this->streamOne->id);
 
-        $this->assertPublishedGenerationRejected(null, $this->streamOne->id);
-        $this->assertSame($before, $this->meritSnapshot());
+        $this->assertCount(2, $rows);
+        $this->assertFalse($rows->contains('learner_id', $this->learnerC->id));
+
+        $after = $this->meritSnapshot();
+        foreach ($before as $id => $row) {
+            if ($row['status'] === 'published') {
+                $this->assertSame($row, $after[$id]);
+            }
+        }
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->learnerC->id,
+            'stream_id' => $this->streamOne->id,
+        ]);
     }
 
     public function test_published_row_stored_in_selection_blocks_after_learner_moves_out(): void
@@ -731,6 +744,43 @@ class MeritListTest extends TestCase
 
         $this->assertEquals($publishedBefore, DB::table('merit_lists')
             ->where('id', $publishedBefore->id)->first());
+    }
+
+    public function test_merit_regeneration_preserves_roster_membership_and_ranks_after_transfer(): void
+    {
+        $before = $this->generate()->keyBy('learner_id');
+
+        DB::table('learners')
+            ->where('id', $this->learnerC->id)
+            ->update([
+                'grade_id' => $this->gradeTwo->id,
+                'stream_id' => $this->streamThree->id,
+            ]);
+
+        $after = $this->generate()->keyBy('learner_id');
+
+        foreach ($before as $id => $row) {
+            foreach ([
+                'grade_id', 'stream_id', 'school_position',
+                'grade_position', 'stream_position',
+                'overall_grading_system_id', 'overall_grading_scale_id',
+            ] as $field) {
+                $this->assertSame($row->$field, $after[$id]->$field);
+            }
+        }
+
+        $selected = $this->generate(null, $this->streamTwo->id);
+
+        $this->assertCount(1, $selected);
+        $this->assertSame($this->learnerC->id, $selected->first()->learner_id);
+        $this->assertSame($this->gradeOne->id, $selected->first()->grade_id);
+        $this->assertSame($this->streamTwo->id, $selected->first()->stream_id);
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->learnerC->id,
+            'grade_id' => $this->gradeTwo->id,
+            'stream_id' => $this->streamThree->id,
+        ]);
     }
 
     private function publishSelection(?string $grade = null, ?string $stream = null): void

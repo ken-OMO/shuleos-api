@@ -64,6 +64,10 @@ class ResultProcessingService
                 ]);
             }
 
+            $learner = app(ExamMembershipService::class)->learnerAtExam(
+                $schoolId, $exam->id, $learner
+            );
+
             $papers = $examLearningArea->papers;
 
             if ($papers->count() !== $examLearningArea->number_of_papers) {

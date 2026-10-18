@@ -67,6 +67,11 @@ class ExamLearningAreaAnalysisService
             $this->access->assertLearningArea($user, $areaId);
         }
 
+        $hasRoster = DB::table('exam_rosters')
+            ->where('school_id', $schoolId)
+            ->where('exam_id', $exam->id)->exists();
+        $membershipTable = $hasRoster ? 'participants' : 'learners';
+
         $query = DB::table('learning_area_results as results')
             ->join('learners as learners', function ($join) {
                 $join->on('learners.id', '=', 'results.learner_id')
@@ -77,12 +82,20 @@ class ExamLearningAreaAnalysisService
             ->where('results.is_deleted', false)
             ->where('results.processing_status', 'processed');
 
+        if ($hasRoster) {
+            $query->join('exam_roster_learners as participants', function ($join) {
+                $join->on('participants.learner_id', '=', 'results.learner_id')
+                    ->on('participants.school_id', '=', 'results.school_id')
+                    ->on('participants.exam_id', '=', 'results.exam_id');
+            });
+        }
+
         if ($scope['role_key'] === 'hod') {
             $query->whereIn('results.learning_area_id', $scope['learning_area_ids']);
         }
 
-        $query->when($gradeId, fn ($q) => $q->where('learners.grade_id', $gradeId))
-            ->when($streamId, fn ($q) => $q->where('learners.stream_id', $streamId))
+        $query->when($gradeId, fn ($q) => $q->where($membershipTable.'.grade_id', $gradeId))
+            ->when($streamId, fn ($q) => $q->where($membershipTable.'.stream_id', $streamId))
             ->when($areaId, fn ($q) => $q->where('results.learning_area_id', $areaId));
 
         $rows = $query->orderBy('results.learning_area_id')
@@ -91,8 +104,8 @@ class ExamLearningAreaAnalysisService
                 'results.learner_id', 'results.learning_area_id', 'results.is_absent',
                 'results.marks_obtained', 'results.maximum_marks',
                 'results.percentage', 'results.grading_system_id',
-                'results.grading_scale_id', 'learners.grade_id',
-                'learners.stream_id',
+                'results.grading_scale_id', $membershipTable.'.grade_id',
+                $membershipTable.'.stream_id',
             ]);
 
         $systems = DB::table('grading_systems')

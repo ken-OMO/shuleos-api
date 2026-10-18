@@ -691,6 +691,56 @@ class ReportCardTest extends TestCase
         $this->assertSame($before, $this->publicationSnapshot());
     }
 
+    public function test_report_cards_keep_exam_membership_and_pathway_after_transfers(): void
+    {
+        DB::table('learners')->where('id', $this->juniorLearner->id)->update([
+            'grade_id' => $this->primaryGrade->id,
+            'stream_id' => $this->primaryStream->id,
+        ]);
+        DB::table('learners')->where('id', $this->primaryLearner->id)->update([
+            'grade_id' => $this->juniorGrade->id,
+            'stream_id' => $this->juniorStream->id,
+        ]);
+
+        $cards = $this->generate()->keyBy('learner_id');
+        $junior = $cards[$this->juniorLearner->id];
+        $primary = $cards[$this->primaryLearner->id];
+
+        $this->assertSame($this->juniorGrade->id, $junior->grade_id);
+        $this->assertSame($this->juniorStream->id, $junior->stream_id);
+        $this->assertSame('STEM', $junior->pathway_recommendation);
+        $this->assertSame(1, $junior->total_learners);
+
+        $this->assertSame($this->primaryGrade->id, $primary->grade_id);
+        $this->assertSame($this->primaryStream->id, $primary->stream_id);
+        $this->assertNull($primary->pathway_recommendation_id);
+
+        app(ReportCardService::class)->publish(
+            $this->school->id, $this->exam->id,
+            null, $this->juniorGrade->id, $this->juniorStream->id,
+            $this->user->id
+        );
+
+        $this->assertSame('published', $junior->fresh()->status);
+        $this->assertSame('generated', $primary->fresh()->status);
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->juniorLearner->id,
+            'grade_id' => $this->primaryGrade->id,
+            'stream_id' => $this->primaryStream->id,
+        ]);
+    }
+
+    public function test_report_card_cohort_excludes_unrostered_current_classmates(): void
+    {
+        LearnerBuilder::create(
+            $this->school, $this->juniorGrade, $this->juniorStream
+        );
+
+        $card = $this->generate($this->juniorLearner->id)->first();
+
+        $this->assertSame(1, $card->total_learners);
+    }
+
     private function publishJuniorCard(): void
     {
         app(ReportCardService::class)->publish(
