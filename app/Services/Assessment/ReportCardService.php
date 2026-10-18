@@ -72,7 +72,9 @@ class ReportCardService
             }
 
             return $merits->map(function ($merit) use ($schoolId, $exam, $results, $userId, $comments, $existingCards) {
-                $learner = $merit->learner;
+                $learner = app(ExamMembershipService::class)->learnerAtExam(
+                    $schoolId, $exam->id, $merit->learner
+                );
                 $areas = $results[$learner->id];
                 $identity = ['school_id' => $schoolId, 'exam_id' => $exam->id, 'learner_id' => $learner->id];
                 $card = $existingCards->get($learner->id) ?? new ReportCard($identity);
@@ -81,7 +83,7 @@ class ReportCardService
                 }
                 $attendance = $this->attendance($schoolId, $learner->id, $exam->start_date, $exam->end_date);
                 $pathway = $this->pathway($learner, $exam->academic_year_id);
-                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'overall_grade' => $merit->overallGradingScale?->grade_code, 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $this->totalLearners($schoolId, $learner), 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
+                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'overall_grade' => $merit->overallGradingScale?->grade_code, 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $this->totalLearners($schoolId, $exam->id, $learner), 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
                 if (array_key_exists('class_teacher_comment', $comments)) {
                     $card->class_teacher_comment = $comments['class_teacher_comment'];
                 } if (array_key_exists('principal_comment', $comments)) {
@@ -184,9 +186,17 @@ class ReportCardService
         return $exam;
     }
 
-    private function totalLearners(string $schoolId, Learner $learner): int
+    private function totalLearners(string $schoolId, string $examId, Learner $learner): int
     {
-        return Learner::query()->where('school_id', $schoolId)->where('active', true)->where('is_deleted', false)->when($learner->stream_id, fn ($q) => $q->where('stream_id', $learner->stream_id), fn ($q) => $q->where('grade_id', $learner->grade_id))->count();
+        return DB::table('exam_roster_learners')
+            ->where('school_id', $schoolId)
+            ->where('exam_id', $examId)
+            ->where('grade_id', $learner->grade_id)
+            ->when(
+                $learner->stream_id,
+                fn ($query) => $query->where('stream_id', $learner->stream_id)
+            )
+            ->count();
     }
 
     private function attendance(string $schoolId, string $learnerId, $start, $end): array

@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Learner;
 use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamCompletenessService;
 use App\Services\Assessment\ExamLearningAreaService;
+use App\Services\Assessment\ExamMembershipService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ExamService;
@@ -559,6 +561,57 @@ class ExamRosterTest extends TestCase
             $this->reject($operation, 'completeness');
             $this->assertSame($before, $snapshot());
         }
+    }
+
+    public function test_exam_membership_uses_roster_after_a_transfer_without_changing_the_learner(): void
+    {
+        $this->save();
+        $originalGrade = $this->learner->grade_id;
+        $originalStream = $this->learner->stream_id;
+
+        $newGrade = GradeBuilder::create($this->school);
+        $newStream = StreamBuilder::create($this->school, $newGrade);
+
+        DB::table('learners')->where('id', $this->learner->id)->update([
+            'grade_id' => $newGrade->id,
+            'stream_id' => $newStream->id,
+        ]);
+
+        $current = Learner::withoutGlobalScopes()
+            ->findOrFail($this->learner->id);
+
+        $resolved = DB::transaction(
+            fn () => app(ExamMembershipService::class)
+                ->learnerAtExam($this->school->id, $this->exam->id, $current)
+        );
+
+        $this->assertSame($originalGrade, $resolved->grade_id);
+        $this->assertSame($originalStream, $resolved->stream_id);
+        $this->assertSame($originalGrade, $resolved->grade->id);
+        $this->assertSame($originalStream, $resolved->stream->id);
+        $this->assertSame($newGrade->id, $current->grade_id);
+        $this->assertSame($newStream->id, $current->stream_id);
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->learner->id,
+            'grade_id' => $newGrade->id,
+            'stream_id' => $newStream->id,
+        ]);
+    }
+
+    public function test_exam_membership_rejects_an_unrostered_learner(): void
+    {
+        $this->save();
+
+        $grade = DB::table('grades')->where('id', $this->learner->grade_id)->first();
+        $stream = DB::table('streams')->where('id', $this->learner->stream_id)->first();
+        $other = LearnerBuilder::create($this->school, $grade, $stream);
+        $learner = Learner::withoutGlobalScopes()->findOrFail($other->id);
+
+        $this->reject(fn () => DB::transaction(
+            fn () => app(ExamMembershipService::class)
+                ->learnerAtExam($this->school->id, $this->exam->id, $learner)
+        ), 'learner_id');
     }
 
     private function completeness(): array

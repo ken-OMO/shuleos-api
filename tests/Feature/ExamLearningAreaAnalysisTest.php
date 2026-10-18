@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\Assessment\ExamLearningAreaAnalysisService;
+use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ResultProcessingService;
 use App\Services\LeadershipPortal\LeadershipPortalPhaseTwoService;
 use Illuminate\Support\Facades\DB;
@@ -364,6 +365,40 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
         $this->assertNull($groups->first()->average_percentage);
     }
 
+    public function test_analysis_keeps_roster_grade_and_stream_after_transfer(): void
+    {
+        $this->initialiseAnalysis();
+
+        $gradeId = $this->analysisLearner->grade_id;
+        $streamId = $this->analysisLearner->stream_id;
+        $before = $this->analysis(['grade_id' => $gradeId, 'stream_id' => $streamId]);
+
+        $otherMembership = DB::table('exam_roster_learners')
+            ->where('exam_id', $this->analysisExam)
+            ->where('learner_id', '!=', $this->analysisLearner->id)->first();
+
+        DB::table('learners')->where('id', $this->analysisLearner->id)->update([
+            'grade_id' => $otherMembership->grade_id,
+            'stream_id' => $otherMembership->stream_id,
+        ]);
+
+        $after = $this->analysis(['grade_id' => $gradeId, 'stream_id' => $streamId]);
+
+        $this->assertSame($before, $after);
+        $this->assertSame(1, $after['assessed_learners']);
+        $this->assertSame(
+            $gradeId, $after['learning_areas'][0]['streams'][0]['grade_id']
+        );
+        $this->assertSame(
+            $streamId, $after['learning_areas'][0]['streams'][0]['stream_id']
+        );
+        $this->assertDatabaseHas('learners', [
+            'id' => $this->analysisLearner->id,
+            'grade_id' => $otherMembership->grade_id,
+            'stream_id' => $otherMembership->stream_id,
+        ]);
+    }
+
     private function analysis(array $filters = []): array
     {
         return app(ExamLearningAreaAnalysisService::class)
@@ -394,6 +429,35 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
             ->where('min_score', '<=', $percentage)
             ->where('max_score', '>=', $percentage)->value('id');
         DB::table('learning_area_results')->insert($row);
+
+        $roster = DB::table('exam_rosters')
+            ->where('school_id', $school->id)
+            ->where('exam_id', $this->analysisExam)->first();
+
+        if ($roster) {
+            $participants = DB::table('exam_roster_learners')
+                ->where('roster_id', $roster->id)->get();
+
+            $selections = $participants->map(fn ($participant) => [
+                'learner_id' => $participant->learner_id,
+                'exam_learning_area_ids' => DB::table('exam_roster_papers')
+                    ->where('roster_learner_id', $participant->id)
+                    ->pluck('exam_learning_area_id')->unique()->values()->all(),
+            ])->all();
+
+            $selections[] = [
+                'learner_id' => $learner->id,
+                'exam_learning_area_ids' => DB::table('exam_learning_areas')
+                    ->where('exam_id', $this->analysisExam)
+                    ->where('learning_area_id', $row['learning_area_id'])
+                    ->where('is_deleted', false)->pluck('id')->all(),
+            ];
+
+            app(ExamRosterService::class)->replace(
+                $school->id, $this->analysisExam, $this->analyst->id,
+                (int) $roster->version, $selections
+            );
+        }
 
         return $learner;
     }

@@ -29,6 +29,27 @@ class MeritListService
             $query = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)
                 ->where('processing_status', 'processed')->with(['learner.grade.educationLevel', 'learner.stream', 'gradingScale']);
             $results = $query->orderBy('id')->lockForUpdate()->get();
+
+            $membership = app(ExamMembershipService::class);
+            $examLearners = [];
+
+            foreach ($results as $result) {
+                $id = $result->learner_id;
+
+                if (! isset($examLearners[$id])) {
+                    if (! $result->learner) {
+                        throw ValidationException::withMessages([
+                            'learner_id' => 'An exam result does not resolve to a learner.',
+                        ]);
+                    }
+
+                    $examLearners[$id] = $membership->learnerAtExam(
+                        $schoolId, $examId, $result->learner
+                    );
+                }
+
+                $result->setRelation('learner', $examLearners[$id]);
+            }
             $selectedResults = $results->filter(function (LearningAreaResult $result) use ($gradeId, $streamId) {
                 return (! $gradeId || $result->learner->grade_id === $gradeId)
                     && (! $streamId || $result->learner->stream_id === $streamId);
