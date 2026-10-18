@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Learner;
 use App\Models\User;
+use App\Services\Assessment\ExamGradingSnapshotService;
 use App\Services\Assessment\ExamLearningAreaAnalysisService;
 use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ResultProcessingService;
@@ -399,6 +401,63 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
         ]);
     }
 
+    public function test_analysis_uses_captured_rules_after_live_grading_changes(): void
+    {
+        $this->initialiseAnalysis();
+        $this->addLearner(95);
+        $filters = ['grade_id' => $this->analysisLearner->grade_id];
+        $before = $this->analysis($filters);
+
+        $systemIds = DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->pluck('grading_system_id')->filter()->unique();
+
+        DB::table('grading_scales')->whereIn('grading_system_id', $systemIds)->update([
+            'grade_code' => 'CHANGED',
+            'grade_description' => 'Changed live description',
+            'min_score' => 0,
+            'max_score' => 100,
+            'points' => 1,
+        ]);
+        DB::table('grading_systems')->whereIn('id', $systemIds)->update([
+            'grading_name' => 'Changed live system',
+            'active' => false,
+        ]);
+
+        $after = $this->analysis($filters);
+        $this->assertSame($before, $after);
+        $this->assertSame('exam_roster', $after['membership_basis']);
+
+        $summary = $after['learning_areas'][0]['grading_summaries'][0];
+        $this->assertSame('captured_exam_rules', $summary['grading_basis']);
+        $this->assertNotNull($summary['rules_snapshot_id']);
+        $this->assertSame('EE2', $summary['mean_grade']);
+        $this->assertSame(85.0, $summary['mean_percentage']);
+    }
+
+    public function test_analysis_keeps_legacy_and_captured_grading_separate(): void
+    {
+        $this->initialiseAnalysis();
+        $learner = $this->addLearner(95);
+
+        DB::table('learning_area_results')
+            ->where('exam_id', $this->analysisExam)
+            ->where('learner_id', $learner->id)
+            ->update(['grading_snapshot' => null]);
+
+        $data = $this->analysis(['grade_id' => $this->analysisLearner->grade_id]);
+        $summaries = collect($data['learning_areas'][0]['grading_summaries']);
+
+        $this->assertCount(2, $summaries);
+        $captured = $summaries->firstWhere('grading_basis', 'captured_exam_rules');
+        $legacy = $summaries->firstWhere(
+            'grading_basis', 'stored_system_current_scale_boundaries'
+        );
+        $this->assertSame(75.0, $captured['mean_percentage']);
+        $this->assertSame(95.0, $legacy['mean_percentage']);
+        $this->assertNull($legacy['rules_snapshot_id']);
+    }
+
     private function analysis(array $filters = []): array
     {
         return app(ExamLearningAreaAnalysisService::class)
@@ -458,6 +517,19 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
                 (int) $roster->version, $selections
             );
         }
+
+        $award = DB::transaction(fn () => app(ExamGradingSnapshotService::class)->calculate(
+            $school->id, $this->analysisExam,
+            Learner::withoutGlobalScopes()->findOrFail($learner->id),
+            $percentage, $this->analyst->id
+        )
+        );
+
+        DB::table('learning_area_results')->where('id', $row['id'])->update([
+            'grading_system_id' => $award['grading_system_id'],
+            'grading_scale_id' => $award['grading_scale_id'],
+            'grading_snapshot' => json_encode($award, JSON_THROW_ON_ERROR),
+        ]);
 
         return $learner;
     }
@@ -574,9 +646,11 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
             ->getJson($this->endpoint())->assertNotFound();
     }
 
-    public function test_mean_with_overlapping_scales_is_rejected(): void
+    public function test_legacy_mean_with_overlapping_scales_is_rejected(): void
     {
         $this->initialiseAnalysis();
+        DB::table('learning_area_results')->where('exam_id', $this->analysisExam)
+            ->update(['grading_snapshot' => null]);
         $result = DB::table('learning_area_results')
             ->where('learner_id', $this->analysisLearner->id)->first();
         DB::table('grading_scales')->where('grading_system_id', $result->grading_system_id)

@@ -103,7 +103,7 @@ class ExamLearningAreaAnalysisService
             ->get([
                 'results.learner_id', 'results.learning_area_id', 'results.is_absent',
                 'results.marks_obtained', 'results.maximum_marks',
-                'results.percentage', 'results.grading_system_id',
+                'results.percentage', 'results.grading_system_id', 'results.grading_snapshot',
                 'results.grading_scale_id', $membershipTable.'.grade_id',
                 $membershipTable.'.stream_id',
             ]);
@@ -122,7 +122,60 @@ class ExamLearningAreaAnalysisService
             ])
             ->groupBy('grading_system_id');
 
+        $captured = DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)
+            ->where('exam_id', $exam->id)
+            ->get()->keyBy('id');
+
         foreach ($rows as $row) {
+            $row->rules_snapshot_id = null;
+            $row->grading_group = $row->grading_system_id;
+
+            if (! (bool) $row->is_absent && $row->grading_snapshot !== null) {
+                try {
+                    $award = json_decode($row->grading_snapshot, true, 512, JSON_THROW_ON_ERROR);
+                    $capture = $captured->get($award['rules_snapshot_id'] ?? '');
+                    $rules = $capture
+                        ? json_decode($capture->rules, true, 512, JSON_THROW_ON_ERROR)
+                        : null;
+                } catch (\JsonException $exception) {
+                    throw ValidationException::withMessages([
+                        'analysis' => 'A captured grading snapshot contains invalid JSON.',
+                    ]);
+                }
+
+                if (! is_array($award) || ! is_array($rules)
+                    || ($award['format_version'] ?? null) !== 1
+                    || ($rules['format_version'] ?? null) !== 1
+                    || ($rules['grading_system_id'] ?? null) !== $row->grading_system_id
+                    || ($award['grading_system_id'] ?? null) !== $row->grading_system_id
+                    || ($award['grading_scale_id'] ?? null) !== $row->grading_scale_id
+                    || ! is_array($rules['scales'] ?? null)) {
+                    throw ValidationException::withMessages([
+                        'analysis' => 'A processed result has invalid captured grading references.',
+                    ]);
+                }
+
+                $row->rules_snapshot_id = $capture->id;
+                $row->grading_group = 'snapshot:'.$capture->id;
+                $systems->put($row->grading_group, (object) [
+                    'grading_name' => $rules['grading_name'],
+                ]);
+                $capturedScales = collect($rules['scales'])
+                    ->map(fn (array $scale) => (object) $scale);
+                $scales->put($row->grading_group, $capturedScales);
+
+                $awardedScale = $capturedScales->firstWhere('id', $row->grading_scale_id);
+                if (! $awardedScale
+                    || ($award['grade_code'] ?? null) !== $awardedScale->grade_code
+                    || ($award['grade_description'] ?? null) !== $awardedScale->grade_description
+                    || ! array_key_exists('points', $award)
+                    || $award['points'] !== $awardedScale->points) {
+                    throw ValidationException::withMessages([
+                        'analysis' => 'The stored award does not match its captured grading rules.',
+                    ]);
+                }
+            }
             if ((bool) $row->is_absent) {
                 if ($row->marks_obtained !== null
                     || $row->percentage !== null
@@ -139,10 +192,10 @@ class ExamLearningAreaAnalysisService
                 continue;
             }
 
-            $systemScales = $scales->get($row->grading_system_id, collect());
+            $systemScales = $scales->get($row->grading_group, collect());
             $storedScale = $systemScales->firstWhere('id', $row->grading_scale_id);
 
-            if (! $systems->has($row->grading_system_id) || ! $storedScale
+            if (! $systems->has($row->grading_group) || ! $storedScale
                 || ! is_numeric($row->percentage)
                 || (float) $row->percentage < 0 || (float) $row->percentage > 100
                 || ! is_numeric($row->maximum_marks)
@@ -189,8 +242,8 @@ class ExamLearningAreaAnalysisService
                 'learning_area_id' => $areaId,
                 'top_limit' => $topLimit,
             ],
-            'membership_basis' => 'current',
-            'grading_basis' => 'stored_system_current_scale_boundaries',
+            'membership_basis' => $hasRoster ? 'exam_roster' : 'current',
+            'grading_basis' => 'per_summary',
             'ranking_method' => 'competition',
             'assessed_learners' => $rows->reject(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
             'absent_learners' => $rows->filter(fn ($row) => (bool) $row->is_absent)->pluck('learner_id')->unique()->count(),
@@ -206,7 +259,7 @@ class ExamLearningAreaAnalysisService
         int $topLimit
     ): array {
         return $rows->reject(fn ($row) => (bool) $row->is_absent)
-            ->groupBy('grading_system_id')->sortKeys()
+            ->groupBy('grading_group')->sortKeys()
             ->map(function (Collection $items, string $systemId) use ($systems, $scales, $includeLearners, $topLimit) {
                 $mean = round((float) $items->avg('percentage'), 2);
                 $systemScales = $scales->get($systemId, collect());
@@ -224,7 +277,7 @@ class ExamLearningAreaAnalysisService
                 $meanScale = $matches->first();
                 $counts = $items->countBy('grading_scale_id');
                 $summary = [
-                    'grading_system_id' => $systemId,
+                    'grading_system_id' => $items->first()->grading_system_id, 'rules_snapshot_id' => $items->first()->rules_snapshot_id, 'grading_basis' => $items->first()->rules_snapshot_id !== null ? 'captured_exam_rules' : 'stored_system_current_scale_boundaries',
                     'grading_name' => $systems->get($systemId)->grading_name,
                     'assessed_learners' => $items->count(),
                     'mean_percentage' => $mean,

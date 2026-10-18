@@ -14,9 +14,9 @@ class ReportCardLearningArea extends Model
 
     public $timestamps = true;
 
-    protected $fillable = ['id', 'report_card_id', 'learning_area_id', 'learning_area_result_id', 'is_absent', 'score', 'marks_obtained', 'maximum_marks', 'percentage', 'grading_system_id', 'grading_scale_id', 'grade_code', 'points', 'teacher_comment', 'is_deleted', 'deleted_at', 'deleted_by'];
+    protected $fillable = ['grading_snapshot', 'id', 'report_card_id', 'learning_area_id', 'learning_area_result_id', 'is_absent', 'score', 'marks_obtained', 'maximum_marks', 'percentage', 'grading_system_id', 'grading_scale_id', 'grade_code', 'points', 'teacher_comment', 'is_deleted', 'deleted_at', 'deleted_by'];
 
-    protected $casts = ['is_absent' => 'boolean', 'score' => 'decimal:2', 'marks_obtained' => 'decimal:2', 'maximum_marks' => 'decimal:2', 'percentage' => 'decimal:2', 'points' => 'integer', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime'];
+    protected $casts = ['grading_snapshot' => 'array', 'is_absent' => 'boolean', 'score' => 'decimal:2', 'marks_obtained' => 'decimal:2', 'maximum_marks' => 'decimal:2', 'percentage' => 'decimal:2', 'points' => 'integer', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime'];
 
     public function reportCard()
     {

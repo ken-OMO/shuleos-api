@@ -101,8 +101,14 @@ class MeritListService
 
             $existingRows = $existingRows->keyBy('learner_id');
 
-            $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($schoolId) {
+            $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($schoolId, $examId, $generatedBy) {
                 $learner = $items->first()->learner;
+
+                if ($items->contains(fn (LearningAreaResult $item) => $item->grading_snapshot === null)) {
+                    throw ValidationException::withMessages([
+                        'results' => 'Legacy processed results must be reprocessed to capture grading before merit generation.',
+                    ]);
+                }
 
                 if ($items->contains(fn (LearningAreaResult $item) => (bool) $item->is_absent)) {
                     return [
@@ -114,19 +120,32 @@ class MeritListService
                         'grading_system_id' => null,
                         'grading_scale_id' => null,
                         'ranking_method' => 'not_ranked_absent',
+                        'grading_snapshot' => [
+                            'format_version' => 1,
+                            'rules_snapshot_id' => null,
+                            'grading_system_id' => null,
+                            'grading_scale_id' => null,
+                            'grade_code' => null,
+                            'grade_description' => null,
+                            'points' => null,
+                        ],
                     ];
                 }
 
                 $score = round((float) $items->sum('marks_obtained'), 2);
                 $maximum = round((float) $items->sum('maximum_marks'), 2);
                 $average = round((float) $items->avg('percentage'), 2);
-                $pointValues = $items->pluck('gradingScale.points')->filter(fn ($value) => $value !== null);
-                $grade = $this->gradeCalculation->calculate($learner, $schoolId, $average);
+                $pointValues = $items->map(fn (LearningAreaResult $item) => $item->grading_snapshot['points'])
+                    ->filter(fn ($value) => $value !== null);
+                $grade = app(ExamGradingSnapshotService::class)->calculate(
+                    $schoolId, $examId, $learner, $average, $generatedBy
+                );
 
                 return [
                     'learner' => $learner, 'total_score' => $score, 'maximum_marks' => $maximum,
                     'average_percentage' => $average, 'total_points' => $pointValues->isEmpty() ? null : (int) $pointValues->sum(),
-                    'grading_system_id' => $grade['grading_system']->id, 'grading_scale_id' => $grade['grading_scale']->id,
+                    'grading_system_id' => $grade['grading_system_id'], 'grading_scale_id' => $grade['grading_scale_id'],
+                    'grading_snapshot' => $grade,
                 ];
             })->values();
 
@@ -160,6 +179,7 @@ class MeritListService
                     'total_score' => $row['total_score'], 'maximum_marks' => $row['maximum_marks'],
                     'average_percentage' => $row['average_percentage'], 'total_points' => $row['total_points'],
                     'overall_grading_system_id' => $row['grading_system_id'], 'overall_grading_scale_id' => $row['grading_scale_id'],
+                    'grading_snapshot' => $row['grading_snapshot'],
                     'stream_position' => $row['stream_position'], 'grade_position' => $row['grade_position'],
                     'school_position' => $row['school_position'], 'ranking_method' => $row['ranking_method'] ?? 'competition',
                     'status' => 'generated', 'generated_by' => $generatedBy, 'generated_at' => now(),
@@ -191,6 +211,16 @@ class MeritListService
             if ($rows->isEmpty()) {
                 throw ValidationException::withMessages(['merit_lists' => 'No generated merit-list rows were found for publishing.']);
             }
+            if ($rows->contains(fn (MeritList $row) => $row->grading_snapshot === null)
+                || LearningAreaResult::current()
+                    ->where('school_id', $schoolId)->where('exam_id', $examId)
+                    ->where('processing_status', 'processed')
+                    ->whereNull('grading_snapshot')->exists()) {
+                throw ValidationException::withMessages([
+                    'grading_snapshot' => 'Reprocess legacy results and regenerate merit entries before publication.',
+                ]);
+            }
+
             $rows->each->update(['status' => 'published', 'published_at' => now()]);
 
             return $rows->load(['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy']);

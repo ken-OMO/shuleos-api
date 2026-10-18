@@ -19,6 +19,80 @@ use Mockery;
 
 class ExamAbsencePortalTest extends LearningAreaResultTest
 {
+    public function test_portal_grades_and_progress_survive_live_scale_edits(): void
+    {
+        $context = $this->portalContext();
+        $user = $context['user'];
+        $learnerId = $context['learner']->id;
+
+        $beforeLearner = app(LearnerPortalService::class)->results($user);
+        $beforeParent = app(ParentPortalMobileService::class)->results($user, $learnerId);
+        $beforeProgress = $this->learnerProgress()->summary($user);
+
+        DB::table('grading_scales')
+            ->where('grading_system_id', $context['result']->grading_system_id)
+            ->update([
+                'grade_code' => 'CHANGED',
+                'grade_description' => 'Changed live description',
+                'points' => 1,
+            ]);
+
+        $afterLearner = app(LearnerPortalService::class)->results($user);
+        $afterParent = app(ParentPortalMobileService::class)->results($user, $learnerId);
+        $afterProgress = $this->learnerProgress()->summary($user);
+
+        $this->assertEquals($beforeLearner, $afterLearner);
+        $this->assertEquals($beforeParent, $afterParent);
+        $this->assertEquals(
+            $beforeProgress['grade_distribution'], $afterProgress['grade_distribution']
+        );
+        $this->assertEquals(
+            $beforeProgress['learning_areas'], $afterProgress['learning_areas']
+        );
+        $this->assertSame('EE2', $afterLearner->first()->grade_code);
+        $this->assertSame(7, $afterLearner->first()->points);
+    }
+
+    public function test_portals_keep_legacy_fallback_and_captured_null_points(): void
+    {
+        $context = $this->portalContext();
+        $user = $context['user'];
+
+        DB::table('exam_results')
+            ->where('exam_id', $context['exam']->id)
+            ->where('learner_id', $context['learner']->id)
+            ->update(['marks' => 25]);
+
+        $areaId = DB::table('exam_learning_areas')
+            ->where('exam_id', $context['exam']->id)->value('id');
+
+        app(ResultProcessingService::class)->process(
+            $user->school_id, $areaId, $context['learner']->id, $user->id
+        );
+
+        $result = DB::table('learning_area_results')
+            ->where('id', $context['result']->id)->first();
+
+        DB::table('grading_scales')->where('id', $result->grading_scale_id)
+            ->update(['grade_code' => 'LIVE', 'points' => 99]);
+
+        $captured = app(LearnerPortalService::class)->results($user)->first();
+        $this->assertSame('ME', $captured->grade_code);
+        $this->assertNull($captured->points);
+
+        $parent = app(ParentPortalMobileService::class)->results(
+            $user, $context['learner']->id
+        );
+        $this->assertNull($parent[0]['learning_areas']->first()['points']);
+
+        DB::table('learning_area_results')->where('id', $result->id)
+            ->update(['grading_snapshot' => null]);
+
+        $legacy = app(LearnerPortalService::class)->results($user)->first();
+        $this->assertSame('LIVE', $legacy->grade_code);
+        $this->assertSame(99, (int) $legacy->points);
+    }
+
     private function portalContext(): array
     {
         $processor = DB::table('users')

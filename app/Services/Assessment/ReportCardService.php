@@ -76,6 +76,13 @@ class ReportCardService
                     $schoolId, $exam->id, $merit->learner
                 );
                 $areas = $results[$learner->id];
+
+                if ($merit->grading_snapshot === null
+                    || $areas->contains(fn (LearningAreaResult $area) => $area->grading_snapshot === null)) {
+                    throw ValidationException::withMessages([
+                        'grading_snapshot' => 'Processed results and merit entries require captured grading before report-card generation.',
+                    ]);
+                }
                 $identity = ['school_id' => $schoolId, 'exam_id' => $exam->id, 'learner_id' => $learner->id];
                 $card = $existingCards->get($learner->id) ?? new ReportCard($identity);
                 if (! $card->exists) {
@@ -83,7 +90,7 @@ class ReportCardService
                 }
                 $attendance = $this->attendance($schoolId, $learner->id, $exam->start_date, $exam->end_date);
                 $pathway = $this->pathway($learner, $exam->academic_year_id);
-                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'overall_grade' => $merit->overallGradingScale?->grade_code, 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $this->totalLearners($schoolId, $exam->id, $learner), 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
+                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'grading_snapshot' => $merit->grading_snapshot, 'overall_grade' => $merit->grading_snapshot['grade_code'], 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $this->totalLearners($schoolId, $exam->id, $learner), 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
                 if (array_key_exists('class_teacher_comment', $comments)) {
                     $card->class_teacher_comment = $comments['class_teacher_comment'];
                 } if (array_key_exists('principal_comment', $comments)) {
@@ -95,7 +102,7 @@ class ReportCardService
                     $detail = ReportCardLearningArea::query()->firstOrNew(['report_card_id' => $card->id, 'learning_area_id' => $area->learning_area_id]);
                     if (! $detail->exists) {
                         $detail->id = (string) Str::uuid();
-                    } $detail->fill(['learning_area_result_id' => $area->id, 'is_absent' => (bool) $area->is_absent, 'score' => $area->marks_obtained, 'marks_obtained' => $area->marks_obtained, 'maximum_marks' => $area->maximum_marks, 'percentage' => $area->percentage, 'grading_system_id' => $area->grading_system_id, 'grading_scale_id' => $area->grading_scale_id, 'grade_code' => $area->gradingScale?->grade_code, 'points' => $area->gradingScale?->points, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null])->save();
+                    } $detail->fill(['learning_area_result_id' => $area->id, 'is_absent' => (bool) $area->is_absent, 'score' => $area->marks_obtained, 'marks_obtained' => $area->marks_obtained, 'maximum_marks' => $area->maximum_marks, 'percentage' => $area->percentage, 'grading_system_id' => $area->grading_system_id, 'grading_scale_id' => $area->grading_scale_id, 'grading_snapshot' => $area->grading_snapshot, 'grade_code' => $area->grading_snapshot['grade_code'], 'points' => $area->grading_snapshot['points'], 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null])->save();
                 }
                 ReportCardLearningArea::current()->where('report_card_id', $card->id)->whereNotIn('learning_area_id', $current)->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => $userId]);
 
@@ -164,7 +171,26 @@ class ReportCardService
             $cards = $q->lockForUpdate()->get();
             if ($cards->isEmpty()) {
                 throw ValidationException::withMessages(['report_cards' => 'No generated report cards were found for publishing.']);
-            } $cards->each->update(['status' => 'published', 'published_by' => $userId, 'published_at' => now()]);
+            }
+
+            if ($cards->contains(fn (ReportCard $card) => $card->grading_snapshot === null)
+                || ReportCardLearningArea::current()
+                    ->whereIn('report_card_id', $cards->pluck('id'))
+                    ->whereNull('grading_snapshot')->exists()
+                || MeritList::current()
+                    ->where('school_id', $schoolId)->where('exam_id', $examId)
+                    ->whereIn('learner_id', $cards->pluck('learner_id'))
+                    ->whereNull('grading_snapshot')->exists()
+                || LearningAreaResult::current()
+                    ->where('school_id', $schoolId)->where('exam_id', $examId)
+                    ->where('processing_status', 'processed')
+                    ->whereNull('grading_snapshot')->exists()) {
+                throw ValidationException::withMessages([
+                    'grading_snapshot' => 'Reprocess legacy results and regenerate merit entries and report cards before publication.',
+                ]);
+            }
+
+            $cards->each->update(['status' => 'published', 'published_by' => $userId, 'published_at' => now()]);
 
             return $cards->load(self::RELATIONS);
         });
