@@ -13,6 +13,7 @@ use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\EducationLevelBuilder;
+use Tests\Support\Database\ExamOutputRosterBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\GradingScaleBuilder;
 use Tests\Support\Database\GradingSystemBuilder;
@@ -248,6 +249,18 @@ class MeritListTest extends TestCase
         $this->results($this->learnerB, 80, $this->highScale);
         $this->results($this->learnerC, 80, $this->highScale);
         $this->results($this->learnerD, 70, $this->midScale);
+
+        ExamOutputRosterBuilder::create(
+            $this->school, $this->exam, $this->user,
+            [$this->learnerA, $this->learnerB, $this->learnerC, $this->learnerD],
+            [$this->learningAreaOne, $this->learningAreaTwo],
+            [
+                $this->learnerA->id => 90,
+                $this->learnerB->id => 80,
+                $this->learnerC->id => 80,
+                $this->learnerD->id => 70,
+            ]
+        );
     }
 
     public function test_totals_averages_junior_grade_and_points(): void
@@ -411,6 +424,11 @@ class MeritListTest extends TestCase
             ->where('exam_id', $this->exam->id)
             ->where('learner_id', $this->learnerA->id)
             ->update(['marks_obtained' => 60, 'percentage' => 60]);
+
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerA->id)
+            ->update(['marks' => 60]);
 
         $before = $this->meritSnapshot();
 
@@ -576,6 +594,11 @@ class MeritListTest extends TestCase
             ->where('learner_id', $this->learnerD->id)
             ->update(['marks_obtained' => 95, 'percentage' => 95]);
 
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerD->id)
+            ->update(['marks' => 95]);
+
         $rows = $this->generate($this->gradeOne->id)->keyBy('learner_id');
 
         $this->assertSame(2, $rows[$this->learnerA->id]->school_position);
@@ -627,6 +650,87 @@ class MeritListTest extends TestCase
             $items = $payload['data'] ?? $payload;
             $this->assertSame($firstLearner, $items[0]['learner_id']);
         }
+    }
+
+    public function test_publication_rejects_a_missing_merit_entry_without_publishing_others(): void
+    {
+        $this->generate();
+
+        DB::table('merit_lists')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerB->id)
+            ->delete();
+
+        $before = $this->meritSnapshot();
+
+        try {
+            $this->publishSelection();
+            $this->fail('Expected incomplete merit coverage to block publication.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('merit_lists', $exception->errors());
+        }
+
+        $this->assertSame($before, $this->meritSnapshot());
+    }
+
+    public function test_stream_generation_rejects_missing_results_in_another_stream(): void
+    {
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerC->id)
+            ->delete();
+
+        $before = $this->meritSnapshot();
+
+        try {
+            $this->generate(null, $this->streamOne->id);
+            $this->fail('Expected whole-exam completeness to block stream generation.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('completeness', $exception->errors());
+        }
+
+        $this->assertSame($before, $this->meritSnapshot());
+    }
+
+    public function test_stream_publication_rechecks_results_in_another_stream(): void
+    {
+        $this->generate();
+
+        DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerC->id)
+            ->delete();
+
+        $before = $this->meritSnapshot();
+
+        try {
+            $this->publishSelection(null, $this->streamOne->id);
+            $this->fail('Expected whole-exam completeness to block stream publication.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('completeness', $exception->errors());
+        }
+
+        $this->assertSame($before, $this->meritSnapshot());
+    }
+
+    public function test_remaining_merits_can_be_published_after_one_stream_is_published(): void
+    {
+        $this->generate();
+        $this->publishSelection(null, $this->streamTwo->id);
+
+        $publishedBefore = DB::table('merit_lists')
+            ->where('exam_id', $this->exam->id)
+            ->where('learner_id', $this->learnerC->id)
+            ->first();
+
+        $this->publishSelection();
+
+        $this->assertSame(4, DB::table('merit_lists')
+            ->where('exam_id', $this->exam->id)
+            ->where('status', 'published')->count());
+
+        $this->assertEquals($publishedBefore, DB::table('merit_lists')
+            ->where('id', $publishedBefore->id)->first());
     }
 
     private function publishSelection(?string $grade = null, ?string $stream = null): void

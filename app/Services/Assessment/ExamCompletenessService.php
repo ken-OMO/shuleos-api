@@ -9,6 +9,81 @@ class ExamCompletenessService
 {
     public function __construct(private readonly ExamResultLifecycleService $lifecycle) {}
 
+    /**
+     * Retain the caller's transaction and exam lock through output writes.
+     */
+    public function assertComplete(string $schoolId, string $examId): array
+    {
+        if (DB::transactionLevel() < 1) {
+            throw new \LogicException('Completeness enforcement requires a transaction.');
+        }
+
+        $report = $this->report($schoolId, $examId);
+
+        if (! $report['complete']) {
+            throw ValidationException::withMessages([
+                'completeness' => 'The whole exam must have a configured roster and complete, valid processed results before generation or publication. Review the exam completeness report.',
+            ]);
+        }
+
+        return $report;
+    }
+
+    /**
+     * Every learner in the requested roster selection needs a current output.
+     * Already published outputs count when publishing the remaining selection.
+     */
+    public function assertOutputCoverage(
+        string $table,
+        string $schoolId,
+        string $examId,
+        ?string $learnerId = null,
+        ?string $gradeId = null,
+        ?string $streamId = null
+    ): void {
+        if (DB::transactionLevel() < 1) {
+            throw new \LogicException('Output coverage requires a transaction.');
+        }
+
+        if (! in_array($table, ['merit_lists', 'report_cards'], true)) {
+            throw new \InvalidArgumentException('Unsupported exam output table.');
+        }
+
+        $expected = DB::table('exam_roster_learners')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)
+            ->when($learnerId, fn ($q) => $q->where('learner_id', $learnerId))
+            ->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+            ->orderBy('learner_id')->get();
+
+        $outputs = DB::table($table)
+            ->where('school_id', $schoolId)->where('exam_id', $examId)
+            ->where('is_deleted', false)
+            ->whereIn('status', ['generated', 'published'])
+            ->when($learnerId, fn ($q) => $q->where('learner_id', $learnerId))
+            ->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))
+            ->when($streamId, fn ($q) => $q->where('stream_id', $streamId))
+            ->orderBy('id')->lockForUpdate()->get();
+
+        $expectedIds = $expected->pluck('learner_id')->sort()->values()->all();
+        $actualIds = $outputs->pluck('learner_id')->sort()->values()->all();
+        $byLearner = $outputs->keyBy('learner_id');
+
+        $membershipMatches = $expected->every(function ($participant) use ($byLearner) {
+            $output = $byLearner->get($participant->learner_id);
+
+            return $output
+                && $output->grade_id === $participant->grade_id
+                && $output->stream_id === $participant->stream_id;
+        });
+
+        if ($expectedIds === [] || $expectedIds !== $actualIds || ! $membershipMatches) {
+            throw ValidationException::withMessages([
+                $table => 'Every learner in the requested roster selection requires a current generated or published output with matching roster membership.',
+            ]);
+        }
+    }
+
     public function report(string $schoolId, string $examId): array
     {
         return DB::transaction(function () use ($schoolId, $examId) {

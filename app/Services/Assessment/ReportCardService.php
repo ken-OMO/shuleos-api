@@ -28,6 +28,10 @@ class ReportCardService
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
+            app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
+            app(ExamCompletenessService::class)->assertOutputCoverage(
+                'merit_lists', $schoolId, $examId, $learnerId, $gradeId, $streamId
+            );
             $merits = MeritList::current()->where('school_id', $schoolId)->where('exam_id', $examId)->whereIn('status', ['generated', 'published'])->with('learner.grade.educationLevel')
                 ->when($learnerId, fn ($q) => $q->where('learner_id', $learnerId))->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))->when($streamId, fn ($q) => $q->where('stream_id', $streamId))->lockForUpdate()->get();
             if ($merits->isEmpty()) {
@@ -147,7 +151,14 @@ class ReportCardService
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
+            app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
+            app(ExamCompletenessService::class)->assertOutputCoverage(
+                'merit_lists', $schoolId, $examId, $learnerId, $gradeId, $streamId
+            );
             $q = ReportCard::current()->where('school_id', $schoolId)->where('exam_id', $examId)->where('status', 'generated')->when($learnerId, fn ($x) => $x->where('learner_id', $learnerId))->when($gradeId, fn ($x) => $x->where('grade_id', $gradeId))->when($streamId, fn ($x) => $x->where('stream_id', $streamId));
+            app(ExamCompletenessService::class)->assertOutputCoverage(
+                'report_cards', $schoolId, $examId, $learnerId, $gradeId, $streamId
+            );
             $cards = $q->lockForUpdate()->get();
             if ($cards->isEmpty()) {
                 throw ValidationException::withMessages(['report_cards' => 'No generated report cards were found for publishing.']);
