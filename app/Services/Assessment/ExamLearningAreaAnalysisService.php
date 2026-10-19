@@ -67,9 +67,10 @@ class ExamLearningAreaAnalysisService
             $this->access->assertLearningArea($user, $areaId);
         }
 
-        $hasRoster = DB::table('exam_rosters')
+        $rosterId = DB::table('exam_rosters')
             ->where('school_id', $schoolId)
-            ->where('exam_id', $exam->id)->exists();
+            ->where('exam_id', $exam->id)->value('id');
+        $hasRoster = $rosterId !== null;
         $membershipTable = $hasRoster ? 'participants' : 'learners';
 
         $query = DB::table('learning_area_results as results')
@@ -83,10 +84,11 @@ class ExamLearningAreaAnalysisService
             ->where('results.processing_status', 'processed');
 
         if ($hasRoster) {
-            $query->join('exam_roster_learners as participants', function ($join) {
+            $query->join('exam_roster_learners as participants', function ($join) use ($rosterId) {
                 $join->on('participants.learner_id', '=', 'results.learner_id')
                     ->on('participants.school_id', '=', 'results.school_id')
-                    ->on('participants.exam_id', '=', 'results.exam_id');
+                    ->on('participants.exam_id', '=', 'results.exam_id')
+                    ->where('participants.roster_id', '=', $rosterId);
             });
         }
 

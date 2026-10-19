@@ -65,16 +65,64 @@ class ReportCardService
             }
 
             $existingCards = $existingCards->keyBy('learner_id');
-            $results = LearningAreaResult::current()->where('school_id', $schoolId)->where('exam_id', $examId)->whereIn('learner_id', $learnerIds)->where('processing_status', 'processed')->with('gradingScale')->get()->groupBy('learner_id');
-            $missing = $learnerIds->reject(fn ($id) => $results->has($id));
-            if ($missing->isNotEmpty()) {
-                throw ValidationException::withMessages(['learning_area_results' => 'Every learner requires processed learning-area results.']);
-            }
+            // Load processed results only for the next group of report cards.
+            $results = collect();
+            $resultBatchIds = $learnerIds->values()->chunk(250)->values();
+            $resultBatchIndex = 0;
+            $batchMembers = collect();
+            $sourceLearners = $merits->mapWithKeys(
+                fn ($merit) => [$merit->learner_id => $merit->learner]
+            );
+            $existingDetails = collect();
+            $cohortSizes = [];
+            $attendanceAvailable = DB::getSchemaBuilder()->hasTable('learner_attendance')
+                && DB::getSchemaBuilder()->hasTable('attendance_statuses');
 
-            return $merits->map(function ($merit) use ($schoolId, $exam, $results, $userId, $comments, $existingCards) {
-                $learner = app(ExamMembershipService::class)->learnerAtExam(
-                    $schoolId, $exam->id, $merit->learner
-                );
+            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, $attendanceAvailable, $userId, $comments, $existingCards) {
+                if ($results->isEmpty()) {
+                    $batchIds = $resultBatchIds->get($resultBatchIndex++);
+                    if ($batchIds === null) {
+                        throw new \LogicException('Report-card result batches were exhausted.');
+                    }
+
+                    $batchMembers = app(ExamMembershipService::class)->learnersAtExam(
+                        $schoolId, $exam->id,
+                        $batchIds->map(fn ($id) => $sourceLearners->get($id))
+                    );
+
+                    $batchCardIds = $existingCards->toBase()
+                        ->only($batchIds->all())->pluck('id');
+
+                    // Include archived details so regeneration preserves identity.
+                    $existingDetails = $batchCardIds->isEmpty()
+                        ? collect()
+                        : ReportCardLearningArea::query()
+                            ->whereIn('report_card_id', $batchCardIds)
+                            ->get()->keyBy(
+                                fn ($detail) => $detail->report_card_id.'|'.$detail->learning_area_id
+                            );
+
+                    $results = LearningAreaResult::current()
+                        ->where('school_id', $schoolId)
+                        ->where('exam_id', $exam->id)
+                        ->whereIn('learner_id', $batchIds)
+                        ->where('processing_status', 'processed')
+                        ->with('gradingScale')
+                        ->get()->groupBy('learner_id');
+
+                    if ($batchIds->contains(fn ($id) => ! $results->has($id))) {
+                        throw ValidationException::withMessages([
+                            'learning_area_results' => 'Every learner requires processed learning-area results.',
+                        ]);
+                    }
+                }
+
+                $learner = $batchMembers->get($merit->learner_id);
+                if (! $learner) {
+                    throw ValidationException::withMessages([
+                        'learner_id' => 'The learner is not included in this exam roster.',
+                    ]);
+                }
                 $areas = $results[$learner->id];
 
                 if ($merit->grading_snapshot === null
@@ -88,9 +136,12 @@ class ReportCardService
                 if (! $card->exists) {
                     $card->id = (string) Str::uuid();
                 }
-                $attendance = $this->attendance($schoolId, $learner->id, $exam->start_date, $exam->end_date);
+                $attendance = $this->attendance($schoolId, $learner->id, $exam->start_date, $exam->end_date, $attendanceAvailable);
                 $pathway = $this->pathway($learner, $exam->academic_year_id);
-                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'grading_snapshot' => $merit->grading_snapshot, 'overall_grade' => $merit->grading_snapshot['grade_code'], 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $this->totalLearners($schoolId, $exam->id, $learner), 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
+                $cohortKey = $learner->grade_id.'|'.($learner->stream_id ?? '');
+                $totalLearners = $cohortSizes[$cohortKey]
+                    ??= $this->totalLearners($schoolId, $exam->id, $learner);
+                $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'grading_snapshot' => $merit->grading_snapshot, 'overall_grade' => $merit->grading_snapshot['grade_code'], 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $totalLearners, 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
                 if (array_key_exists('class_teacher_comment', $comments)) {
                     $card->class_teacher_comment = $comments['class_teacher_comment'];
                 } if (array_key_exists('principal_comment', $comments)) {
@@ -99,15 +150,33 @@ class ReportCardService
                 $current = [];
                 foreach ($areas as $area) {
                     $current[] = $area->learning_area_id;
-                    $detail = ReportCardLearningArea::query()->firstOrNew(['report_card_id' => $card->id, 'learning_area_id' => $area->learning_area_id]);
+                    $detail = $existingDetails->get($card->id.'|'.$area->learning_area_id)
+                        ?? new ReportCardLearningArea([
+                            'report_card_id' => $card->id,
+                            'learning_area_id' => $area->learning_area_id,
+                        ]);
                     if (! $detail->exists) {
                         $detail->id = (string) Str::uuid();
                     } $detail->fill(['learning_area_result_id' => $area->id, 'is_absent' => (bool) $area->is_absent, 'score' => $area->marks_obtained, 'marks_obtained' => $area->marks_obtained, 'maximum_marks' => $area->maximum_marks, 'percentage' => $area->percentage, 'grading_system_id' => $area->grading_system_id, 'grading_scale_id' => $area->grading_scale_id, 'grading_snapshot' => $area->grading_snapshot, 'grade_code' => $area->grading_snapshot['grade_code'], 'points' => $area->grading_snapshot['points'], 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null])->save();
                 }
                 ReportCardLearningArea::current()->where('report_card_id', $card->id)->whereNotIn('learning_area_id', $current)->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => $userId]);
 
-                return $card->load(self::RELATIONS);
+                $results->forget($learner->id);
+
+                return $card;
             });
+
+            unset($results, $merits, $existingCards, $existingDetails, $batchMembers, $sourceLearners);
+
+            $output = new \Illuminate\Database\Eloquent\Collection($generated->all());
+            unset($generated, $resultBatchIds, $learnerIds);
+
+            // Bound temporary relationship hydration structures.
+            foreach ($output->chunk(250) as $batch) {
+                $batch->load(self::RELATIONS);
+            }
+
+            return $output;
         });
     }
 
@@ -234,9 +303,9 @@ class ReportCardService
             ->count();
     }
 
-    private function attendance(string $schoolId, string $learnerId, $start, $end): array
+    private function attendance(string $schoolId, string $learnerId, $start, $end, bool $available): array
     {
-        if (! DB::getSchemaBuilder()->hasTable('learner_attendance') || ! DB::getSchemaBuilder()->hasTable('attendance_statuses')) {
+        if (! $available) {
             return $this->nullAttendance();
         } $rows = DB::table('learner_attendance as la')->join('attendance_statuses as s', 's.id', '=', 'la.attendance_status_id')->where('la.school_id', $schoolId)->where('la.learner_id', $learnerId)->when($start, fn ($q) => $q->whereDate('la.attendance_date', '>=', $start))->when($end, fn ($q) => $q->whereDate('la.attendance_date', '<=', $end))->pluck('s.status_code')->map(fn ($x) => strtoupper($x));
         if ($rows->isEmpty()) {

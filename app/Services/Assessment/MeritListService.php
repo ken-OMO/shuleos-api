@@ -31,25 +31,30 @@ class MeritListService
             $results = $query->orderBy('id')->lockForUpdate()->get();
 
             $membership = app(ExamMembershipService::class);
-            $examLearners = [];
+            $sourceLearners = collect();
 
             foreach ($results as $result) {
-                $id = $result->learner_id;
-
-                if (! isset($examLearners[$id])) {
-                    if (! $result->learner) {
-                        throw ValidationException::withMessages([
-                            'learner_id' => 'An exam result does not resolve to a learner.',
-                        ]);
-                    }
-
-                    $examLearners[$id] = $membership->learnerAtExam(
-                        $schoolId, $examId, $result->learner
-                    );
+                if (! $result->learner) {
+                    throw ValidationException::withMessages([
+                        'learner_id' => 'An exam result does not resolve to a learner.',
+                    ]);
                 }
 
-                $result->setRelation('learner', $examLearners[$id]);
+                $sourceLearners->put($result->learner_id, $result->learner);
             }
+
+            $examLearners = [];
+            foreach ($sourceLearners->chunk(250) as $batch) {
+                foreach ($membership->learnersAtExam($schoolId, $examId, $batch) as $id => $learner) {
+                    $examLearners[$id] = $learner;
+                }
+            }
+
+            foreach ($results as $result) {
+                $result->setRelation('learner', $examLearners[$result->learner_id]);
+            }
+
+            unset($sourceLearners, $batch);
             $selectedResults = $results->filter(function (LearningAreaResult $result) use ($gradeId, $streamId) {
                 return (! $gradeId || $result->learner->grade_id === $gradeId)
                     && (! $streamId || $result->learner->stream_id === $streamId);
@@ -149,6 +154,9 @@ class MeritListService
                 ];
             })->values();
 
+            // Ranking needs learner totals, not the detailed result models.
+            unset($results, $selectedResults, $examLearners, $query);
+
             $rankedRows = $rows->reject(
                 fn (array $row) => ($row['ranking_method'] ?? 'competition') === 'not_ranked_absent'
             );
@@ -168,7 +176,7 @@ class MeritListService
 
             $positionColumn = $streamId ? 'stream_position' : ($gradeId ? 'grade_position' : 'school_position');
 
-            return $rows->map(function (array $row) use ($schoolId, $examId, $generatedBy, $existingRows) {
+            $generated = $rows->map(function (array $row) use ($schoolId, $examId, $generatedBy, $existingRows) {
                 $identity = ['school_id' => $schoolId, 'exam_id' => $examId, 'learner_id' => $row['learner']->id];
                 $model = $existingRows->get($row['learner']->id) ?? new MeritList($identity);
                 if (! $model->exists) {
@@ -186,12 +194,18 @@ class MeritListService
                     'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null,
                 ])->save();
 
-                return $model->load(['exam', 'learner', 'grade', 'stream', 'overallGradingSystem', 'overallGradingScale', 'generatedBy']);
+                return $model;
             })->sort(function (MeritList $a, MeritList $b) use ($positionColumn) {
                 return (($a->{$positionColumn} === null) <=> ($b->{$positionColumn} === null))
                     ?: ($a->{$positionColumn} <=> $b->{$positionColumn})
                     ?: strcmp($a->learner_id, $b->learner_id);
             })->values();
+
+            return (new \Illuminate\Database\Eloquent\Collection($generated->all()))
+                ->load([
+                    'exam', 'learner', 'grade', 'stream',
+                    'overallGradingSystem', 'overallGradingScale', 'generatedBy',
+                ]);
         });
     }
 
