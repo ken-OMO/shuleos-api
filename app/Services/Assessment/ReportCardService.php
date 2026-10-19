@@ -95,11 +95,12 @@ class ReportCardService
                 fn ($merit) => [$merit->learner_id => $merit->learner]
             );
             $existingDetails = collect();
+            $batchAttendance = collect();
             $cohortSizes = [];
             $attendanceAvailable = DB::getSchemaBuilder()->hasTable('learner_attendance')
                 && DB::getSchemaBuilder()->hasTable('attendance_statuses');
 
-            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, $attendanceAvailable, $userId, $comments, $existingCards) {
+            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
                 if ($results->isEmpty()) {
                     $batchIds = $resultBatchIds->get($resultBatchIndex++);
                     if ($batchIds === null) {
@@ -109,6 +110,12 @@ class ReportCardService
                     $batchMembers = app(ExamMembershipService::class)->learnersAtExam(
                         $schoolId, $exam->id,
                         $batchIds->map(fn ($id) => $sourceLearners->get($id))
+                    );
+
+                    $batchAttendance = $this->attendanceForLearners(
+                        $schoolId, $batchIds->all(),
+                        $exam->start_date, $exam->end_date,
+                        $attendanceAvailable
                     );
 
                     $batchCardIds = $existingCards->toBase()
@@ -157,7 +164,8 @@ class ReportCardService
                 if (! $card->exists) {
                     $card->id = (string) Str::uuid();
                 }
-                $attendance = $this->attendance($schoolId, $learner->id, $exam->start_date, $exam->end_date, $attendanceAvailable);
+                $attendance = $batchAttendance->get($learner->id)
+                    ?? $this->nullAttendance();
                 $pathway = $this->pathway($learner, $exam->academic_year_id);
                 $cohortKey = $learner->grade_id.'|'.($learner->stream_id ?? '');
                 $totalLearners = $cohortSizes[$cohortKey]
@@ -328,18 +336,47 @@ class ReportCardService
             ->count();
     }
 
-    private function attendance(string $schoolId, string $learnerId, $start, $end, bool $available): array
-    {
-        if (! $available) {
-            return $this->nullAttendance();
-        } $rows = DB::table('learner_attendance as la')->join('attendance_statuses as s', 's.id', '=', 'la.attendance_status_id')->where('la.school_id', $schoolId)->where('la.learner_id', $learnerId)->when($start, fn ($q) => $q->whereDate('la.attendance_date', '>=', $start))->when($end, fn ($q) => $q->whereDate('la.attendance_date', '<=', $end))->pluck('s.status_code')->map(fn ($x) => strtoupper($x));
-        if ($rows->isEmpty()) {
-            return $this->nullAttendance();
-        } $present = $rows->filter(fn ($x) => in_array($x, ['P', 'PRESENT']))->count();
-        $absent = $rows->filter(fn ($x) => in_array($x, ['A', 'ABSENT']))->count();
-        $late = $rows->filter(fn ($x) => in_array($x, ['L', 'LATE']))->count();
+    private function attendanceForLearners(
+        string $schoolId,
+        array $learnerIds,
+        $start,
+        $end,
+        bool $available
+    ): Collection {
+        if (! $available || $learnerIds === []) {
+            return collect();
+        }
 
-        return ['attendance_present' => $present, 'attendance_absent' => $absent, 'attendance_late' => $late, 'attendance_total_sessions' => $rows->count(), 'attendance_percentage' => round((($present + $late) / $rows->count()) * 100, 2)];
+        return DB::table('learner_attendance as la')
+            ->join('attendance_statuses as s', 's.id', '=', 'la.attendance_status_id')
+            ->where('la.school_id', $schoolId)
+            ->whereIn('la.learner_id', $learnerIds)
+            ->when($start, fn ($query) => $query
+                ->whereDate('la.attendance_date', '>=', $start))
+            ->when($end, fn ($query) => $query
+                ->whereDate('la.attendance_date', '<=', $end))
+            ->select('la.learner_id')
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw("SUM(CASE WHEN UPPER(s.status_code) IN ('P', 'PRESENT') THEN 1 ELSE 0 END) as present")
+            ->selectRaw("SUM(CASE WHEN UPPER(s.status_code) IN ('A', 'ABSENT') THEN 1 ELSE 0 END) as absent")
+            ->selectRaw("SUM(CASE WHEN UPPER(s.status_code) IN ('L', 'LATE') THEN 1 ELSE 0 END) as late")
+            ->groupBy('la.learner_id')
+            ->get()
+            ->mapWithKeys(function ($row) {
+                $total = (int) $row->total;
+                $present = (int) $row->present;
+                $late = (int) $row->late;
+
+                return [$row->learner_id => [
+                    'attendance_present' => $present,
+                    'attendance_absent' => (int) $row->absent,
+                    'attendance_late' => $late,
+                    'attendance_total_sessions' => $total,
+                    'attendance_percentage' => round(
+                        (($present + $late) / $total) * 100, 2
+                    ),
+                ]];
+            });
     }
 
     private function nullAttendance(): array

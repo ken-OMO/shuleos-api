@@ -520,6 +520,204 @@ class ExamOutputBatchTest extends TestCase
         $this->assertSame(251, $retry['generated_count']);
     }
 
+    public function test_attendance_is_aggregated_across_batches_with_inclusive_exam_dates(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+
+        DB::table('exams')->where('id', $examId)->update([
+            'start_date' => '2026-10-12',
+            'end_date' => '2026-10-16',
+        ]);
+
+        $statuses = [];
+        foreach (['P', 'A', 'L', 'present', 'absent', 'late'] as $code) {
+            $id = DB::table('attendance_statuses')
+                ->where('status_code', $code)->value('id');
+
+            if (! $id) {
+                $id = (string) Str::uuid();
+                DB::table('attendance_statuses')->insert([
+                    'id' => $id,
+                    'status_name' => 'Batch test '.$code,
+                    'status_code' => $code,
+                ]);
+            }
+
+            $statuses[$code] = $id;
+        }
+
+        $sessionId = (string) Str::uuid();
+        DB::table('attendance_sessions')->insert([
+            'id' => $sessionId,
+            'school_id' => $schoolId,
+            'session_name' => 'Report-card batch test',
+            'active' => true,
+        ]);
+
+        $missingId = $this->fixture['learner_ids'][1];
+        $learners = DB::table('learners')
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $this->fixture['learner_ids'])->get();
+
+        foreach ($learners as $learner) {
+            if ($learner->id === $missingId) {
+                continue;
+            }
+
+            foreach ([
+                ['2026-10-11', 'P'],
+                ['2026-10-12', 'P'],
+                ['2026-10-14', 'A'],
+                ['2026-10-16', 'L'],
+                ['2026-10-17', 'P'],
+            ] as [$date, $code]) {
+                DB::table('learner_attendance')->insert([
+                    'id' => (string) Str::uuid(),
+                    'school_id' => $schoolId,
+                    'learner_id' => $learner->id,
+                    'grade_id' => $learner->grade_id,
+                    'stream_id' => $learner->stream_id,
+                    'attendance_session_id' => $sessionId,
+                    'attendance_status_id' => $statuses[
+                        $learner->id === $this->fixture['learner_ids'][0]
+                            ? ['P' => 'present', 'A' => 'absent', 'L' => 'late'][$code]
+                            : $code
+                    ],
+                    'attendance_date' => $date,
+                    'finalized' => true,
+                ]);
+            }
+        }
+
+        $this->generateMerits();
+
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            $summary = app(ReportCardService::class)->generateSummary(
+                $schoolId, $examId, null, null, null,
+                $this->fixture['actor_id']
+            );
+
+            $attendanceQueries = collect($connection->getQueryLog())
+                ->filter(fn ($query) => str_contains(
+                    $query['query'], 'from "learner_attendance"'
+                ))->count();
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertSame(251, $summary['generated_count']);
+        $this->assertSame(2, $attendanceQueries);
+
+        $cards = ReportCard::query()
+            ->where('school_id', $schoolId)
+            ->where('exam_id', $examId)->get();
+
+        $this->assertCount(251, $cards);
+
+        foreach ($cards as $card) {
+            if ($card->learner_id === $missingId) {
+                $this->assertNull($card->attendance_present);
+                $this->assertNull($card->attendance_absent);
+                $this->assertNull($card->attendance_late);
+                $this->assertNull($card->attendance_total_sessions);
+                $this->assertNull($card->attendance_percentage);
+
+                continue;
+            }
+
+            $this->assertSame(1, (int) $card->attendance_present);
+            $this->assertSame(1, (int) $card->attendance_absent);
+            $this->assertSame(1, (int) $card->attendance_late);
+            $this->assertSame(3, (int) $card->attendance_total_sessions);
+            $this->assertSame(66.67, (float) $card->attendance_percentage);
+        }
+    }
+
+    public function test_attendance_aggregation_excludes_another_schools_records(): void
+    {
+        $foreign = ExamBenchmarkFixture::create(1);
+        $learner = DB::table('learners')
+            ->where('id', $foreign['learner_ids'][0])->first();
+
+        $statusId = DB::table('attendance_statuses')
+            ->where('status_code', 'P')->value('id');
+
+        if (! $statusId) {
+            $statusId = (string) Str::uuid();
+            DB::table('attendance_statuses')->insert([
+                'id' => $statusId,
+                'status_name' => 'Isolation test present',
+                'status_code' => 'P',
+            ]);
+        }
+
+        $sessionId = (string) Str::uuid();
+        DB::table('attendance_sessions')->insert([
+            'id' => $sessionId,
+            'school_id' => $foreign['school_id'],
+            'session_name' => 'Isolation test',
+            'active' => true,
+        ]);
+
+        DB::table('learner_attendance')->insert([
+            'id' => (string) Str::uuid(),
+            'school_id' => $foreign['school_id'],
+            'learner_id' => $learner->id,
+            'grade_id' => $learner->grade_id,
+            'stream_id' => $learner->stream_id,
+            'attendance_session_id' => $sessionId,
+            'attendance_status_id' => $statusId,
+            'attendance_date' => '2026-10-14',
+            'finalized' => true,
+        ]);
+
+        $service = app(ReportCardService::class);
+        $method = new \ReflectionMethod(
+            ReportCardService::class, 'attendanceForLearners'
+        );
+
+        $excluded = $method->invoke(
+            $service,
+            $this->fixture['school_id'],
+            [$learner->id],
+            '2026-10-12', '2026-10-16', true
+        );
+        $this->assertCount(0, $excluded);
+
+        $included = $method->invoke(
+            $service,
+            $foreign['school_id'],
+            [$learner->id],
+            '2026-10-12', '2026-10-16', true
+        );
+        $this->assertSame([
+            'attendance_present' => 1,
+            'attendance_absent' => 0,
+            'attendance_late' => 0,
+            'attendance_total_sessions' => 1,
+            'attendance_percentage' => 100.0,
+        ], $included->get($learner->id));
+
+        $this->assertCount(0, $method->invoke(
+            $service, $foreign['school_id'], [],
+            null, null, true
+        ));
+        $this->assertCount(0, $method->invoke(
+            $service, $foreign['school_id'], [$learner->id],
+            null, null, false
+        ));
+    }
+
     private function generateMerits(): void
     {
         app(MeritListService::class)->generate(
