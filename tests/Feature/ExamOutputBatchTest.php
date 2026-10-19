@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Learner;
 use App\Models\ReportCard;
+use App\Models\User;
 use App\Services\Assessment\ExamCompletenessService;
 use App\Services\Assessment\ExamMembershipService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -316,6 +318,206 @@ class ExamOutputBatchTest extends TestCase
         foreach ($sources as $source) {
             $this->assertNotSame($source, $resolved->get($source->id));
         }
+    }
+
+    public function test_summary_generation_persists_all_cards_and_details_across_batches(): void
+    {
+        $this->generateMerits();
+
+        $summary = app(ReportCardService::class)->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null,
+            null,
+            null,
+            $this->fixture['actor_id']
+        );
+
+        $this->assertSame([
+            'exam_id' => $this->fixture['exam_id'],
+            'generated_count' => 251,
+            'status' => 'generated',
+        ], $summary);
+
+        $cards = ReportCard::query()
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])
+            ->with('learningAreas')->get();
+
+        $this->assertCount(251, $cards);
+        $this->assertSame(
+            collect($this->fixture['learner_ids'])->sort()->values()->all(),
+            $cards->pluck('learner_id')->sort()->values()->all()
+        );
+
+        $details = 0;
+        foreach ($cards as $card) {
+            $this->assertSame('generated', $card->status);
+            $this->assertNotNull($card->grading_snapshot);
+            $this->assertCount(6, $card->learningAreas);
+
+            foreach ($card->learningAreas as $area) {
+                $this->assertNotNull($area->grading_snapshot);
+            }
+
+            $details += $card->learningAreas->count();
+        }
+
+        $this->assertSame(1506, $details);
+
+        $ids = $cards->pluck('id', 'learner_id')->sortKeys()->all();
+        unset($cards);
+
+        $again = app(ReportCardService::class)->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null,
+            null,
+            null,
+            $this->fixture['actor_id']
+        );
+
+        $this->assertSame($summary, $again);
+        $this->assertSame(
+            $ids,
+            ReportCard::query()
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('exam_id', $this->fixture['exam_id'])
+                ->pluck('id', 'learner_id')->sortKeys()->all()
+        );
+    }
+
+    public function test_summary_api_returns_counts_and_keeps_details_available(): void
+    {
+        $this->generateMerits();
+        $this->withoutMiddleware();
+
+        $actor = User::withoutGlobalScopes()
+            ->findOrFail($this->fixture['actor_id']);
+        Auth::setUser($actor);
+
+        $response = $this->postJson('/api/report-cards/generate', [
+            'school_id' => $this->fixture['school_id'],
+            'exam_id' => $this->fixture['exam_id'],
+            'response_mode' => 'summary',
+        ])->assertOk();
+
+        $this->assertSame([
+            'exam_id' => $this->fixture['exam_id'],
+            'generated_count' => 251,
+            'status' => 'generated',
+        ], $response->json('data'));
+
+        $card = ReportCard::query()
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])
+            ->firstOrFail();
+
+        $this->getJson(
+            '/api/report-cards/'.$card->id.'?school_id='.$this->fixture['school_id']
+        )->assertOk()
+            ->assertJsonCount(6, 'data.learning_areas');
+    }
+
+    public function test_generation_api_rejects_invalid_response_mode_without_writes(): void
+    {
+        $this->generateMerits();
+        $this->withoutMiddleware();
+
+        $actor = User::withoutGlobalScopes()
+            ->findOrFail($this->fixture['actor_id']);
+        Auth::setUser($actor);
+
+        $this->postJson('/api/report-cards/generate', [
+            'school_id' => $this->fixture['school_id'],
+            'exam_id' => $this->fixture['exam_id'],
+            'response_mode' => 'unsupported',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('response_mode');
+
+        $this->assertSame(
+            0,
+            DB::table('report_cards')
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('exam_id', $this->fixture['exam_id'])->count()
+        );
+    }
+
+    public function test_summary_failure_on_251st_card_rolls_back_all_output_writes(): void
+    {
+        $this->generateMerits();
+
+        $dispatcher = ReportCard::getEventDispatcher();
+        ReportCard::setEventDispatcher(clone $dispatcher);
+
+        $saved = 0;
+        $sawFirstBatch = false;
+        $caught = false;
+
+        try {
+            ReportCard::getEventDispatcher()->listen(
+                'eloquent.saving: '.ReportCard::class,
+                function (ReportCard $card) use (&$saved, &$sawFirstBatch) {
+                    if ($card->school_id !== $this->fixture['school_id']
+                        || $card->exam_id !== $this->fixture['exam_id']) {
+                        return;
+                    }
+
+                    $saved++;
+                    if ($saved === 251) {
+                        $sawFirstBatch = DB::table('report_cards')
+                            ->where('school_id', $this->fixture['school_id'])
+                            ->where('exam_id', $this->fixture['exam_id'])
+                            ->count() === 250;
+
+                        throw new RuntimeException('Injected summary batch failure.');
+                    }
+                }
+            );
+
+            app(ReportCardService::class)->generateSummary(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                null, null, null,
+                $this->fixture['actor_id']
+            );
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Injected summary batch failure.', $exception->getMessage()
+            );
+            $caught = true;
+        } finally {
+            ReportCard::setEventDispatcher($dispatcher);
+        }
+
+        $this->assertTrue($caught);
+        $this->assertSame(251, $saved);
+        $this->assertTrue($sawFirstBatch);
+
+        $this->assertSame(
+            0,
+            DB::table('report_cards')
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('exam_id', $this->fixture['exam_id'])->count()
+        );
+
+        $this->assertSame(
+            0,
+            DB::table('report_card_learning_areas as details')
+                ->join('learning_area_results as results',
+                    'results.id', '=', 'details.learning_area_result_id')
+                ->where('results.school_id', $this->fixture['school_id'])
+                ->where('results.exam_id', $this->fixture['exam_id'])->count()
+        );
+
+        $retry = app(ReportCardService::class)->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null, null, null,
+            $this->fixture['actor_id']
+        );
+
+        $this->assertSame(251, $retry['generated_count']);
     }
 
     private function generateMerits(): void

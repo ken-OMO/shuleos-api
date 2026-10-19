@@ -34,7 +34,21 @@ class ReportCardController extends BaseCrudController
 
     public function generate(Request $r)
     {
+        $mode = $r->validate([
+            'response_mode' => 'sometimes|in:details,summary',
+        ]);
         $v = $this->action($r);
+
+        if (($mode['response_mode'] ?? 'details') === 'summary') {
+            $summary = $this->service->generateSummary(
+                $this->school($r, $v), $v['exam_id'],
+                $v['learner_id'] ?? null, $v['grade_id'] ?? null,
+                $v['stream_id'] ?? null, (string) auth()->id(), $v
+            );
+
+            return $this->success($summary, 'Report cards generated successfully.');
+        }
+
         $rows = $this->service->generate($this->school($r, $v), $v['exam_id'], $v['learner_id'] ?? null, $v['grade_id'] ?? null, $v['stream_id'] ?? null, (string) auth()->id(), $v);
 
         return $this->success(ReportCardResource::collection($rows), 'Report cards generated successfully.');
