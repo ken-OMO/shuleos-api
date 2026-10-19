@@ -26,6 +26,12 @@ $app->make(Kernel::class)->bootstrap();
 
 $count = filter_var($argv[1] ?? '100', FILTER_VALIDATE_INT);
 $sample = filter_var($argv[2] ?? '10', FILTER_VALIDATE_INT);
+$mode = $argv[3] ?? 'details';
+if (! in_array($mode, ['details', 'summary'], true)) {
+    fwrite(STDERR, "Response mode must be details or summary.\n");
+    exit(1);
+}
+
 $database = DB::connection()->getDatabaseName();
 
 if (! $app->environment('testing')
@@ -43,7 +49,7 @@ DB::connection()->disableQueryLog();
 DB::statement("SET statement_timeout = '120s'");
 DB::statement("SET lock_timeout = '5s'");
 
-$output = storage_path('logs/exam-benchmark-'.$count.'-'.date('Ymd-His').'.jsonl');
+$output = storage_path('logs/exam-benchmark-'.$count.'-'.$mode.'-'.date('Ymd-His').'.jsonl');
 $emit = function (array $row) use ($output): void {
     $json = json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     if (file_put_contents($output, $json.PHP_EOL, FILE_APPEND | LOCK_EX) === false) {
@@ -75,6 +81,7 @@ $emit([
         'php_memory_limit' => ini_get('memory_limit'),
         'fixture_mode' => 'direct_synthetic_rows',
         'production_roster_admission_limit' => 2000,
+        'report_card_response_mode' => $mode,
         'analysis_access' => 'stubbed_school_scope_not_authorization_benchmark',
         'transaction_mode' => 'single_outer_transaction_rolled_back',
         'timing_scope' => 'service_calls_without_http_or_pdf_rendering',
@@ -168,11 +175,28 @@ try {
                 $fixture['school_id'], $fixture['exam_id'], null, null, $fixture['actor_id']
             )->count(),
         ],
-        'report_card_generation' => fn () => [
-            'rows' => app(ReportCardService::class)->generate(
-                $fixture['school_id'], $fixture['exam_id'], null, null, null, $fixture['actor_id']
-            )->count(),
-        ],
+        'report_card_generation_'.$mode => function () use ($fixture, $mode) {
+            $service = app(ReportCardService::class);
+
+            if ($mode === 'summary') {
+                $summary = $service->generateSummary(
+                    $fixture['school_id'], $fixture['exam_id'],
+                    null, null, null, $fixture['actor_id']
+                );
+                $rows = $summary['generated_count'];
+            } else {
+                $rows = $service->generate(
+                    $fixture['school_id'], $fixture['exam_id'],
+                    null, null, null, $fixture['actor_id']
+                )->count();
+            }
+
+            if ($rows !== $fixture['learner_count']) {
+                throw new RuntimeException('Generated card count is incorrect.');
+            }
+
+            return ['rows' => $rows, 'response_mode' => $mode];
+        },
     ];
 
     foreach ($operations as $name => $operation) {

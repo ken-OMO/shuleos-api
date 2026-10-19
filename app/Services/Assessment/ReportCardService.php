@@ -22,9 +22,30 @@ class ReportCardService
 
     public function __construct(private readonly ExamResultLifecycleService $lifecycle) {}
 
-    public function generate(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId, array $comments = []): Collection
+    public function generateSummary(
+        string $schoolId,
+        string $examId,
+        ?string $learnerId,
+        ?string $gradeId,
+        ?string $streamId,
+        string $userId,
+        array $comments = []
+    ): array {
+        $cards = $this->generate(
+            $schoolId, $examId, $learnerId, $gradeId, $streamId,
+            $userId, $comments, false
+        );
+
+        return [
+            'exam_id' => $examId,
+            'generated_count' => $cards->count(),
+            'status' => 'generated',
+        ];
+    }
+
+    public function generate(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId, array $comments = [], bool $loadDetails = true): Collection
     {
-        return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId, $comments) {
+        return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId, $comments, $loadDetails) {
             $exam = $this->lifecycle->lockExam($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
@@ -170,6 +191,10 @@ class ReportCardService
 
             $output = new \Illuminate\Database\Eloquent\Collection($generated->all());
             unset($generated, $resultBatchIds, $learnerIds);
+
+            if (! $loadDetails) {
+                return $output;
+            }
 
             // Bound temporary relationship hydration structures.
             foreach ($output->chunk(250) as $batch) {
