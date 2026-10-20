@@ -19,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Tests\Support\Database\EducationLevelBuilder;
 use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\ExamBenchmarkFixture;
 use Tests\TestCase;
 
@@ -1135,6 +1136,205 @@ class ExamOutputBatchTest extends TestCase
             null, null, null, $this->fixture['actor_id']
         );
         $this->assertSame(251, $retry['generated_count']);
+    }
+
+    public function test_detail_cleanup_skips_fresh_and_unchanged_cards(): void
+    {
+        $this->generateMerits();
+
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+
+            foreach (['fresh', 'unchanged'] as $generation) {
+                $connection->flushQueryLog();
+
+                $summary = app(ReportCardService::class)->generateSummary(
+                    $this->fixture['school_id'],
+                    $this->fixture['exam_id'],
+                    null, null, null, $this->fixture['actor_id']
+                );
+
+                $detailUpdates = collect($connection->getQueryLog())
+                    ->filter(fn ($query) => str_starts_with(
+                        $query['query'],
+                        'update "report_card_learning_areas"'
+                    ))->count();
+
+                $this->assertSame(251, $summary['generated_count']);
+                $this->assertSame(
+                    0, $detailUpdates,
+                    $generation.' generation should not update unchanged details.'
+                );
+            }
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertSame(
+            1506,
+            DB::table('report_card_learning_areas as details')
+                ->join('report_cards as cards', 'cards.id', '=', 'details.report_card_id')
+                ->where('cards.school_id', $this->fixture['school_id'])
+                ->where('cards.exam_id', $this->fixture['exam_id'])
+                ->where('details.is_deleted', false)->count()
+        );
+    }
+
+    public function test_detail_cleanup_keeps_query_fallback_for_card_save_listeners(): void
+    {
+        $this->generateMerits();
+
+        $dispatcher = ReportCard::getEventDispatcher();
+        $this->assertNotNull($dispatcher);
+        ReportCard::setEventDispatcher(clone $dispatcher);
+
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+        $seen = 0;
+
+        try {
+            ReportCard::getEventDispatcher()->listen(
+                'eloquent.saved: '.ReportCard::class,
+                function ($card) use (&$seen) {
+                    if ($card->school_id === $this->fixture['school_id']
+                        && $card->exam_id === $this->fixture['exam_id']) {
+                        $seen++;
+                    }
+                }
+            );
+
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            $summary = app(ReportCardService::class)->generateSummary(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                null, null, null, $this->fixture['actor_id']
+            );
+
+            $cleanupUpdates = collect($connection->getQueryLog())
+                ->filter(fn ($query) => str_starts_with(
+                    $query['query'], 'update "report_card_learning_areas"'
+                ) && str_contains(
+                    $query['query'], '"learning_area_id" not in'
+                ))->count();
+
+            $this->assertSame(251, $summary['generated_count']);
+            $this->assertSame(251, $seen);
+            $this->assertSame(251, $cleanupUpdates);
+        } finally {
+            ReportCard::setEventDispatcher($dispatcher);
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+    }
+
+    public function test_detail_cleanup_archives_obsolete_details_and_preserves_previous_archive(): void
+    {
+        $this->generateMerits();
+
+        $service = app(ReportCardService::class);
+        $generate = fn () => $service->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null, null, null, $this->fixture['actor_id']
+        );
+        $generate();
+
+        $card = DB::table('report_cards')
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])
+            ->orderBy('learner_id')->offset(250)->first();
+
+        $source = DB::table('report_card_learning_areas')
+            ->where('report_card_id', $card->id)->first();
+
+        $obsolete = (array) $source;
+        $obsolete['id'] = (string) Str::uuid();
+        $obsolete['learning_area_id'] =
+            LearningAreaBuilder::create()->id;
+        $obsolete['teacher_comment'] = 'Keep obsolete detail history.';
+        $obsolete['is_deleted'] = false;
+        $obsolete['deleted_at'] = null;
+        $obsolete['deleted_by'] = null;
+
+        $archived = $obsolete;
+        $archived['id'] = (string) Str::uuid();
+        $archived['learning_area_id'] =
+            LearningAreaBuilder::create()->id;
+        $archived['is_deleted'] = true;
+        $archived['deleted_at'] = '2026-10-01 08:00:00';
+        $archived['deleted_by'] = $this->fixture['actor_id'];
+
+        DB::table('report_card_learning_areas')->insert([$obsolete, $archived]);
+
+        $archivedBefore = (array) DB::table('report_card_learning_areas')
+            ->where('id', $archived['id'])->first();
+
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            $summary = $generate();
+
+            $cleanupUpdates = collect($connection->getQueryLog())
+                ->filter(fn ($query) => str_starts_with(
+                    $query['query'], 'update "report_card_learning_areas"'
+                ) && str_contains(
+                    $query['query'], '"learning_area_id" not in'
+                ))->count();
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertSame(251, $summary['generated_count']);
+        $this->assertSame(1, $cleanupUpdates);
+
+        $removed = DB::table('report_card_learning_areas')
+            ->where('id', $obsolete['id'])->first();
+
+        $this->assertTrue((bool) $removed->is_deleted);
+        $this->assertNotNull($removed->deleted_at);
+        $this->assertSame($this->fixture['actor_id'], $removed->deleted_by);
+        $this->assertSame($source->grading_snapshot, $removed->grading_snapshot);
+        $this->assertSame($source->created_at, $removed->created_at);
+        $this->assertSame('Keep obsolete detail history.', $removed->teacher_comment);
+
+        $this->assertSame(
+            $archivedBefore,
+            (array) DB::table('report_card_learning_areas')
+                ->where('id', $archived['id'])->first()
+        );
+
+        $this->assertSame(
+            6,
+            DB::table('report_card_learning_areas')
+                ->where('report_card_id', $card->id)
+                ->where('is_deleted', false)->count()
+        );
+
+        $removedBefore = (array) $removed;
+        $generate();
+
+        $this->assertSame(
+            $removedBefore,
+            (array) DB::table('report_card_learning_areas')
+                ->where('id', $obsolete['id'])->first()
+        );
     }
 
     private function generateMerits(): void

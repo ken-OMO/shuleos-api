@@ -12,11 +12,14 @@ abstract class TenantModel extends Model
     {
         static::addGlobalScope(new TenantScope);
 
-        static::saving(function (Model $model): void {
-            if (auth()->user()?->school_id) {
-                $model->setAttribute('school_id', auth()->user()->school_id);
-            }
-        });
+        static::saving([static::class, 'assignAuthenticatedSchool']);
+    }
+
+    public static function assignAuthenticatedSchool(Model $model): void
+    {
+        if (auth()->user()?->school_id) {
+            $model->setAttribute('school_id', auth()->user()->school_id);
+        }
     }
 
     protected function performDeleteOnModel(): void
