@@ -152,6 +152,99 @@ class ExamGradingSnapshotService
         ];
     }
 
+    /**
+     * Entries contain learner and percentage. All reuse is local to this call.
+     * The caller must retain its transaction through the output writes.
+     */
+    public function calculateMany(
+        string $schoolId,
+        string $examId,
+        array $entries,
+        ?string $actorId = null
+    ): array {
+        if (DB::transactionLevel() < 1) {
+            throw new \LogicException('Exam grading snapshots require a transaction.');
+        }
+
+        app(ExamResultLifecycleService::class)->lockExam($schoolId, $examId);
+
+        $rulesByLevel = [];
+        $awards = [];
+        $membership = app(ExamMembershipService::class);
+
+        foreach (array_chunk($entries, 250) as $batch) {
+            $members = $membership->learnersAtExam(
+                $schoolId, $examId,
+                array_map(fn (array $entry) => $entry['learner'], $batch)
+            );
+
+            foreach ($batch as $entry) {
+                $learner = $members->get($entry['learner']->id);
+                if (! is_numeric($entry['percentage'] ?? null)) {
+                    throw ValidationException::withMessages([
+                        'percentage' => 'The percentage must be numeric.',
+                    ]);
+                }
+
+                $percentage = (float) $entry['percentage'];
+
+                if (! is_finite($percentage) || $percentage < 0 || $percentage > 100) {
+                    throw ValidationException::withMessages([
+                        'percentage' => 'The percentage must be finite and between zero and 100.',
+                    ]);
+                }
+
+                $levelId = $learner->grade?->education_level_id;
+                if (! $levelId) {
+                    throw ValidationException::withMessages([
+                        'learner_id' => 'The exam membership does not resolve to an education level.',
+                    ]);
+                }
+
+                if (! isset($rulesByLevel[$levelId])) {
+                    // Retain existing capture validation and publication freezes.
+                    $award = $this->calculate(
+                        $schoolId, $examId, $learner, $percentage, $actorId
+                    );
+
+                    $snapshot = DB::table('exam_grading_snapshots')
+                        ->where('id', $award['rules_snapshot_id'])
+                        ->where('school_id', $schoolId)
+                        ->where('exam_id', $examId)
+                        ->where('education_level_id', $levelId)
+                        ->lockForUpdate()->first();
+
+                    if (! $snapshot) {
+                        throw new \LogicException('Captured grading rules were not found.');
+                    }
+
+                    $rulesByLevel[$levelId] = [
+                        'id' => $snapshot->id,
+                        'rules' => json_decode(
+                            $snapshot->rules, true, 512, JSON_THROW_ON_ERROR
+                        ),
+                    ];
+                }
+
+                $captured = $rulesByLevel[$levelId];
+                $rules = $captured['rules'];
+                $scale = $this->matchingScale($rules, $percentage);
+
+                $awards[$learner->id] = [
+                    'format_version' => 1,
+                    'rules_snapshot_id' => $captured['id'],
+                    'grading_system_id' => $rules['grading_system_id'],
+                    'grading_scale_id' => $scale['id'],
+                    'grade_code' => $scale['grade_code'],
+                    'grade_description' => $scale['grade_description'],
+                    'points' => $scale['points'],
+                ];
+            }
+        }
+
+        return $awards;
+    }
+
     private function matchingScale(array $rules, float $percentage): array
     {
         $matches = array_values(array_filter(
