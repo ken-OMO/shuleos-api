@@ -95,13 +95,46 @@ class ReportCardService
                 fn ($merit) => [$merit->learner_id => $merit->learner]
             );
             $existingDetails = collect();
+            $detailsByCard = collect();
+
+            // Save listeners may add details after the batch was loaded.
+            $cleanupRequiresQuery = false;
+            foreach ([ReportCard::class, ReportCardLearningArea::class] as $model) {
+                $dispatcher = $model::getEventDispatcher();
+                foreach (['saving', 'creating', 'created', 'saved', 'updating', 'updated'] as $event) {
+                    $eventName = 'eloquent.'.$event.': '.$model;
+                    foreach ($dispatcher?->getRawListeners() ?? [] as $registered => $listeners) {
+                        if ($registered !== $eventName
+                            && ! Str::is($registered, $eventName)) {
+                            continue;
+                        }
+
+                        foreach ($listeners as $listener) {
+                            // This inherited callback only assigns tenant ownership.
+                            if ($model === ReportCard::class
+                                && $event === 'saving'
+                                && $registered === $eventName
+                                && $listener === [
+                                    ReportCard::class,
+                                    'assignAuthenticatedSchool',
+                                ]) {
+                                continue;
+                            }
+
+                            $cleanupRequiresQuery = true;
+                            break 4;
+                        }
+                    }
+                }
+            }
+
             $batchAttendance = collect();
             $cohortSizes = [];
             $pendingDetails = [];
             $attendanceAvailable = DB::getSchemaBuilder()->hasTable('learner_attendance')
                 && DB::getSchemaBuilder()->hasTable('attendance_statuses');
 
-            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$pendingDetails, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
+            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$detailsByCard, $cleanupRequiresQuery, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$pendingDetails, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
                 if ($results->isEmpty()) {
                     $batchIds = $resultBatchIds->get($resultBatchIndex++);
                     if ($batchIds === null) {
@@ -130,6 +163,8 @@ class ReportCardService
                             ->get()->keyBy(
                                 fn ($detail) => $detail->report_card_id.'|'.$detail->learning_area_id
                             );
+
+                    $detailsByCard = $existingDetails->groupBy('report_card_id');
 
                     $results = LearningAreaResult::current()
                         ->where('school_id', $schoolId)
@@ -213,7 +248,21 @@ class ReportCardService
                         }
                     }
                 }
-                ReportCardLearningArea::current()->where('report_card_id', $card->id)->whereNotIn('learning_area_id', $current)->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => $userId]);
+                $currentAreas = array_fill_keys($current, true);
+                $hasRemovedDetails = $detailsByCard->get($card->id, collect())
+                    ->contains(fn ($detail) => ! $detail->is_deleted
+                        && ! isset($currentAreas[$detail->learning_area_id]));
+
+                if ($cleanupRequiresQuery || $hasRemovedDetails) {
+                    ReportCardLearningArea::current()
+                        ->where('report_card_id', $card->id)
+                        ->whereNotIn('learning_area_id', $current)
+                        ->update([
+                            'is_deleted' => true,
+                            'deleted_at' => now(),
+                            'deleted_by' => $userId,
+                        ]);
+                }
 
                 $results->forget($learner->id);
                 if ($results->isEmpty()) {
@@ -223,7 +272,7 @@ class ReportCardService
                 return $card;
             });
 
-            unset($results, $merits, $existingCards, $existingDetails, $batchMembers, $sourceLearners);
+            unset($results, $merits, $existingCards, $existingDetails, $detailsByCard, $batchMembers, $sourceLearners);
 
             $output = new \Illuminate\Database\Eloquent\Collection($generated->all());
             unset($generated, $resultBatchIds, $learnerIds);
