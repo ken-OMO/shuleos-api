@@ -106,7 +106,29 @@ class MeritListService
 
             $existingRows = $existingRows->keyBy('learner_id');
 
-            $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($schoolId, $examId, $generatedBy) {
+            $gradingEntries = [];
+            foreach ($results->groupBy('learner_id') as $items) {
+                if ($items->contains(fn (LearningAreaResult $item) => $item->grading_snapshot === null)) {
+                    throw ValidationException::withMessages([
+                        'results' => 'Legacy processed results must be reprocessed to capture grading before merit generation.',
+                    ]);
+                }
+
+                if (! $items->contains(fn (LearningAreaResult $item) => (bool) $item->is_absent)) {
+                    $gradingEntries[] = [
+                        'learner' => $items->first()->learner,
+                        'percentage' => round((float) $items->avg('percentage'), 2),
+                    ];
+                }
+            }
+
+            $awards = $gradingEntries === [] ? []
+                : app(ExamGradingSnapshotService::class)->calculateMany(
+                    $schoolId, $examId, $gradingEntries, $generatedBy
+                );
+            unset($gradingEntries);
+
+            $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($awards) {
                 $learner = $items->first()->learner;
 
                 if ($items->contains(fn (LearningAreaResult $item) => $item->grading_snapshot === null)) {
@@ -142,9 +164,7 @@ class MeritListService
                 $average = round((float) $items->avg('percentage'), 2);
                 $pointValues = $items->map(fn (LearningAreaResult $item) => $item->grading_snapshot['points'])
                     ->filter(fn ($value) => $value !== null);
-                $grade = app(ExamGradingSnapshotService::class)->calculate(
-                    $schoolId, $examId, $learner, $average, $generatedBy
-                );
+                $grade = $awards[$learner->id];
 
                 return [
                     'learner' => $learner, 'total_score' => $score, 'maximum_marks' => $maximum,

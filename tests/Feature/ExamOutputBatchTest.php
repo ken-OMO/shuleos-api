@@ -6,6 +6,7 @@ use App\Models\Learner;
 use App\Models\ReportCard;
 use App\Models\User;
 use App\Services\Assessment\ExamCompletenessService;
+use App\Services\Assessment\ExamGradingSnapshotService;
 use App\Services\Assessment\ExamMembershipService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Tests\Support\Database\EducationLevelBuilder;
+use Tests\Support\Database\GradeBuilder;
 use Tests\Support\ExamBenchmarkFixture;
 use Tests\TestCase;
 
@@ -716,6 +719,284 @@ class ExamOutputBatchTest extends TestCase
             $service, $foreign['school_id'], [$learner->id],
             null, null, false
         ));
+    }
+
+    public function test_bulk_grading_reuses_rules_across_the_batch_boundary(): void
+    {
+        $learners = Learner::withoutGlobalScopes()
+            ->where('school_id', $this->fixture['school_id'])
+            ->whereIn('id', $this->fixture['learner_ids'])->get();
+
+        $entries = $learners->map(fn ($learner) => [
+            'learner' => $learner,
+            'percentage' => 80.0,
+        ])->all();
+
+        $service = app(ExamGradingSnapshotService::class);
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            $awards = DB::transaction(fn () => $service->calculateMany(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                $entries,
+                $this->fixture['actor_id']
+            ));
+
+            $queries = $connection->getQueryLog();
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertCount(251, $awards);
+        $this->assertSame(
+            $learners->pluck('id')->sort()->values()->all(),
+            collect(array_keys($awards))->sort()->values()->all()
+        );
+        $this->assertLessThanOrEqual(30, count($queries));
+
+        $snapshotQueries = collect($queries)->filter(
+            fn ($query) => str_contains(
+                $query['query'], 'from "exam_grading_snapshots"'
+            )
+        )->count();
+        $this->assertSame(2, $snapshotQueries);
+
+        foreach ($learners as $learner) {
+            $individual = DB::transaction(fn () => $service->calculate(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                $learner,
+                80.0,
+                $this->fixture['actor_id']
+            ));
+            $this->assertSame($individual, $awards[$learner->id]);
+        }
+    }
+
+    public function test_bulk_grading_retry_after_rollback_does_not_reuse_discarded_rules(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+        $learner = Learner::withoutGlobalScopes()
+            ->findOrFail($this->fixture['learner_ids'][0]);
+
+        DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->delete();
+
+        $service = app(ExamGradingSnapshotService::class);
+        $discarded = null;
+        $caught = false;
+
+        try {
+            DB::transaction(function () use (
+                $service, $schoolId, $examId, $learner, &$discarded
+            ) {
+                $awards = $service->calculateMany(
+                    $schoolId, $examId,
+                    [['learner' => $learner, 'percentage' => 80.0]],
+                    $this->fixture['actor_id']
+                );
+                $discarded = $awards[$learner->id];
+
+                throw new RuntimeException('Rollback bulk grading.');
+            });
+        } catch (RuntimeException $exception) {
+            $this->assertSame('Rollback bulk grading.', $exception->getMessage());
+            $caught = true;
+        }
+
+        $this->assertTrue($caught);
+        $this->assertNotNull($discarded);
+        $this->assertSame(0, DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->count());
+
+        DB::table('grading_scales')
+            ->where('id', $discarded['grading_scale_id'])
+            ->update(['grade_code' => 'RETRY']);
+
+        $retry = DB::transaction(fn () => $service->calculateMany(
+            $schoolId, $examId,
+            [['learner' => $learner, 'percentage' => 80.0]],
+            $this->fixture['actor_id']
+        ));
+
+        $this->assertSame('RETRY', $retry[$learner->id]['grade_code']);
+        $this->assertNotSame(
+            $discarded['rules_snapshot_id'],
+            $retry[$learner->id]['rules_snapshot_id']
+        );
+        $this->assertSame(1, DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->count());
+    }
+
+    public function test_bulk_grading_rejects_invalid_percentages_without_capturing_rules(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+        $learner = Learner::withoutGlobalScopes()
+            ->findOrFail($this->fixture['learner_ids'][0]);
+
+        DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->delete();
+
+        $service = app(ExamGradingSnapshotService::class);
+
+        foreach ([-0.01, 100.01, INF, NAN, 'invalid', null] as $percentage) {
+            $caught = false;
+
+            try {
+                DB::transaction(fn () => $service->calculateMany(
+                    $schoolId, $examId,
+                    [['learner' => $learner, 'percentage' => $percentage]],
+                    $this->fixture['actor_id']
+                ));
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('percentage', $exception->errors());
+                $caught = true;
+            }
+
+            $this->assertTrue($caught);
+            $this->assertSame(0, DB::table('exam_grading_snapshots')
+                ->where('school_id', $schoolId)->where('exam_id', $examId)->count());
+        }
+    }
+
+    public function test_bulk_grading_rejects_foreign_and_unrostered_members(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+        $source = Learner::withoutGlobalScopes()
+            ->findOrFail($this->fixture['learner_ids'][0]);
+
+        $foreign = clone $source;
+        $foreign->school_id = (string) Str::uuid();
+
+        $unrostered = clone $source;
+        $unrostered->id = (string) Str::uuid();
+
+        $before = DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)
+            ->orderBy('id')->get()->toJson();
+
+        foreach ([$foreign, $unrostered] as $invalid) {
+            $caught = false;
+
+            try {
+                DB::transaction(fn () => app(
+                    ExamGradingSnapshotService::class
+                )->calculateMany(
+                    $schoolId, $examId,
+                    [
+                        ['learner' => $source, 'percentage' => 80.0],
+                        ['learner' => $invalid, 'percentage' => 80.0],
+                    ],
+                    $this->fixture['actor_id']
+                ));
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('learner_id', $exception->errors());
+                $caught = true;
+            }
+
+            $this->assertTrue($caught);
+            $this->assertSame($before, DB::table('exam_grading_snapshots')
+                ->where('school_id', $schoolId)->where('exam_id', $examId)
+                ->orderBy('id')->get()->toJson());
+        }
+    }
+
+    public function test_bulk_grading_separates_roster_education_levels(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+        $first = Learner::withoutGlobalScopes()
+            ->findOrFail($this->fixture['learner_ids'][0]);
+        $second = Learner::withoutGlobalScopes()
+            ->findOrFail($this->fixture['learner_ids'][1]);
+        $originalGrade = $second->grade_id;
+
+        $existing = DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->first();
+        $rules = json_decode($existing->rules, true, 512, JSON_THROW_ON_ERROR);
+
+        $level = EducationLevelBuilder::create([
+            'level_name' => 'Bulk grading level '.Str::random(8),
+            'level_order' => 20,
+        ]);
+        $school = DB::table('schools')->where('id', $schoolId)->first();
+        $grade = GradeBuilder::create(
+            $school, $level, [
+                'grade_name' => 'Bulk grading class '.Str::random(8),
+                'grade_order' => 20,
+            ]
+        );
+
+        $system = (array) DB::table('grading_systems')
+            ->where('id', $rules['grading_system_id'])->first();
+        $systemId = (string) Str::uuid();
+        $system['id'] = $systemId;
+        $system['education_level_id'] = $level->id;
+        $system['grading_name'] = 'Separate bulk rules '.Str::random(8);
+        $system['active'] = true;
+        DB::table('grading_systems')->insert($system);
+
+        foreach (DB::table('grading_scales')
+            ->where('grading_system_id', $rules['grading_system_id'])->get() as $scale) {
+            $copy = (array) $scale;
+            $copy['id'] = (string) Str::uuid();
+            $copy['grading_system_id'] = $systemId;
+            $copy['grade_code'] = 'OTHER';
+            DB::table('grading_scales')->insert($copy);
+        }
+
+        DB::table('exam_roster_learners')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)
+            ->where('learner_id', $second->id)
+            ->update(['grade_id' => $grade->id, 'stream_id' => null]);
+
+        $service = app(ExamGradingSnapshotService::class);
+        $entries = [
+            ['learner' => $first, 'percentage' => 80.0],
+            ['learner' => $second, 'percentage' => 80.0],
+        ];
+
+        $awards = DB::transaction(fn () => $service->calculateMany(
+            $schoolId, $examId, $entries, $this->fixture['actor_id']
+        ));
+
+        $this->assertSame(
+            $rules['grading_system_id'], $awards[$first->id]['grading_system_id']
+        );
+        $this->assertSame($systemId, $awards[$second->id]['grading_system_id']);
+        $this->assertSame('OTHER', $awards[$second->id]['grade_code']);
+        $this->assertNotSame(
+            $awards[$first->id]['rules_snapshot_id'],
+            $awards[$second->id]['rules_snapshot_id']
+        );
+        $this->assertSame(2, DB::table('exam_grading_snapshots')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->count());
+
+        DB::table('grading_scales')->where('grading_system_id', $systemId)
+            ->update(['grade_description' => 'Live description changed']);
+        DB::table('grading_systems')->where('id', $systemId)
+            ->update(['active' => false]);
+
+        $again = DB::transaction(fn () => $service->calculateMany(
+            $schoolId, $examId, array_reverse($entries), $this->fixture['actor_id']
+        ));
+
+        $this->assertSame($awards[$first->id], $again[$first->id]);
+        $this->assertSame($awards[$second->id], $again[$second->id]);
+        $this->assertSame($originalGrade, $second->grade_id);
+        $this->assertSame($originalGrade, DB::table('learners')
+            ->where('id', $second->id)->value('grade_id'));
     }
 
     private function generateMerits(): void
