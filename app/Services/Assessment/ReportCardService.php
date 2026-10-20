@@ -97,10 +97,11 @@ class ReportCardService
             $existingDetails = collect();
             $batchAttendance = collect();
             $cohortSizes = [];
+            $pendingDetails = [];
             $attendanceAvailable = DB::getSchemaBuilder()->hasTable('learner_attendance')
                 && DB::getSchemaBuilder()->hasTable('attendance_statuses');
 
-            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
+            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$pendingDetails, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
                 if ($results->isEmpty()) {
                     $batchIds = $resultBatchIds->get($resultBatchIndex++);
                     if ($batchIds === null) {
@@ -186,11 +187,38 @@ class ReportCardService
                         ]);
                     if (! $detail->exists) {
                         $detail->id = (string) Str::uuid();
-                    } $detail->fill(['learning_area_result_id' => $area->id, 'is_absent' => (bool) $area->is_absent, 'score' => $area->marks_obtained, 'marks_obtained' => $area->marks_obtained, 'maximum_marks' => $area->maximum_marks, 'percentage' => $area->percentage, 'grading_system_id' => $area->grading_system_id, 'grading_scale_id' => $area->grading_scale_id, 'grading_snapshot' => $area->grading_snapshot, 'grade_code' => $area->grading_snapshot['grade_code'], 'points' => $area->grading_snapshot['points'], 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null])->save();
+                    } $detail->fill(['learning_area_result_id' => $area->id, 'is_absent' => (bool) $area->is_absent, 'score' => $area->marks_obtained, 'marks_obtained' => $area->marks_obtained, 'maximum_marks' => $area->maximum_marks, 'percentage' => $area->percentage, 'grading_system_id' => $area->grading_system_id, 'grading_scale_id' => $area->grading_scale_id, 'grading_snapshot' => $area->grading_snapshot, 'grade_code' => $area->grading_snapshot['grade_code'], 'points' => $area->grading_snapshot['points'], 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null]);
+
+                    $dispatcher = ReportCardLearningArea::getEventDispatcher();
+                    $hasListeners = false;
+                    foreach (['saving', 'creating', 'created', 'saved'] as $event) {
+                        if ($dispatcher?->hasListeners(
+                            'eloquent.'.$event.': '.ReportCardLearningArea::class
+                        )) {
+                            $hasListeners = true;
+                            break;
+                        }
+                    }
+
+                    if ($detail->exists || $hasListeners) {
+                        $this->flushNewDetails($pendingDetails);
+                        $detail->save();
+                    } else {
+                        // Use model casts and timestamps before serializing attributes.
+                        $detail->updateTimestamps();
+                        $pendingDetails[] = $detail->getAttributes();
+
+                        if (count($pendingDetails) >= 500) {
+                            $this->flushNewDetails($pendingDetails);
+                        }
+                    }
                 }
                 ReportCardLearningArea::current()->where('report_card_id', $card->id)->whereNotIn('learning_area_id', $current)->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => $userId]);
 
                 $results->forget($learner->id);
+                if ($results->isEmpty()) {
+                    $this->flushNewDetails($pendingDetails);
+                }
 
                 return $card;
             });
@@ -377,6 +405,16 @@ class ReportCardService
                     ),
                 ]];
             });
+    }
+
+    private function flushNewDetails(array &$rows): void
+    {
+        if ($rows === []) {
+            return;
+        }
+
+        DB::table('report_card_learning_areas')->insert($rows);
+        $rows = [];
     }
 
     private function nullAttendance(): array
