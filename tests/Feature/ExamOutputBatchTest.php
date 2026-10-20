@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Learner;
 use App\Models\ReportCard;
+use App\Models\ReportCardLearningArea;
 use App\Models\User;
 use App\Services\Assessment\ExamCompletenessService;
 use App\Services\Assessment\ExamGradingSnapshotService;
@@ -997,6 +998,143 @@ class ExamOutputBatchTest extends TestCase
         $this->assertSame($originalGrade, $second->grade_id);
         $this->assertSame($originalGrade, DB::table('learners')
             ->where('id', $second->id)->value('grade_id'));
+    }
+
+    public function test_detail_batching_bounds_inserts_and_preserves_regenerated_details(): void
+    {
+        $this->generateMerits();
+
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            app(ReportCardService::class)->generateSummary(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                null, null, null, $this->fixture['actor_id']
+            );
+
+            $inserts = collect($connection->getQueryLog())->filter(
+                fn ($query) => str_starts_with(
+                    $query['query'], 'insert into "report_card_learning_areas"'
+                )
+            )->count();
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertSame(4, $inserts);
+
+        $cardIds = DB::table('report_cards')
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])->pluck('id');
+
+        $before = DB::table('report_card_learning_areas')
+            ->whereIn('report_card_id', $cardIds)->orderBy('id')->get();
+
+        $this->assertCount(1506, $before);
+        $target = $before->last();
+
+        DB::table('report_card_learning_areas')->where('id', $target->id)->update([
+            'teacher_comment' => 'Preserve this detail comment.',
+            'is_deleted' => true,
+            'deleted_at' => now(),
+            'deleted_by' => $this->fixture['actor_id'],
+        ]);
+
+        app(ReportCardService::class)->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null, null, null, $this->fixture['actor_id']
+        );
+
+        $after = DB::table('report_card_learning_areas')
+            ->whereIn('report_card_id', $cardIds)->orderBy('id')->get();
+
+        $this->assertSame($before->pluck('id')->all(), $after->pluck('id')->all());
+
+        foreach ($after as $index => $detail) {
+            $original = $before[$index];
+            $this->assertSame($original->grading_snapshot, $detail->grading_snapshot);
+            $this->assertSame($original->created_at, $detail->created_at);
+            $this->assertNotNull($detail->updated_at);
+            $this->assertFalse((bool) $detail->is_deleted);
+        }
+
+        $restored = $after->firstWhere('id', $target->id);
+        $this->assertSame('Preserve this detail comment.', $restored->teacher_comment);
+        $this->assertNull($restored->deleted_at);
+        $this->assertNull($restored->deleted_by);
+    }
+
+    public function test_detail_listener_failure_rolls_back_generation_and_allows_retry(): void
+    {
+        $this->generateMerits();
+
+        $model = ReportCardLearningArea::class;
+        $dispatcher = $model::getEventDispatcher();
+        $model::setEventDispatcher(clone $dispatcher);
+
+        $seen = 0;
+        $caught = false;
+
+        try {
+            $model::getEventDispatcher()->listen(
+                'eloquent.creating: '.$model,
+                function ($detail) use (&$seen) {
+                    $belongs = DB::table('report_cards')
+                        ->where('id', $detail->report_card_id)
+                        ->where('school_id', $this->fixture['school_id'])
+                        ->where('exam_id', $this->fixture['exam_id'])->exists();
+
+                    if (! $belongs) {
+                        return;
+                    }
+
+                    $seen++;
+                    if ($seen === 501) {
+                        throw new RuntimeException('Injected detail listener failure.');
+                    }
+                }
+            );
+
+            app(ReportCardService::class)->generateSummary(
+                $this->fixture['school_id'],
+                $this->fixture['exam_id'],
+                null, null, null, $this->fixture['actor_id']
+            );
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'Injected detail listener failure.', $exception->getMessage()
+            );
+            $caught = true;
+        } finally {
+            $model::setEventDispatcher($dispatcher);
+        }
+
+        $this->assertTrue($caught);
+        $this->assertSame(501, $seen);
+        $this->assertSame(0, DB::table('report_cards')
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])->count());
+        $this->assertSame(0, DB::table('report_card_learning_areas as details')
+            ->join('learning_area_results as results',
+                'results.id', '=', 'details.learning_area_result_id')
+            ->where('results.school_id', $this->fixture['school_id'])
+            ->where('results.exam_id', $this->fixture['exam_id'])->count());
+
+        $retry = app(ReportCardService::class)->generateSummary(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            null, null, null, $this->fixture['actor_id']
+        );
+        $this->assertSame(251, $retry['generated_count']);
     }
 
     private function generateMerits(): void
