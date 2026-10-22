@@ -8,6 +8,7 @@ use App\Models\Exam;
 use App\Models\Term;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -40,6 +41,84 @@ class ExamService
         }
 
         return Exam::create([...$d, 'id' => (string) Str::uuid(), 'school_id' => $school, 'exam_name' => trim($d['exam_name']), 'active' => $d['active'] ?? true, 'status' => 'draft', 'created_by' => $user ?? $d['created_by'] ?? null, 'is_deleted' => false, 'created_at' => now()]);
+    }
+
+    public function update(Exam $exam, array $data): Exam
+    {
+        return DB::transaction(function () use ($exam, $data) {
+            $locked = $this->lifecycle->lockExamForWrite(
+                $exam->school_id, $exam->id
+            );
+
+            $values = Validator::make($data, [
+                'exam_name' => 'sometimes|string|max:255',
+                'start_date' => 'sometimes|date',
+                'end_date' => 'sometimes|date',
+                'active' => 'sometimes|boolean',
+                'status' => 'sometimes|in:draft,published,closed',
+            ])->validate();
+
+            $target = $values['status'] ?? $locked->status;
+            if ($target !== $locked->status) {
+                $allowed = ['draft' => ['published'], 'published' => ['closed'], 'closed' => []];
+                if (! in_array($target, $allowed[$locked->status] ?? [], true)) {
+                    throw ValidationException::withMessages([
+                        'status' => "Cannot change exam status from {$locked->status} to {$target}.",
+                    ]);
+                }
+            }
+
+            $details = array_intersect_key($values, array_flip([
+                'exam_name', 'start_date', 'end_date',
+            ]));
+            abort_if(
+                $target !== 'draft' && $details !== [],
+                400,
+                'Published or closed exam details cannot be changed.'
+            );
+
+            if (array_key_exists('exam_name', $values)) {
+                $values['exam_name'] = trim($values['exam_name']);
+                if ($values['exam_name'] === '') {
+                    throw ValidationException::withMessages([
+                        'exam_name' => 'The exam name must not be blank.',
+                    ]);
+                }
+                if (Exam::withoutGlobalScopes()->current()
+                    ->where('school_id', $locked->school_id)
+                    ->where('academic_year_id', $locked->academic_year_id)
+                    ->where('term_id', $locked->term_id)
+                    ->whereKeyNot($locked->id)
+                    ->whereRaw('LOWER(exam_name) = ?', [
+                        mb_strtolower($values['exam_name']),
+                    ])->exists()) {
+                    throw ValidationException::withMessages([
+                        'exam_name' => 'An exam with this name already exists in the selected term.',
+                    ]);
+                }
+            }
+
+            if (array_key_exists('start_date', $values)
+                || array_key_exists('end_date', $values)) {
+                $term = Term::withoutGlobalScopes()
+                    ->where('school_id', $locked->school_id)
+                    ->where('academic_year_id', $locked->academic_year_id)
+                    ->find($locked->term_id);
+                $start = Carbon::parse($values['start_date'] ?? $locked->start_date);
+                $end = Carbon::parse($values['end_date'] ?? $locked->end_date);
+                if (! $term || $end->lt($start)
+                    || $start->lt(Carbon::parse($term->start_date))
+                    || $end->gt(Carbon::parse($term->end_date))) {
+                    throw ValidationException::withMessages([
+                        'start_date' => 'Exam dates must fall within the selected term.',
+                    ]);
+                }
+            }
+
+            $locked->update($values);
+
+            return $locked;
+        });
     }
 
     public function transition(Exam $e, string $to): void

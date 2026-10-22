@@ -442,6 +442,35 @@ class AssessmentReadOnlyAccessTest extends TestCase
         ]);
     }
 
+    public function test_http_rejected_exam_update_does_not_partially_publish(): void
+    {
+        $source = DB::table('exams')
+            ->where('id', $this->fixture['exam_id'])->first();
+        $exam = app(ExamService::class)->create([
+            'exam_name' => 'Atomic HTTP '.Str::uuid(),
+            'assessment_type_id' => $source->assessment_type_id,
+            'academic_year_id' => $source->academic_year_id,
+            'term_id' => $source->term_id,
+            'start_date' => $source->start_date,
+            'end_date' => $source->end_date,
+        ], $this->fixture['school_id'], $this->fixture['actor_id']);
+        $before = $exam->fresh()->getAttributes();
+
+        $this->withToken($this->token)
+            ->putJson('/api/exams/'.$exam->id, [
+                'status' => 'published',
+                'exam_name' => 'Must not persist',
+                'active' => false,
+            ])->assertStatus(400);
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+
+        $this->withToken($this->token)
+            ->putJson('/api/exams/'.$exam->id, ['status' => 'published'])
+            ->assertOk();
+        $this->assertSame('published', $exam->fresh()->status);
+    }
+
     private function setSchoolState(string $state): void
     {
         DB::table('schools')->where('id', $this->fixture['school_id'])

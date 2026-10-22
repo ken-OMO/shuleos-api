@@ -49,13 +49,7 @@ class ExamController extends BaseCrudController
         if (! $e) {
             return $this->notFound('Exam not found.');
         }$v = $r->validate(['exam_name' => 'sometimes|string|max:255', 'start_date' => 'sometimes|date', 'end_date' => 'sometimes|date', 'active' => 'sometimes|boolean', 'status' => 'sometimes|in:draft,published,closed']);
-        if (isset($v['status']) && $v['status'] !== $e->status) {
-            $to = $v['status'];
-            unset($v['status']);
-            $this->service->transition($e, $to);
-        }if ($e->status !== 'draft' && array_intersect_key($v, array_flip(['exam_name', 'start_date', 'end_date']))) {
-            return $this->badRequest('Published or closed exam details cannot be changed.');
-        }$e->update($v);
+        $e = $this->service->update($e, $v);
 
         return $this->success(new ExamResource($e->refresh()->load(self::RELATIONS)), 'Exam updated successfully.');
     }
