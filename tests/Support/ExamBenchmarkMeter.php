@@ -3,6 +3,7 @@
 namespace Tests\Support;
 
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 use Throwable;
@@ -87,6 +88,17 @@ final class ExamBenchmarkMeter
         } catch (Throwable $exception) {
             $status = 'failed';
             $errorType = get_class($exception);
+
+            if ($exception instanceof QueryException) {
+                // Record diagnostics without connection settings or bindings.
+                $summary = [
+                    'failure' => [
+                        'sqlstate' => $exception->errorInfo[0] ?? (string) $exception->getCode(),
+                        'driver_code' => $exception->errorInfo[1] ?? null,
+                        'statement_template' => substr($exception->getSql(), 0, 2000),
+                    ],
+                ];
+            }
         } finally {
             $this->measuring = false;
         }

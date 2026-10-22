@@ -199,6 +199,12 @@ try {
         },
     ];
 
+    // Reuse the same fixture to measure existing-row paths separately.
+    $operations['report_card_regeneration_'.$mode] =
+        $operations['report_card_generation_'.$mode];
+
+    $operations['merit_regeneration'] = $operations['merit_generation'];
+
     foreach ($operations as $name => $operation) {
         echo 'START '.$name.PHP_EOL;
         flush();
