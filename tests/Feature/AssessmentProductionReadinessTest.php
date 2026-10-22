@@ -34,14 +34,10 @@ class AssessmentProductionReadinessTest extends TestCase
         $permission = DB::table('permissions')
             ->where('permission_name', 'generate_report_cards')->value('id');
 
-        if (! $permission) {
-            $permission = (string) Str::uuid();
-            DB::table('permissions')->insert([
-                'id' => $permission,
-                'permission_name' => 'generate_report_cards',
-                'created_at' => now(),
-            ]);
-        }
+        $this->assertNotNull(
+            $permission,
+            'Run the generate_report_cards permission migration.'
+        );
 
         if ($grantPermission) {
             DB::table('role_permissions')->insert([
@@ -108,6 +104,58 @@ class AssessmentProductionReadinessTest extends TestCase
         }
         $this->assertTrue($result->learner->relationLoaded('grade'));
         $this->assertTrue($result->learner->grade->relationLoaded('educationLevel'));
+    }
+
+    public function test_permission_migration_preserves_identity_metadata_and_grants(): void
+    {
+        $user = $this->actor(true);
+
+        $permission = DB::table('permissions')
+            ->where('permission_name', 'generate_report_cards')->first();
+
+        $this->assertNotNull($permission);
+
+        DB::table('permissions')->where('id', $permission->id)->update([
+            'module_name' => 'existing_module',
+            'description' => 'Preserve existing permission metadata.',
+        ]);
+
+        $before = (array) DB::table('permissions')
+            ->where('id', $permission->id)->first();
+
+        $grantsBefore = DB::table('role_permissions')
+            ->where('permission_id', $permission->id)
+            ->orderBy('id')->get()
+            ->map(fn ($row) => (array) $row)->all();
+
+        $this->assertTrue(DB::table('role_permissions')
+            ->where('role_id', $user->role_id)
+            ->where('permission_id', $permission->id)->exists());
+
+        $migration = require database_path(
+            'migrations/2026_10_22_170000_add_generate_report_cards_permission.php'
+        );
+
+        $migration->up();
+        $migration->up();
+        $migration->down();
+
+        $this->assertSame(1, DB::table('permissions')
+            ->where('permission_name', 'generate_report_cards')->count());
+
+        $this->assertSame(
+            $before,
+            (array) DB::table('permissions')
+                ->where('id', $permission->id)->first()
+        );
+
+        $this->assertSame(
+            $grantsBefore,
+            DB::table('role_permissions')
+                ->where('permission_id', $permission->id)
+                ->orderBy('id')->get()
+                ->map(fn ($row) => (array) $row)->all()
+        );
     }
 
     private function generateMerits(): void
