@@ -124,6 +124,8 @@ try {
     }
 
     $measurement = $meter->measure('full_processing', function () use ($fixture, $emit) {
+        $startedAt = microtime(true);
+        $backendPid = (int) DB::selectOne('select pg_backend_pid() as pid')->pid;
         $processed = 0;
         foreach ($fixture['learner_ids'] as $index => $learnerId) {
             foreach ($fixture['exam_learning_area_ids'] as $areaId) {
@@ -142,7 +144,15 @@ try {
             }
         }
 
-        return ['learners' => count($fixture['learner_ids']), 'processed_operations' => $processed];
+        return [
+            'learners' => count($fixture['learner_ids']),
+            'processed_operations' => $processed,
+            'school_id' => $fixture['school_id'],
+            'exam_id' => $fixture['exam_id'],
+            'backend_pid' => $backendPid,
+            'started_unix' => $startedAt,
+            'finished_unix' => microtime(true),
+        ];
     });
     $emit($measurement);
     $failed = $measurement['status'] !== 'completed';
@@ -156,7 +166,24 @@ try {
                 throw new RuntimeException('Processed fixture is incomplete.');
             }
 
-            return ['complete' => true, 'learners' => $report['learner_count']];
+            $results = DB::table('learning_area_results')
+                ->where('exam_id', $fixture['exam_id']);
+
+            if ((clone $results)->count() !== $fixture['learner_count'] * 6
+                || (clone $results)->where('school_id', '!=', $fixture['school_id'])->exists()
+                || DB::table('learning_area_results as results')
+                    ->join('learners', 'learners.id', '=', 'results.learner_id')
+                    ->where('results.exam_id', $fixture['exam_id'])
+                    ->where('learners.school_id', '!=', $fixture['school_id'])->exists()) {
+                throw new RuntimeException('Processed result count or school isolation failed.');
+            }
+
+            return [
+                'complete' => true,
+                'learners' => $report['learner_count'],
+                'processed_results' => $fixture['learner_count'] * 6,
+                'school_isolation_verified' => true,
+            ];
         });
         $emit($measurement);
         $failed = $measurement['status'] !== 'completed';
