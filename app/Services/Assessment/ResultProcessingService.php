@@ -41,7 +41,7 @@ class ResultProcessingService
             $this->lifecycle->assertMutable($exam);
 
             $examLearningArea = ExamLearningArea::current()
-                ->with(['exam', 'papers' => fn ($query) => $query->current()->orderBy('paper_number')])
+                ->with(['papers' => fn ($query) => $query->current()->orderBy('paper_number')])
                 ->whereKey($examLearningAreaId)
                 ->whereHas('exam', fn ($query) => $query
                     ->where('school_id', $schoolId)
@@ -50,7 +50,6 @@ class ResultProcessingService
                 ->first();
 
             $learner = Learner::query()
-                ->with('grade.educationLevel')
                 ->whereKey($learnerId)
                 ->where('school_id', $schoolId)
                 ->lockForUpdate()

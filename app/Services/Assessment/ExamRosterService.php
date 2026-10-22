@@ -162,37 +162,62 @@ class ExamRosterService
             // Cascading deletion removes the previous expected-paper selections.
             DB::table('exam_roster_learners')->where('roster_id', $rosterId)->delete();
 
-            foreach ($validated['learners'] as $selection) {
-                $learner = $learners[$selection['learner_id']];
-                $old = $previous->get($learner->id);
-                $participantId = $old?->id ?? (string) Str::uuid();
+            foreach (array_chunk($validated['learners'], 250) as $batch) {
+                $participants = [];
+                $participantIds = [];
 
-                DB::table('exam_roster_learners')->insert([
-                    'id' => $participantId, 'roster_id' => $rosterId,
-                    'school_id' => $schoolId, 'exam_id' => $examId,
-                    'learner_id' => $learner->id,
-                    'grade_id' => $old?->grade_id ?? $learner->grade_id,
-                    'stream_id' => $old ? $old->stream_id : $learner->stream_id,
-                    'created_at' => $old?->created_at ?? $now, 'updated_at' => $now,
-                ]);
+                foreach ($batch as $selection) {
+                    $learner = $learners[$selection['learner_id']];
+                    $old = $previous->get($learner->id);
+                    $participantId = $old?->id ?? (string) Str::uuid();
+                    $participantIds[$learner->id] = $participantId;
 
-                foreach (array_unique($selection['exam_learning_area_ids']) as $areaId) {
-                    $area = $areas[$areaId];
+                    $participants[] = [
+                        'id' => $participantId, 'roster_id' => $rosterId,
+                        'school_id' => $schoolId, 'exam_id' => $examId,
+                        'learner_id' => $learner->id,
+                        'grade_id' => $old?->grade_id ?? $learner->grade_id,
+                        'stream_id' => $old ? $old->stream_id : $learner->stream_id,
+                        'created_at' => $old?->created_at ?? $now,
+                        'updated_at' => $now,
+                    ];
+                }
 
-                    foreach ($papers[$areaId] as $paper) {
-                        DB::table('exam_roster_papers')->insert([
-                            'id' => (string) Str::uuid(),
-                            'roster_learner_id' => $participantId,
-                            'exam_learning_area_id' => $area->id,
-                            'learning_area_id' => $area->learning_area_id,
-                            'paper_id' => $paper->id,
-                            'paper_number' => $paper->paper_number,
-                            'maximum_marks' => $paper->max_marks,
-                            'expected_paper_count' => $area->number_of_papers,
-                            'learning_area_total_marks' => $area->total_marks,
-                            'created_at' => $now, 'updated_at' => $now,
-                        ]);
+                // Persist parents before inserting their expected-paper rows.
+                DB::table('exam_roster_learners')->insert($participants);
+
+                $requirements = [];
+
+                foreach ($batch as $selection) {
+                    $participantId = $participantIds[$selection['learner_id']];
+
+                    foreach (array_unique($selection['exam_learning_area_ids']) as $areaId) {
+                        $area = $areas[$areaId];
+
+                        foreach ($papers[$areaId] as $paper) {
+                            $requirements[] = [
+                                'id' => (string) Str::uuid(),
+                                'roster_learner_id' => $participantId,
+                                'exam_learning_area_id' => $area->id,
+                                'learning_area_id' => $area->learning_area_id,
+                                'paper_id' => $paper->id,
+                                'paper_number' => $paper->paper_number,
+                                'maximum_marks' => $paper->max_marks,
+                                'expected_paper_count' => $area->number_of_papers,
+                                'learning_area_total_marks' => $area->total_marks,
+                                'created_at' => $now, 'updated_at' => $now,
+                            ];
+
+                            if (count($requirements) === 500) {
+                                DB::table('exam_roster_papers')->insert($requirements);
+                                $requirements = [];
+                            }
+                        }
                     }
+                }
+
+                if ($requirements !== []) {
+                    DB::table('exam_roster_papers')->insert($requirements);
                 }
             }
 
