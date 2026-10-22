@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamLearningAreaService;
+use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\Database\SchoolBuilder;
@@ -90,6 +92,83 @@ class ExamLearningAreaTest extends TestCase
             $this->data(),
             (string) Str::uuid()
         );
+    }
+
+    public function test_paperless_draft_area_can_be_updated_and_archived(): void
+    {
+        $service = app(ExamLearningAreaService::class);
+        $area = $service->create($this->data(), $this->school->id);
+
+        $updated = $service->update($area, [
+            'number_of_papers' => 1, 'total_marks' => 80,
+        ], $this->school->id);
+
+        $this->assertSame(1, $updated->number_of_papers);
+        $this->assertSame(80, $updated->total_marks);
+
+        $service->delete($area, $this->school->id, null);
+        $this->assertTrue($area->fresh()->is_deleted);
+        $this->assertNotNull($area->fresh()->deleted_at);
+    }
+
+    public function test_stale_area_cannot_be_changed_after_exam_publication(): void
+    {
+        $service = app(ExamLearningAreaService::class);
+        $area = $service->create($this->data(), $this->school->id);
+        $area->load('exam');
+
+        app(ExamService::class)->transition($this->exam, 'published');
+        $before = $area->fresh()->getAttributes();
+        $this->assertSame('draft', $area->exam->status);
+
+        foreach (['update', 'delete'] as $action) {
+            try {
+                if ($action === 'update') {
+                    $service->update(
+                        $area, ['total_marks' => 80], $this->school->id
+                    );
+                } else {
+                    $service->delete($area, $this->school->id, null);
+                }
+                $this->fail('Published exam configuration must be preserved.');
+            } catch (HttpExceptionInterface $exception) {
+                $this->assertSame(400, $exception->getStatusCode());
+            }
+
+            $this->assertSame($before, $area->fresh()->getAttributes());
+        }
+    }
+
+    public function test_area_with_papers_cannot_be_changed_or_archived(): void
+    {
+        $service = app(ExamLearningAreaService::class);
+        $area = $service->create($this->data(), $this->school->id);
+
+        app(ExamPaperService::class)->create([
+            'exam_learning_area_id' => $area->id,
+            'paper_name' => 'Paper 1',
+            'paper_number' => 1,
+            'max_marks' => 50,
+        ], $this->school->id);
+
+        $before = $area->fresh()->getAttributes();
+
+        foreach (['update', 'delete'] as $action) {
+            try {
+                if ($action === 'update') {
+                    $service->update(
+                        $area, ['total_marks' => 80], $this->school->id
+                    );
+                } else {
+                    $service->delete($area, $this->school->id, null);
+                }
+                $this->fail('An area with papers must be preserved.');
+            } catch (HttpExceptionInterface $exception) {
+                $this->assertSame(400, $exception->getStatusCode());
+            }
+
+            $this->assertSame($before, $area->fresh()->getAttributes());
+        }
     }
 
     private function data(): array

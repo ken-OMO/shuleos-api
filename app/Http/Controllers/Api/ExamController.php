@@ -59,9 +59,8 @@ class ExamController extends BaseCrudController
         $e = $this->q($r)->find($id);
         if (! $e) {
             return $this->notFound('Exam not found.');
-        }if ($e->status !== 'draft' || $e->learningAreas()->exists() || $e->results()->exists()) {
-            return $this->badRequest('Only empty draft exams can be deleted.');
-        }$e->update(['active' => false, 'is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        }
+        $this->service->delete($e, auth()->id());
 
         return $this->success(null, 'Exam deleted successfully.');
     }

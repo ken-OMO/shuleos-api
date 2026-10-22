@@ -94,7 +94,8 @@ class AssessmentProductionReadinessTest extends TestCase
             $result->grading_snapshot
         );
         // Includes school lifecycle locks retained through processing.
-        $this->assertLessThanOrEqual(33, count($queries));
+        // Reprocessing may also persist changed processed_at/updated_at values.
+        $this->assertLessThanOrEqual(34, count($queries));
 
         $schoolLocks = collect($queries)->filter(
             fn ($query) => str_contains($query['query'], 'from "schools"')

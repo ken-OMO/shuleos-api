@@ -1,14 +1,21 @@
 <?php
 
+use App\Models\Exam;
+use App\Models\ExamLearningArea;
+use App\Models\ExamPaper;
+use App\Services\Assessment\ExamLearningAreaService;
+use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamRosterService;
+use App\Services\Assessment\ExamService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -119,6 +126,29 @@ try {
                 $payload['version'],
                 $payload['selections']
             )['version'],
+            'paper_create' => app(ExamPaperService::class)
+                ->create($payload['paper'], $payload['school_id'])->id,
+            'exam_publish' => app(ExamService::class)
+                ->update(
+                    Exam::withoutGlobalScopes()
+                        ->where('school_id', $payload['school_id'])
+                        ->findOrFail($payload['exam_id']),
+                    ['status' => 'published']
+                )->id,
+            'paper_update' => app(ExamPaperService::class)
+                ->update(
+                    ExamPaper::withoutGlobalScopes()
+                        ->findOrFail($payload['paper_id']),
+                    ['max_marks' => $payload['max_marks']],
+                    $payload['school_id']
+                )->id,
+            'area_delete' => app(ExamLearningAreaService::class)
+                ->delete(
+                    ExamLearningArea::withoutGlobalScopes()
+                        ->findOrFail($payload['exam_learning_area_id']),
+                    $payload['school_id'],
+                    $payload['actor_id']
+                ),
             default => throw new RuntimeException('Unsupported worker operation.'),
         };
     });
@@ -134,6 +164,13 @@ try {
     workerMessage([
         'event' => 'rejected',
         'fields' => array_keys($exception->errors()),
+    ]);
+    exit(2);
+} catch (HttpExceptionInterface $exception) {
+    workerMessage([
+        'event' => 'rejected',
+        'fields' => [],
+        'http_status' => $exception->getStatusCode(),
     ]);
     exit(2);
 } catch (Throwable $exception) {

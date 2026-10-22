@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Services\Assessment\AssessmentTypeService;
+use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\TestCase;
@@ -158,6 +161,68 @@ class ExamTest extends TestCase
             $this->assertSame(400, $exception->getStatusCode());
         }
         $this->assertSame('Updated exam', $exam->fresh()->exam_name);
+    }
+
+    public function test_empty_draft_deletion_archives_the_exam(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+
+        $service->delete($exam, null);
+
+        $stored = DB::table('exams')
+            ->where('id', $exam->id)->first();
+
+        $this->assertNotNull($stored);
+        $this->assertTrue((bool) $stored->is_deleted);
+        $this->assertFalse((bool) $stored->active);
+        $this->assertNotNull($stored->deleted_at);
+    }
+
+    public function test_deletion_rechecks_published_state_of_a_stale_draft(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+
+        $service->update($exam, ['status' => 'published']);
+        $before = $exam->fresh()->getAttributes();
+        $this->assertSame('draft', $exam->status);
+
+        try {
+            $service->delete($exam, null);
+            $this->fail('A stale draft must not delete a published exam.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+    }
+
+    public function test_deletion_rejects_a_draft_with_a_learning_area(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+        $area = LearningAreaBuilder::create();
+
+        $attached = app(ExamLearningAreaService::class)
+            ->create([
+                'exam_id' => $exam->id,
+                'learning_area_id' => $area->id,
+                'number_of_papers' => 1,
+                'total_marks' => 100,
+            ], $this->school->id);
+
+        $before = $exam->fresh()->getAttributes();
+
+        try {
+            $service->delete($exam, null);
+            $this->fail('A draft with a learning area must not be deleted.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+        $this->assertFalse($attached->fresh()->is_deleted);
     }
 
     private function data(): array

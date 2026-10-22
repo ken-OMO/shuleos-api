@@ -121,6 +121,30 @@ class ExamService
         });
     }
 
+    public function delete(Exam $exam, ?string $actor): void
+    {
+        DB::transaction(function () use ($exam, $actor) {
+            $locked = $this->lifecycle->lockExamForWrite(
+                $exam->school_id, $exam->id
+            );
+
+            abort_if(
+                $locked->status !== 'draft'
+                    || $locked->learningAreas()->exists()
+                    || $locked->results()->exists(),
+                400,
+                'Only empty draft exams can be deleted.'
+            );
+
+            $locked->update([
+                'active' => false,
+                'is_deleted' => true,
+                'deleted_at' => now(),
+                'deleted_by' => $actor,
+            ]);
+        });
+    }
+
     public function transition(Exam $e, string $to): void
     {
         $updated = DB::transaction(function () use ($e, $to) {

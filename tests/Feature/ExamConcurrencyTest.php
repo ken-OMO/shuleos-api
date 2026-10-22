@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Services\Assessment\AssessmentTypeService;
+use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Database\AcademicYearBuilder;
@@ -276,6 +278,187 @@ class ExamConcurrencyTest extends TestCase
             'id' => $this->fixture['card_id'],
             'status' => 'stale',
         ]);
+    }
+
+    public function test_competing_paper_inserts_cannot_exceed_total_marks(): void
+    {
+        $this->preparePaperRace(2);
+
+        $outcome = $this->paperRace(60, 60);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('max_marks', $outcome['second']['fields']);
+        $this->assertSame(1, $this->currentRacePapers()->count());
+        $this->assertSame(60, (int) $this->currentRacePapers()->sum('max_marks'));
+        $this->assertSame(
+            $outcome['first']['result'], $this->currentRacePapers()->value('id')
+        );
+    }
+
+    public function test_competing_paper_inserts_cannot_exceed_declared_count(): void
+    {
+        $this->preparePaperRace(1);
+
+        $outcome = $this->paperRace(40, 40);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('paper_number', $outcome['second']['fields']);
+        $this->assertSame(1, $this->currentRacePapers()->count());
+        $this->assertSame(1, (int) $this->currentRacePapers()->value('paper_number'));
+    }
+
+    public function test_exam_publication_rejects_waiting_paper_creation(): void
+    {
+        $this->preparePaperRace(2);
+
+        $outcome = $this->race('exam_publish', 'paper_create', [
+            'paper' => $this->racePaper(1, 50),
+        ]);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains(
+            'exam_learning_area_id', $outcome['second']['fields']
+        );
+        $this->assertSame(0, $this->currentRacePapers()->count());
+        $this->assertDatabaseHas('exams', [
+            'id' => $this->fixture['exam_id'], 'status' => 'published',
+        ]);
+    }
+
+    public function test_competing_paper_updates_cannot_exceed_total_marks(): void
+    {
+        $this->preparePaperRace(2);
+        $service = app(ExamPaperService::class);
+        $first = $service->create($this->racePaper(1, 40), $this->fixture['school_id']);
+        $second = $service->create($this->racePaper(2, 40), $this->fixture['school_id']);
+        $secondBefore = $second->fresh()->getAttributes();
+
+        $outcome = (new ExamConcurrencyRunner)->run(
+            ['operation' => 'paper_update', 'paper_id' => $first->id,
+                'max_marks' => 60] + $this->fixture,
+            ['operation' => 'paper_update', 'paper_id' => $second->id,
+                'max_marks' => 60] + $this->fixture
+        );
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('max_marks', $outcome['second']['fields']);
+        $this->assertSame(60, $first->fresh()->max_marks);
+        $this->assertSame($secondBefore, $second->fresh()->getAttributes());
+        $this->assertSame(100, (int) $this->currentRacePapers()->sum('max_marks'));
+    }
+
+    public function test_area_deletion_first_rejects_waiting_paper_creation(): void
+    {
+        $this->preparePaperRace(2);
+
+        $outcome = $this->race('area_delete', 'paper_create', [
+            'paper' => $this->racePaper(1, 50),
+        ]);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains(
+            'exam_learning_area_id', $outcome['second']['fields']
+        );
+        $this->assertSame(0, $this->currentRacePapers()->count());
+        $this->assertDatabaseHas('exam_learning_areas', [
+            'id' => $this->fixture['exam_learning_area_id'],
+            'is_deleted' => true,
+            'deleted_by' => $this->fixture['actor_id'],
+        ]);
+    }
+
+    public function test_paper_creation_first_rejects_waiting_area_deletion(): void
+    {
+        $this->preparePaperRace(2);
+
+        $outcome = $this->race('paper_create', 'area_delete', [
+            'paper' => $this->racePaper(1, 50),
+        ]);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertSame(400, $outcome['second']['http_status']);
+        $this->assertSame(1, $this->currentRacePapers()->count());
+        $this->assertDatabaseHas('exam_learning_areas', [
+            'id' => $this->fixture['exam_learning_area_id'],
+            'is_deleted' => false,
+            'deleted_at' => null,
+        ]);
+    }
+
+    private function preparePaperRace(int $declaredCount): void
+    {
+        // Remove dependent synthetic results before replacing paper configuration.
+        DB::transaction(function () use ($declaredCount) {
+            DB::table('report_card_learning_areas')
+                ->where('report_card_id', $this->fixture['card_id'])->delete();
+
+            foreach (['learning_area_results', 'exam_results', 'exam_rosters'] as $table) {
+                DB::table($table)
+                    ->where('exam_id', $this->fixture['exam_id'])->delete();
+            }
+
+            DB::table('exam_papers')
+                ->where('exam_learning_area_id', $this->fixture['exam_learning_area_id'])
+                ->delete();
+
+            DB::table('exams')->where('id', $this->fixture['exam_id'])
+                ->update(['status' => 'draft']);
+
+            DB::table('exam_learning_areas')
+                ->where('id', $this->fixture['exam_learning_area_id'])
+                ->update(['number_of_papers' => $declaredCount, 'total_marks' => 100]);
+        });
+    }
+
+    private function racePaper(int $number, int $marks): array
+    {
+        return [
+            'exam_learning_area_id' => $this->fixture['exam_learning_area_id'],
+            'paper_name' => 'Concurrent paper '.$number,
+            'paper_number' => $number,
+            'max_marks' => $marks,
+        ];
+    }
+
+    private function currentRacePapers(): Builder
+    {
+        return DB::table('exam_papers')
+            ->where('exam_learning_area_id', $this->fixture['exam_learning_area_id'])
+            ->where('is_deleted', false);
+    }
+
+    private function paperRace(int $firstMarks, int $secondMarks): array
+    {
+        return (new ExamConcurrencyRunner)->run(
+            ['operation' => 'paper_create',
+                'paper' => $this->racePaper(1, $firstMarks)] + $this->fixture,
+            ['operation' => 'paper_create',
+                'paper' => $this->racePaper(2, $secondMarks)] + $this->fixture
+        );
     }
 
     private function race(string $first, string $second, array $extra = []): array
