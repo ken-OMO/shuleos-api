@@ -1,6 +1,8 @@
 param(
     [ValidateRange(1, 2000)]
-    [int]$Learners = 251
+    [int]$Learners = 251,
+    [ValidateSet('processing', 'outputs')]
+    [string]$Workload = 'processing'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,12 +12,18 @@ $runId = [guid]::NewGuid().ToString('N')
 $logRoot = Join-Path $repoRoot 'storage/logs'
 $workers = @()
 $launchError = $null
+$operation = 'full_processing'
+$runnerArguments = "tests/Support/run_exam_processing_benchmark.php $Learners first-time"
+if ($Workload -eq 'outputs') {
+    $operation = 'report_card_generation'
+    $runnerArguments = "tests/Support/run_exam_output_benchmark.php $Learners"
+}
 
 try {
     foreach ($number in 1,2) {
         $info = New-Object System.Diagnostics.ProcessStartInfo
         $info.FileName = $php
-        $info.Arguments = "tests/Support/run_exam_processing_benchmark.php $Learners first-time"
+        $info.Arguments = $runnerArguments
         $info.WorkingDirectory = $repoRoot
         $info.UseShellExecute = $false
         $info.CreateNoWindow = $true
@@ -88,7 +96,7 @@ foreach ($worker in $workers) {
         ForEach-Object { $_ | ConvertFrom-Json })
 
     $processing = @($rows | Where-Object {
-        $_.operation -eq 'full_processing' -and $_.status -eq 'completed'
+        $_.operation -eq $operation -and $_.status -eq 'completed'
     })
     $complete = @($rows | Where-Object {
         $_.operation -eq 'completeness' -and $_.status -eq 'completed'
@@ -109,7 +117,7 @@ foreach ($worker in $workers) {
     $verified = $complete[0].summary
 
     if ($summary.learners -ne $Learners -or
-        $summary.processed_operations -ne ($Learners * 6) -or
+        ($Workload -eq 'processing' -and $summary.processed_operations -ne ($Learners * 6)) -or
         $verified.complete -ne $true -or
         $verified.learners -ne $Learners -or
         $verified.processed_results -ne ($Learners * 6) -or
@@ -121,7 +129,32 @@ foreach ($worker in $workers) {
         throw "Worker $($worker.Number) has invalid counts, ownership checks or timing."
     }
 
+    $merit = $null
+    if ($Workload -eq 'outputs') {
+        $merits = @($rows | Where-Object {
+            $_.operation -eq 'merit_generation' -and $_.status -eq 'completed'
+        })
+        if ($merits.Count -ne 1) {
+            throw 'Expected one completed merit-generation stage.'
+        }
+        $merit = $merits[0]
+
+        if ($summary.generated_count -ne $Learners -or
+            $verified.merits -ne $Learners -or
+            $verified.report_cards -ne $Learners -or
+            $verified.report_card_details -ne ($Learners * 6) -or
+            $merit.summary.generated_count -ne $Learners -or
+            $merit.summary.school_id -ne $summary.school_id -or
+            $merit.summary.exam_id -ne $summary.exam_id -or
+            $merit.summary.backend_pid -ne $summary.backend_pid -or
+            [double]$merit.summary.started_unix -le 0 -or
+            [double]$merit.summary.finished_unix -le [double]$merit.summary.started_unix) {
+            throw 'Output counts, identities or merit timing failed verification.'
+        }
+    }
+
     $results += [pscustomobject]@{
+        merit = $merit
         worker = $worker.Number
         exit_code = $worker.ExitCode
         processing = $processing[0]
@@ -149,11 +182,29 @@ if ($overlap -le 0) {
     throw 'Processing did not overlap; concurrent processing is unverified.'
 }
 
+$meritOverlap = $null
+if ($Workload -eq 'outputs') {
+    $ma = $results[0].merit.summary
+    $mb = $results[1].merit.summary
+    $meritOverlap = [Math]::Min(
+        [double]$ma.finished_unix, [double]$mb.finished_unix
+    ) - [Math]::Max(
+        [double]$ma.started_unix, [double]$mb.started_unix
+    )
+    if ($meritOverlap -le 0) {
+        throw 'Merit generation did not overlap; concurrency is unverified.'
+    }
+    Write-Host "MERIT_OVERLAP_SECONDS=$([Math]::Round($meritOverlap, 3))"
+    Write-Host "REPORT_CARD_OVERLAP_SECONDS=$([Math]::Round($overlap, 3))"
+}
+
 $report = [ordered]@{
+    workload = $Workload
+    merit_overlap_seconds = $meritOverlap
     status = 'completed'
-    scope = 'two_school_first_time_service_processing'
+    scope = "two_school_service_$Workload"
     learners_per_school = $Learners
-    total_processing_operations = $Learners * 12
+    total_processing_operations = $(if ($Workload -eq 'processing') { $Learners * 12 } else { 0 })
     overlap_seconds = [Math]::Round($overlap, 3)
     distinct_schools_and_sessions = $true
     result_counts_and_school_isolation_verified = $true
@@ -172,14 +223,14 @@ $results | ForEach-Object {
         Worker = $_.worker
         ExitCode = $_.exit_code
         Learners = $_.processing.summary.learners
-        Operations = $_.processing.summary.processed_operations
+        Operations = $(if ($Workload -eq 'processing') { $_.processing.summary.processed_operations } else { $_.processing.summary.generated_count })
         Seconds = [Math]::Round($_.processing.elapsed_ms / 1000, 2)
         Queries = $_.processing.query_count
         PeakMB = $_.processing.peak_memory_mb
     }
 } | Format-Table -AutoSize
 
-Write-Host "PROCESSING_OVERLAP_SECONDS=$([Math]::Round($overlap, 3))"
+Write-Host "WORKLOAD=$Workload; STAGE=$operation; OVERLAP_SECONDS=$([Math]::Round($overlap, 3))"
 Write-Host 'RESULT_COUNTS_AND_SCHOOL_ISOLATION=PASS'
 Write-Host 'BOTH_FIXTURES_CLEANED=YES'
 Write-Host "RESULT_FILE=$resultPath"
