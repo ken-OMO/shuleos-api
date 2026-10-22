@@ -4,12 +4,22 @@ namespace App\Services\Assessment;
 
 use App\Models\ExamLearningArea;
 use App\Models\ExamPaper;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ExamPaperService
 {
     public function create(array $d, string $school): ExamPaper
+    {
+        return DB::transaction(function () use ($d, $school) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school);
+        });
+    }
+
+    private function createWritable(array $d, string $school): ExamPaper
     {
         $area = ExamLearningArea::current()->with('exam')->whereKey($d['exam_learning_area_id'])->whereHas('exam', fn ($q) => $q->where('school_id', $school)->where('status', 'draft')->where('is_deleted', false))->first();
         if (! $area) {

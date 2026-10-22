@@ -2,11 +2,13 @@
 
 namespace App\Http\Middleware;
 
+use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Auth\AuthContextService;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class ModulePermissionMiddleware
@@ -68,6 +70,17 @@ class ModulePermissionMiddleware
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         } catch (AuthorizationException) {
             return response()->json(['success' => false, 'message' => 'Access is unavailable.'], 403);
+        }
+
+        if ($assessmentRequest && ! $request->isMethodSafe()) {
+            return DB::transaction(
+                function () use ($user, $request, $next): Response {
+                    app(ExamResultLifecycleService::class)
+                        ->assertSchoolWritable((string) $user->school_id);
+
+                    return $next($request);
+                }
+            );
         }
 
         return $next($request);

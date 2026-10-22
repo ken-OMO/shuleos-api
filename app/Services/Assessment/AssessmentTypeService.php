@@ -3,12 +3,22 @@
 namespace App\Services\Assessment;
 
 use App\Models\AssessmentType;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AssessmentTypeService
 {
     public function create(array $d, string $school): AssessmentType
+    {
+        return DB::transaction(function () use ($d, $school) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school);
+        });
+    }
+
+    private function createWritable(array $d, string $school): AssessmentType
     {
         $name = trim($d['assessment_type_name']);
         if (AssessmentType::current()->where('school_id', $school)->whereRaw('LOWER(assessment_type_name) = ?', [mb_strtolower($name)])->exists()) {
@@ -19,6 +29,15 @@ class AssessmentTypeService
     }
 
     public function delete(AssessmentType $t, ?string $user): void
+    {
+        DB::transaction(function () use ($t, $user) {
+            app(ExamResultLifecycleService::class)
+                ->assertSchoolWritable($t->school_id);
+            $this->deleteWritable($t, $user);
+        });
+    }
+
+    private function deleteWritable(AssessmentType $t, ?string $user): void
     {
         if ($t->exams()->exists()) {
             throw ValidationException::withMessages(['assessment_type' => 'Assessment types used by exams cannot be deleted.']);

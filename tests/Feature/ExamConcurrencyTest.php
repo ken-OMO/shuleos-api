@@ -231,6 +231,53 @@ class ExamConcurrencyTest extends TestCase
             ->where('exam_id', $this->fixture['exam_id'])->count());
     }
 
+    public function test_read_only_transition_first_rejects_waiting_mark_change(): void
+    {
+        $before = (array) DB::table('exam_results')
+            ->where('id', $this->fixture['result_id'])->first();
+
+        $outcome = $this->race('school_read_only', 'marks');
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('school_access', $outcome['second']['fields']);
+        $this->assertSame(
+            $before,
+            (array) DB::table('exam_results')
+                ->where('id', $this->fixture['result_id'])->first()
+        );
+        $this->assertDatabaseHas('schools', [
+            'id' => $this->fixture['school_id'],
+            'lifecycle_state' => 'read_only',
+        ]);
+    }
+
+    public function test_mark_write_first_completes_before_waiting_read_only_transition(): void
+    {
+        $outcome = $this->race('marks', 'school_read_only');
+
+        $this->assertTrue($outcome['contention_verified']);
+        foreach (['first', 'second'] as $worker) {
+            $this->assertSame('finished', $outcome[$worker]['event']);
+            $this->assertSame(0, $outcome[$worker]['exit_code']);
+        }
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $this->fixture['result_id'],
+            'marks' => 65,
+        ]);
+        $this->assertDatabaseHas('schools', [
+            'id' => $this->fixture['school_id'],
+            'lifecycle_state' => 'read_only',
+        ]);
+        $this->assertDatabaseHas('report_cards', [
+            'id' => $this->fixture['card_id'],
+            'status' => 'stale',
+        ]);
+    }
+
     private function race(string $first, string $second, array $extra = []): array
     {
         $base = $extra + $this->fixture + ['marks' => 65];

@@ -5,12 +5,22 @@ namespace App\Services\Assessment;
 use App\Models\Exam;
 use App\Models\ExamLearningArea;
 use App\Models\LearningArea;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class ExamLearningAreaService
 {
     public function create(array $d, string $school): ExamLearningArea
+    {
+        return DB::transaction(function () use ($d, $school) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school);
+        });
+    }
+
+    private function createWritable(array $d, string $school): ExamLearningArea
     {
         $exam = Exam::current()->whereKey($d['exam_id'])->where('school_id', $school)->where('status', 'draft')->where('active', true)->first();
         $area = LearningArea::whereKey($d['learning_area_id'])->where('active', true)->first();

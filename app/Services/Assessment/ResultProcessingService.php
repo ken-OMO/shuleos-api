@@ -37,7 +37,7 @@ class ResultProcessingService
                 ]);
             }
 
-            $exam = $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $candidate->exam_id);
             $this->lifecycle->assertMutable($exam);
 
             $examLearningArea = ExamLearningArea::current()

@@ -3,6 +3,7 @@
 namespace App\Services\Assessment;
 
 use App\Models\Exam;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use LogicException;
@@ -13,10 +14,19 @@ class ExamResultLifecycleService
      * Acquire this lock before locking results, batches or generated outputs.
      * The caller must retain the transaction until all its writes finish.
      */
-    public function lockExam(string $schoolId, string $examId): Exam
+    public function lockExam(string $schoolId, string $examId, bool $forWrite = false): Exam
     {
         if (DB::transactionLevel() < 1) {
             throw new LogicException('Exam lifecycle operations require a transaction.');
+        }
+
+        // Always acquire school access before exam/result locks.
+        if ($forWrite) {
+            $this->assertSchoolWritable($schoolId);
+        } else {
+            // Read-only reports and captured-rule reads remain available.
+            DB::table('schools')->where('id', $schoolId)
+                ->sharedLock()->value('id');
         }
 
         $exam = Exam::withoutGlobalScopes()
@@ -33,6 +43,42 @@ class ExamResultLifecycleService
         }
 
         return $exam;
+    }
+
+    /**
+     * Check school write access and retain school/exam locks through writes.
+     */
+    public function lockExamForWrite(string $schoolId, string $examId): Exam
+    {
+        return $this->lockExam($schoolId, $examId, true);
+    }
+
+    public function assertSchoolWritable(string $schoolId): void
+    {
+        if (DB::transactionLevel() < 1) {
+            throw new LogicException('School write checks require a transaction.');
+        }
+
+        // Retain this shared lock until the caller's transaction completes.
+        // Lifecycle transitions acquire an exclusive lock on the same school.
+        $school = DB::table('schools')->where('id', $schoolId)
+            ->sharedLock()->first();
+
+        if (! $school) {
+            throw ValidationException::withMessages([
+                'school_id' => 'The school does not exist.',
+            ]);
+        }
+
+        if (! $school->active || $school->is_deleted
+            || in_array($school->lifecycle_state, [
+                'read_only', 'locked', 'suspended', 'archived',
+            ], true)) {
+            throw new AuthorizationException(
+                'Assessment changes are unavailable for this school.'
+            );
+        }
+
     }
 
     /**

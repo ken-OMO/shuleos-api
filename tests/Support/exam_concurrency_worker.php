@@ -5,6 +5,7 @@ use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -64,15 +65,30 @@ try {
 
     $result = DB::transaction(function () use ($payload) {
         if ($payload['hold_lock'] ?? false) {
-            app(ExamResultLifecycleService::class)->lockExam(
-                $payload['school_id'], $payload['exam_id']
-            );
+            if ($payload['operation'] === 'school_read_only') {
+                DB::table('schools')->where('id', $payload['school_id'])
+                    ->lockForUpdate()->firstOrFail();
+            } else {
+                app(ExamResultLifecycleService::class)->lockExamForWrite(
+                    $payload['school_id'], $payload['exam_id']
+                );
+            }
             workerMessage(['event' => 'locked']);
 
             $release = fgets(STDIN);
             if ($release === false || trim($release) !== 'release') {
                 throw new RuntimeException('Worker lock was not released by the test.');
             }
+        }
+
+        if ($payload['operation'] === 'school_read_only') {
+            // Exercise the same exclusive school-row lock as lifecycle changes.
+            // This worker tests database serialization, not platform permissions.
+            DB::table('schools')->where('id', $payload['school_id'])
+                ->lockForUpdate()->firstOrFail();
+
+            return DB::table('schools')->where('id', $payload['school_id'])
+                ->update(['lifecycle_state' => 'read_only']);
         }
 
         return match ($payload['operation']) {
@@ -108,6 +124,12 @@ try {
     });
 
     workerMessage(['event' => 'finished', 'result' => $result]);
+} catch (AuthorizationException $exception) {
+    workerMessage([
+        'event' => 'rejected',
+        'fields' => ['school_access'],
+    ]);
+    exit(2);
 } catch (ValidationException $exception) {
     workerMessage([
         'event' => 'rejected',

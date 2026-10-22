@@ -17,6 +17,15 @@ class ExamService
 
     public function create(array $d, string $school, ?string $user): Exam
     {
+        return DB::transaction(function () use ($d, $school, $user) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school, $user);
+        });
+    }
+
+    private function createWritable(array $d, string $school, ?string $user): Exam
+    {
         $type = AssessmentType::current()->whereKey($d['assessment_type_id'])->where('school_id', $school)->where('active', true)->exists();
         $year = AcademicYear::whereKey($d['academic_year_id'])->where('school_id', $school)->where('active', true)->exists();
         $term = Term::whereKey($d['term_id'])->where('school_id', $school)->where('academic_year_id', $d['academic_year_id'])->where('active', true)->first();
@@ -36,7 +45,7 @@ class ExamService
     public function transition(Exam $e, string $to): void
     {
         $updated = DB::transaction(function () use ($e, $to) {
-            $locked = $this->lifecycle->lockExam($e->school_id, $e->id);
+            $locked = $this->lifecycle->lockExamForWrite($e->school_id, $e->id);
             $allowed = ['draft' => ['published'], 'published' => ['closed'], 'closed' => []];
 
             if (! in_array($to, $allowed[$locked->status] ?? [], true)) {

@@ -93,7 +93,15 @@ class AssessmentProductionReadinessTest extends TestCase
             json_decode($before->grading_snapshot, true, 512, JSON_THROW_ON_ERROR),
             $result->grading_snapshot
         );
-        $this->assertLessThanOrEqual(32, count($queries));
+        // Includes school lifecycle locks retained through processing.
+        $this->assertLessThanOrEqual(33, count($queries));
+
+        $schoolLocks = collect($queries)->filter(
+            fn ($query) => str_contains($query['query'], 'from "schools"')
+                && str_contains($query['query'], 'for share')
+        )->count();
+        // Processing and nested grading both acquire school before exam.
+        $this->assertSame(2, $schoolLocks);
 
         $educationReads = collect($queries)->filter(
             fn ($query) => str_contains($query['query'], 'from "education_levels"')

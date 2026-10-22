@@ -34,7 +34,11 @@ class MarkModerationService
         }
 
         return DB::transaction(function () use ($user, $id, $action, $reason) {
+            $this->lifecycle->assertSchoolWritable($user->school_id);
+            $candidate = $this->query($user)->whereKey($id)->firstOrFail();
+            $this->lifecycle->lockExam($user->school_id, $candidate->exam_id);
             $batch = $this->query($user)->whereKey($id)->lockForUpdate()->firstOrFail();
+            abort_unless($batch->exam_id === $candidate->exam_id, 409);
             abort_if($batch->entered_by === $user->id, 403, 'Self-moderation is not allowed.');
             $allowed = ['submitted' => ['approved', 'changes_requested', 'rejected'], 'approved' => ['locked'], 'changes_requested' => [], 'locked' => []];
             abort_unless(in_array($action, $allowed[$batch->status] ?? [], true), 409);
@@ -49,6 +53,7 @@ class MarkModerationService
         abort_unless(in_array($decision, ['approved', 'rejected'], true), 422);
 
         return DB::transaction(function () use ($user, $requestId, $decision, $reason) {
+            $this->lifecycle->assertSchoolWritable($user->school_id);
             $candidateRequest = DB::table('mark_correction_requests')
                 ->where('school_id', $user->school_id)
                 ->where('status', 'pending')

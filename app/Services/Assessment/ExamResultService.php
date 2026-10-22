@@ -32,7 +32,7 @@ class ExamResultService
                 ]);
             }
 
-            $exam = $this->lifecycle->lockExam($schoolId, $paper->examLearningArea->exam_id);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $paper->examLearningArea->exam_id);
             $this->lifecycle->assertMutable($exam);
 
             $result = $this->createValidated($data, $schoolId, $userId);
@@ -118,7 +118,7 @@ class ExamResultService
             ]);
         }
 
-        $exam = $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
+        $exam = $this->lifecycle->lockExamForWrite($schoolId, $candidate->exam_id);
         $this->lifecycle->assertMutable($exam);
 
         $result = ExamResult::current()
