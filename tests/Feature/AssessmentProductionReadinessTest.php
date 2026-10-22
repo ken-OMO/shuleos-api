@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\MeritListService;
 use App\Services\Assessment\ResultProcessingService;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\Support\ExamBenchmarkFixture;
 use Tests\TestCase;
@@ -156,6 +159,266 @@ class AssessmentProductionReadinessTest extends TestCase
                 ->orderBy('id')->get()
                 ->map(fn ($row) => (array) $row)->all()
         );
+    }
+
+    public function test_roster_admission_accepts_2000_and_rejects_2001_without_changes(): void
+    {
+        $schoolId = $this->fixture['school_id'];
+        $examId = $this->fixture['exam_id'];
+        $actorId = $this->fixture['actor_id'];
+
+        // Remove synthetic admission so the real service establishes the roster.
+        DB::table('exam_rosters')
+            ->where('school_id', $schoolId)->where('exam_id', $examId)->delete();
+
+        $source = DB::table('learners')
+            ->where('id', $this->fixture['learner_ids'][0])->first();
+
+        $ids = $this->fixture['learner_ids'];
+        $rows = [];
+
+        while (count($ids) < 2001) {
+            $id = (string) Str::uuid();
+            $ids[] = $id;
+            $rows[] = [
+                'id' => $id,
+                'school_id' => $schoolId,
+                'admission_no' => 'ADMISSION-'.str_replace('-', '', $id),
+                'first_name' => 'Admission',
+                'last_name' => 'Boundary',
+                'grade_id' => $source->grade_id,
+                'stream_id' => $source->stream_id,
+                'active' => true,
+                'is_deleted' => false,
+                'portal_enabled' => false,
+            ];
+        }
+
+        foreach (array_chunk($rows, 100) as $chunk) {
+            DB::table('learners')->insert($chunk);
+        }
+
+        $areaId = $this->fixture['exam_learning_area_ids'][0];
+        $selections = array_map(fn ($id) => [
+            'learner_id' => $id,
+            'exam_learning_area_ids' => [$areaId],
+        ], $ids);
+
+        $service = app(ExamRosterService::class);
+        $result = $service->replace(
+            $schoolId, $examId, $actorId, 0,
+            array_slice($selections, 0, 2000)
+        );
+
+        $this->assertSame(1, $result['version']);
+        $this->assertSame(2000, $result['learner_count']);
+
+        $snapshot = function () use ($schoolId, $examId): array {
+            $roster = DB::table('exam_rosters')
+                ->where('school_id', $schoolId)->where('exam_id', $examId)->first();
+
+            $participants = DB::table('exam_roster_learners')
+                ->where('roster_id', $roster->id)->orderBy('id')->get();
+
+            return [
+                'roster' => (array) $roster,
+                'participants' => $participants
+                    ->map(fn ($row) => (array) $row)->all(),
+                'papers' => DB::table('exam_roster_papers')
+                    ->whereIn('roster_learner_id', $participants->pluck('id'))
+                    ->orderBy('id')->get()
+                    ->map(fn ($row) => (array) $row)->all(),
+            ];
+        };
+
+        $before = $snapshot();
+        $this->assertCount(2000, $before['participants']);
+        $this->assertCount(4000, $before['papers']);
+        $this->assertSame(
+            collect(array_slice($ids, 0, 2000))->sort()->values()->all(),
+            collect($before['participants'])->pluck('learner_id')
+                ->sort()->values()->all()
+        );
+
+        try {
+            $service->replace($schoolId, $examId, $actorId, 1, $selections);
+            $this->fail('Admission above 2000 must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('learners', $exception->errors());
+        }
+
+        $this->assertSame($before, $snapshot());
+
+        try {
+            $service->replace(
+                $schoolId, $examId, $actorId, 0,
+                array_slice($selections, 0, 2000)
+            );
+            $this->fail('A stale roster version must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('version', $exception->errors());
+        }
+
+        $this->assertSame($before, $snapshot());
+
+        $permission = DB::table('permissions')
+            ->where('permission_name', 'create_exam')->value('id');
+        $this->assertNotNull($permission, 'Roster API requires create_exam provisioning.');
+
+        $user = User::withoutGlobalScopes()->findOrFail($actorId);
+        DB::table('role_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'role_id' => $user->role_id,
+            'permission_id' => $permission,
+            'created_at' => now(),
+        ]);
+
+        $token = JWTAuth::fromUser($user->load('role'));
+        $url = '/api/exams/'.$examId.'/roster';
+
+        $this->withToken($token)->putJson($url, [
+            'version' => 1,
+            'learners' => $selections,
+        ])->assertUnprocessable()->assertJsonValidationErrors('learners');
+
+        $this->assertSame($before, $snapshot());
+
+        $this->withToken($token)->putJson($url, [
+            'version' => 1,
+            'learners' => array_slice($selections, 0, 2000),
+        ])->assertOk()
+            ->assertJsonPath('data.version', 2)
+            ->assertJsonPath('data.learner_count', 2000);
+
+        $after = $snapshot();
+        $this->assertSame($before['roster']['id'], $after['roster']['id']);
+        $this->assertCount(2000, $after['participants']);
+        $this->assertCount(4000, $after['papers']);
+
+        foreach (['id', 'learner_id', 'grade_id', 'stream_id', 'created_at'] as $column) {
+            $this->assertSame(
+                array_column($before['participants'], $column),
+                array_column($after['participants'], $column)
+            );
+        }
+    }
+
+    public function test_roster_admission_batches_participant_and_paper_inserts(): void
+    {
+        $connection = DB::connection();
+        $wasLogging = $connection->logging();
+
+        try {
+            $connection->enableQueryLog();
+            $connection->flushQueryLog();
+
+            $result = $this->replaceReadinessRoster();
+            $queries = collect($connection->getQueryLog());
+        } finally {
+            $connection->flushQueryLog();
+            if (! $wasLogging) {
+                $connection->disableQueryLog();
+            }
+        }
+
+        $this->assertSame(251, $result['learner_count']);
+        $this->assertSame(2, $result['version']);
+
+        foreach ([
+            'exam_roster_learners' => 2,
+            'exam_roster_papers' => 7,
+        ] as $table => $expected) {
+            $this->assertSame(
+                $expected,
+                $queries->filter(fn ($query) => str_starts_with(
+                    $query['query'], 'insert into "'.$table.'"'
+                ))->count()
+            );
+        }
+
+        $state = $this->readinessRosterState();
+        $this->assertCount(251, $state['participants']);
+        $this->assertCount(3012, $state['papers']);
+    }
+
+    public function test_roster_admission_second_batch_failure_restores_original_roster(): void
+    {
+        $before = $this->readinessRosterState();
+        $constraint = 'readiness_'.str_replace('-', '', (string) Str::uuid());
+        $pdo = DB::connection()->getPdo();
+        $exam = $pdo->quote($this->fixture['exam_id']);
+        $lastLearner = $pdo->quote($this->fixture['learner_ids'][250]);
+
+        // Existing rows remain valid; reinserting learner 251 must fail.
+        DB::statement(
+            'ALTER TABLE exam_roster_learners ADD CONSTRAINT '.$constraint.
+            ' CHECK (exam_id <> '.$exam.'::uuid OR learner_id <> '.
+            $lastLearner.'::uuid) NOT VALID'
+        );
+
+        try {
+            try {
+                $this->replaceReadinessRoster();
+                $this->fail('The injected second-batch failure must occur.');
+            } catch (QueryException $exception) {
+                $this->assertSame('23514', $exception->errorInfo[0]);
+                $this->assertStringContainsString(
+                    $constraint, $exception->getMessage()
+                );
+            }
+
+            $this->assertSame($before, $this->readinessRosterState());
+        } finally {
+            DB::statement(
+                'ALTER TABLE exam_roster_learners DROP CONSTRAINT '.$constraint
+            );
+        }
+
+        $retry = $this->replaceReadinessRoster();
+        $this->assertSame(2, $retry['version']);
+        $this->assertSame(251, $retry['learner_count']);
+
+        $after = $this->readinessRosterState();
+        $this->assertCount(251, $after['participants']);
+        $this->assertCount(3012, $after['papers']);
+        $this->assertSame(
+            array_column($before['participants'], 'id'),
+            array_column($after['participants'], 'id')
+        );
+    }
+
+    private function replaceReadinessRoster(): array
+    {
+        return app(ExamRosterService::class)->replace(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            $this->fixture['actor_id'],
+            1,
+            array_map(fn ($id) => [
+                'learner_id' => $id,
+                'exam_learning_area_ids' => $this->fixture['exam_learning_area_ids'],
+            ], $this->fixture['learner_ids'])
+        );
+    }
+
+    private function readinessRosterState(): array
+    {
+        $roster = DB::table('exam_rosters')
+            ->where('school_id', $this->fixture['school_id'])
+            ->where('exam_id', $this->fixture['exam_id'])->first();
+
+        $participants = DB::table('exam_roster_learners')
+            ->where('roster_id', $roster->id)->orderBy('id')->get();
+
+        return [
+            'roster' => (array) $roster,
+            'participants' => $participants
+                ->map(fn ($row) => (array) $row)->all(),
+            'papers' => DB::table('exam_roster_papers')
+                ->whereIn('roster_learner_id', $participants->pluck('id'))
+                ->orderBy('id')->get()
+                ->map(fn ($row) => (array) $row)->all(),
+        ];
     }
 
     private function generateMerits(): void
