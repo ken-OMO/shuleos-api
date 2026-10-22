@@ -409,6 +409,71 @@ class ExamConcurrencyTest extends TestCase
         ]);
     }
 
+    public function test_exam_deletion_first_rejects_waiting_area_attachment(): void
+    {
+        $this->prepareEmptyExamRace();
+
+        $outcome = $this->race('exam_delete', 'area_create');
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('exam_id', $outcome['second']['fields']);
+        $this->assertSame(0, DB::table('exam_learning_areas')
+            ->where('exam_id', $this->fixture['exam_id'])->count());
+        $this->assertDatabaseHas('exams', [
+            'id' => $this->fixture['exam_id'],
+            'is_deleted' => true,
+            'active' => false,
+            'deleted_by' => $this->fixture['actor_id'],
+        ]);
+    }
+
+    public function test_area_attachment_first_rejects_waiting_exam_deletion(): void
+    {
+        $this->prepareEmptyExamRace();
+
+        $outcome = $this->race('area_create', 'exam_delete');
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertSame(400, $outcome['second']['http_status']);
+        $this->assertSame(1, DB::table('exam_learning_areas')
+            ->where('exam_id', $this->fixture['exam_id'])->count());
+        $this->assertDatabaseHas('exam_learning_areas', [
+            'id' => $outcome['first']['result'],
+            'exam_id' => $this->fixture['exam_id'],
+            'is_deleted' => false,
+        ]);
+        $this->assertDatabaseHas('exams', [
+            'id' => $this->fixture['exam_id'],
+            'status' => 'draft',
+            'is_deleted' => false,
+            'deleted_at' => null,
+        ]);
+    }
+
+    private function prepareEmptyExamRace(): void
+    {
+        $this->preparePaperRace(1);
+
+        DB::transaction(function () {
+            foreach (['report_cards', 'merit_lists', 'exam_grading_snapshots',
+                'mark_entry_permissions'] as $table) {
+                DB::table($table)
+                    ->where('exam_id', $this->fixture['exam_id'])->delete();
+            }
+
+            DB::table('exam_learning_areas')
+                ->where('exam_id', $this->fixture['exam_id'])->delete();
+        });
+    }
+
     private function preparePaperRace(int $declaredCount): void
     {
         // Remove dependent synthetic results before replacing paper configuration.

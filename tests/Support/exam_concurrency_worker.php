@@ -149,6 +149,20 @@ try {
                     $payload['school_id'],
                     $payload['actor_id']
                 ),
+            'exam_delete' => app(ExamService::class)
+                ->delete(
+                    Exam::withoutGlobalScopes()
+                        ->where('school_id', $payload['school_id'])
+                        ->findOrFail($payload['exam_id']),
+                    $payload['actor_id']
+                ),
+            'area_create' => app(ExamLearningAreaService::class)
+                ->create([
+                    'exam_id' => $payload['exam_id'],
+                    'learning_area_id' => $payload['area_id'],
+                    'number_of_papers' => 1,
+                    'total_marks' => 100,
+                ], $payload['school_id'])->id,
             default => throw new RuntimeException('Unsupported worker operation.'),
         };
     });
