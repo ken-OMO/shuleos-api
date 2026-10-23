@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Services\LearnerPortal\LearnerAccountService;
+use App\Services\LearnerPortal\LearnerReportCardAccessService;
 use App\Services\ParentPortal\ParentPortalAccessService;
 use App\Services\ParentPortal\ParentPortalService;
 use App\Services\ParentPortal\ParentReportCardAccessService;
@@ -385,6 +387,92 @@ class ParentPortalTest extends TestCase
                 $this->id['card']
             )['can_download']
         );
+    }
+
+    public function test_learner_report_access_ignores_expired_and_deleted_overrides(): void
+    {
+        $user = $this->reportLearnerUser();
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['report_card_fee_policy' => 'admin_approval']);
+
+        $override = (string) Str::uuid();
+        DB::table('report_card_access_overrides')->insert([
+            'id' => $override,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'report_card_id' => $this->id['card'],
+            'access_scope' => 'both',
+            'access_allowed' => true,
+            'approved_by' => $this->id['user'],
+            'expires_at' => now()->addDay(),
+            'is_deleted' => false,
+        ]);
+
+        $service = app(LearnerReportCardAccessService::class);
+        $allowed = $service->decision($user, $this->id['card']);
+        $this->assertTrue($allowed['view']);
+        $this->assertTrue($allowed['download']);
+
+        foreach ([
+            ['expires_at' => now()->subDay(), 'is_deleted' => false],
+            ['expires_at' => now()->addDay(), 'is_deleted' => true],
+        ] as $state) {
+            DB::table('report_card_access_overrides')->where('id', $override)
+                ->update($state);
+
+            $decision = $service->decision($user, $this->id['card']);
+            $this->assertFalse($decision['view']);
+            $this->assertFalse($decision['download']);
+
+            foreach (['requireView', 'requireDownload'] as $method) {
+                try {
+                    $service->$method($user, $this->id['card']);
+                    $this->fail('Invalid overrides must not authorize access.');
+                } catch (AuthorizationException) {
+                    $this->assertTrue(true);
+                }
+            }
+        }
+    }
+
+    public function test_hidden_learner_report_cards_reject_view_and_download(): void
+    {
+        $user = $this->reportLearnerUser();
+        $service = app(LearnerReportCardAccessService::class);
+
+        $this->assertSame(
+            $this->id['card'],
+            $service->requireView($user, $this->id['card'])->id
+        );
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['learner_portal_show_report_cards' => false]);
+
+        foreach (['requireView', 'requireDownload'] as $method) {
+            try {
+                $service->$method($user, $this->id['card']);
+                $this->fail('Hidden report cards must not be accessible.');
+            } catch (AuthorizationException $exception) {
+                $this->assertSame('Report cards are disabled.', $exception->getMessage());
+            }
+        }
+    }
+
+    private function reportLearnerUser(): User
+    {
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update([
+                'learner_portal_enabled' => true,
+                'learner_portal_show_report_cards' => true,
+            ]);
+        DB::table('learners')->where('id', $this->id['learner1'])
+            ->update(['portal_enabled' => true]);
+
+        $account = app(LearnerAccountService::class)
+            ->create($this->id['school'], $this->id['learner1'], []);
+
+        return User::withoutGlobalScopes()->with('role')
+            ->findOrFail($account['user']['id']);
     }
 
     public function test_notifications_and_announcements_are_tenant_and_user_scoped(): void
