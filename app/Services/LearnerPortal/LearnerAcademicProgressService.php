@@ -4,6 +4,7 @@ namespace App\Services\LearnerPortal;
 
 use App\Models\User;
 use App\Services\Attendance\AttendanceReadService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 
 class LearnerAcademicProgressService
@@ -37,6 +38,33 @@ class LearnerAcademicProgressService
             return $row;
         });
 
+        $reportCardHistory = DB::table('report_cards')
+            ->where('school_id', $user->school_id)
+            ->where('learner_id', $learner->id)
+            ->where('status', 'published')->where('is_deleted', false)
+            ->latest('published_at')->limit($periods)
+            ->get(['id', 'exam_id', 'overall_grade', 'average_percentage', 'published_at'])
+            ->map(function ($card) use ($user) {
+                try {
+                    $decision = app(LearnerReportCardAccessService::class)
+                        ->decision($user, $card->id);
+                } catch (AuthorizationException) {
+                    return null;
+                }
+
+                if ($decision['view']) {
+                    return $card;
+                }
+
+                return [
+                    'id' => $card->id,
+                    'access' => [
+                        'can_view' => false,
+                        'can_download' => (bool) $decision['download'],
+                    ],
+                ];
+            })->filter(fn ($card) => $card !== null)->values();
+
         $homework = DB::table('homework_assignment_learners')->where('school_id', $user->school_id)->where('learner_id', $learner->id);
         $assigned = (clone $homework)->count();
         $completed = (clone $homework)->whereIn('submission_status', ['submitted', 'late', 'resubmitted', 'reviewed', 'released'])->count();
@@ -50,7 +78,7 @@ class LearnerAcademicProgressService
             return ['learning_area_id' => $id, 'average_percentage' => $scored->isEmpty() ? null : round((float) $scored->avg('percentage'), 2), 'periods' => $items->count(), 'scored_periods' => $scored->count(), 'absent_periods' => $items->filter(fn ($row) => (bool) $row->is_absent)->count(), 'latest_grade' => $items->first()->grade_code, 'change_percentage_points' => $change, 'direction' => $change === null ? 'insufficient_data' : ($change > 0 ? 'improving' : ($change < 0 ? 'declining' : 'stable'))];
         })->values();
 
-        return ['published_periods' => $rows->pluck('exam_id')->unique()->count(), 'average_percentage' => $rows->reject(fn ($row) => (bool) $row->is_absent)->whereNotNull('percentage')->isEmpty() ? null : round((float) $rows->reject(fn ($row) => (bool) $row->is_absent)->avg('percentage'), 2), 'absent_results' => $rows->filter(fn ($row) => (bool) $row->is_absent)->count(), 'grade_distribution' => $rows->whereNotNull('grade_code')->countBy('grade_code'), 'learning_areas' => $areas, 'homework' => ['assigned' => $assigned, 'completed' => $completed, 'completion_rate' => $assigned ? round($completed / $assigned * 100, 2) : null], 'attendance' => $this->attendance->summary($this->attendance->learner($user)->whereDate('attendance_date', '>=', today()->subYear())), 'report_card_history' => DB::table('report_cards')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('status', 'published')->where('is_deleted', false)->latest('published_at')->limit($periods)->get(['id', 'exam_id', 'overall_grade', 'average_percentage', 'published_at']), 'calculation' => 'Averages and changes use scored published processed results only; absence is counted separately.', 'ranking_included' => false, 'ai_prediction' => false];
+        return ['published_periods' => $rows->pluck('exam_id')->unique()->count(), 'average_percentage' => $rows->reject(fn ($row) => (bool) $row->is_absent)->whereNotNull('percentage')->isEmpty() ? null : round((float) $rows->reject(fn ($row) => (bool) $row->is_absent)->avg('percentage'), 2), 'absent_results' => $rows->filter(fn ($row) => (bool) $row->is_absent)->count(), 'grade_distribution' => $rows->whereNotNull('grade_code')->countBy('grade_code'), 'learning_areas' => $areas, 'homework' => ['assigned' => $assigned, 'completed' => $completed, 'completion_rate' => $assigned ? round($completed / $assigned * 100, 2) : null], 'attendance' => $this->attendance->summary($this->attendance->learner($user)->whereDate('attendance_date', '>=', today()->subYear())), 'report_card_history' => $reportCardHistory, 'calculation' => 'Averages and changes use scored published processed results only; absence is counted separately.', 'ranking_included' => false, 'ai_prediction' => false];
     }
 
     public function trends(User $user, int $periods = 6): array

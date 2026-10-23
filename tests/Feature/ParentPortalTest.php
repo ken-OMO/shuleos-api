@@ -847,6 +847,83 @@ class ParentPortalTest extends TestCase
         }
     }
 
+    public function test_authenticated_learner_progress_protects_report_card_history(): void
+    {
+        config(['jwt.secret' => str_repeat('assessment-http-test-', 4)]);
+        $user = $this->reportLearnerUser();
+
+        foreach (['access_learner_portal', 'view_own_academic_progress'] as $name) {
+            $permission = DB::table('permissions')
+                ->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission, 'Missing permission: '.$name);
+
+            if (! DB::table('role_permissions')
+                ->where('role_id', $user->role_id)
+                ->where('permission_id', $permission)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $user->role_id,
+                    'permission_id' => $permission,
+                    'created_at' => now(),
+                ]);
+            }
+        }
+
+        $token = JWTAuth::fromUser($user);
+        $history = fn () => $this->withToken($token)
+            ->getJson('/api/learner/progress')->assertOk()
+            ->json('data.report_card_history');
+
+        $visible = $history();
+        $this->assertCount(1, $visible);
+        $this->assertSame($this->id['card'], $visible[0]['id']);
+        $this->assertArrayHasKey('average_percentage', $visible[0]);
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['report_card_fee_policy' => 'admin_approval']);
+
+        $locked = [[
+            'id' => $this->id['card'],
+            'access' => ['can_view' => false, 'can_download' => false],
+        ]];
+        $this->assertSame($locked, $history());
+
+        $override = (string) Str::uuid();
+        DB::table('report_card_access_overrides')->insert([
+            'id' => $override,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'report_card_id' => $this->id['card'],
+            'access_scope' => 'download',
+            'access_allowed' => true,
+            'approved_by' => $this->id['user'],
+            'expires_at' => now()->addDay(),
+            'is_deleted' => false,
+        ]);
+
+        $downloadOnly = $locked;
+        $downloadOnly[0]['access']['can_download'] = true;
+        $this->assertSame($downloadOnly, $history());
+
+        DB::table('report_card_access_overrides')->where('id', $override)
+            ->update(['access_scope' => 'view']);
+        $this->assertSame($visible, $history());
+
+        foreach ([
+            ['expires_at' => now()->subDay(), 'is_deleted' => false],
+            ['expires_at' => now()->addDay(), 'is_deleted' => true],
+        ] as $state) {
+            DB::table('report_card_access_overrides')->where('id', $override)
+                ->update($state);
+            $this->assertSame($locked, $history());
+        }
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['learner_portal_show_report_cards' => false]);
+
+        $this->assertSame([], $history());
+    }
+
     private function reportLearnerUser(): User
     {
         DB::table('school_settings')->where('school_id', $this->id['school'])
