@@ -15,7 +15,11 @@ class LearnerAcademicProgressService
     {
         $learner = $this->access->learner($user);
         $periods = max(1, min($periods, 12));
-        $query = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->leftJoin('grading_scales', 'grading_scales.id', '=', 'results.grading_scale_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('results.is_deleted', false)->where('exams.status', 'published');
+        $showResults = (bool) (DB::table('school_settings')
+            ->where('school_id', $user->school_id)
+            ->value('learner_portal_show_results') ?? true);
+        $query = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->leftJoin('grading_scales', 'grading_scales.id', '=', 'results.grading_scale_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('results.is_deleted', false)->where('exams.status', 'published')->where('exams.is_deleted', false)
+            ->when(! $showResults, fn ($query) => $query->whereRaw('1 = 0'));
         if ($learningArea) {
             abort_unless(DB::table('learning_area_results')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('learning_area_id', $learningArea)->exists(), 404);
             $query->where('results.learning_area_id', $learningArea);

@@ -24,8 +24,11 @@ class LearnerPortalPhaseTwoService
         $tasks = $this->tasks->tasks($user);
         $today = now()->dayOfWeekIso;
         $timetable = DB::table('timetable_entries as entries')->join('timetables', 'timetables.id', '=', 'entries.timetable_id')->where('timetables.school_id', $user->school_id)->where('timetables.status', 'published')->where('timetables.active', true)->where('entries.grade_id', $learner->grade_id)->where('entries.stream_id', $learner->stream_id)->where('entries.day_of_week', $today)->where('entries.is_deleted', false)->orderBy('entries.period_id')->limit(12)->get();
-        $latestExamId = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('exams.status', 'published')->orderByDesc('results.processed_at')->value('results.exam_id');
-        $latestResult = $latestExamId ? DB::table('learning_area_results')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('exam_id', $latestExamId)->where('processing_status', 'processed')->selectRaw('exam_id, ROUND(AVG(percentage), 2) AS average_percentage')->groupBy('exam_id')->first() : null;
+        $showResults = (bool) (DB::table('school_settings')
+            ->where('school_id', $user->school_id)
+            ->value('learner_portal_show_results') ?? true);
+        $latestExamId = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('exams.status', 'published')->where('exams.is_deleted', false)->where('results.is_deleted', false)->when(! $showResults, fn ($query) => $query->whereRaw('1 = 0'))->orderByDesc('results.processed_at')->value('results.exam_id');
+        $latestResult = $latestExamId ? DB::table('learning_area_results')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('exam_id', $latestExamId)->where('processing_status', 'processed')->where('is_deleted', false)->selectRaw('exam_id, ROUND(AVG(percentage), 2) AS average_percentage')->groupBy('exam_id')->first() : null;
 
         $latestCard = DB::table('report_cards')
             ->where('school_id', $user->school_id)
