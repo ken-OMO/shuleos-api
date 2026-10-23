@@ -8,10 +8,13 @@ use App\Services\LearnerPortal\LearnerReportCardAccessService;
 use App\Services\ParentPortal\ParentPortalAccessService;
 use App\Services\ParentPortal\ParentPortalService;
 use App\Services\ParentPortal\ParentReportCardAccessService;
+use App\Services\Pdf\ReportCardPdfService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Symfony\Component\HttpFoundation\Response;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearnerBuilder;
@@ -455,6 +458,100 @@ class ParentPortalTest extends TestCase
             } catch (AuthorizationException $exception) {
                 $this->assertSame('Report cards are disabled.', $exception->getMessage());
             }
+        }
+    }
+
+    public function test_authenticated_learner_pdf_routes_enforce_report_access_before_rendering(): void
+    {
+        config(['jwt.secret' => str_repeat('assessment-http-test-', 4)]);
+        $user = $this->reportLearnerUser();
+
+        foreach ([
+            'access_learner_portal',
+            'view_own_report_cards',
+            'download_own_report_cards',
+        ] as $name) {
+            $permission = DB::table('permissions')
+                ->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission, 'Missing permission: '.$name);
+
+            if (! DB::table('role_permissions')
+                ->where('role_id', $user->role_id)
+                ->where('permission_id', $permission)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $user->role_id,
+                    'permission_id' => $permission,
+                    'created_at' => now(),
+                ]);
+            }
+        }
+
+        $token = JWTAuth::fromUser($user);
+        $cardId = $this->id['card'];
+
+        // Only the two authorized requests may reach PDF generation.
+        $document = new class
+        {
+            public function stream(string $filename): Response
+            {
+                return new Response(
+                    '%PDF-test-authorized', 200,
+                    ['Content-Type' => 'application/pdf']
+                );
+            }
+        };
+
+        $this->mock(ReportCardPdfService::class)
+            ->shouldReceive('make')->twice()
+            ->with($this->id['school'], $cardId)
+            ->andReturn(['pdf' => $document, 'filename' => 'report.pdf']);
+
+        $base = '/api/learner/report-cards/'.$cardId;
+        foreach (['pdf', 'download'] as $suffix) {
+            $this->withToken($token)->get($base.'/'.$suffix, [
+                'Accept' => 'application/json',
+            ])->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        }
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['learner_portal_show_report_cards' => false]);
+
+        foreach (['pdf', 'download'] as $suffix) {
+            $this->withToken($token)->getJson($base.'/'.$suffix)->assertForbidden();
+        }
+        $this->withToken($token)->getJson($base)->assertForbidden();
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update([
+                'learner_portal_show_report_cards' => true,
+                'report_card_fee_policy' => 'admin_approval',
+            ]);
+
+        $override = (string) Str::uuid();
+        DB::table('report_card_access_overrides')->insert([
+            'id' => $override,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'report_card_id' => $cardId,
+            'access_scope' => 'both',
+            'access_allowed' => true,
+            'approved_by' => $this->id['user'],
+            'expires_at' => now()->subDay(),
+            'is_deleted' => false,
+        ]);
+
+        foreach ([
+            ['expires_at' => now()->subDay(), 'is_deleted' => false],
+            ['expires_at' => now()->addDay(), 'is_deleted' => true],
+        ] as $state) {
+            DB::table('report_card_access_overrides')->where('id', $override)
+                ->update($state);
+
+            foreach (['pdf', 'download'] as $suffix) {
+                $this->withToken($token)->getJson($base.'/'.$suffix)->assertForbidden();
+            }
+            $this->withToken($token)->getJson($base)->assertForbidden();
         }
     }
 
