@@ -46,7 +46,7 @@ class ReportCardService
     public function generate(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId, array $comments = [], bool $loadDetails = true): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId, $comments, $loadDetails) {
-            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
             app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
@@ -303,7 +303,7 @@ class ReportCardService
                 ]);
             }
 
-            $this->lifecycle->lockExam($schoolId, $candidate->exam_id);
+            $this->lifecycle->lockExamForWrite($schoolId, $candidate->exam_id);
             $card = ReportCard::current()->where('school_id', $schoolId)->lockForUpdate()->find($id);
             if (! $card) {
                 throw ValidationException::withMessages([
@@ -336,7 +336,7 @@ class ReportCardService
     public function publish(string $schoolId, string $examId, ?string $learnerId, ?string $gradeId, ?string $streamId, string $userId): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $learnerId, $gradeId, $streamId, $userId) {
-            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $examId);
             $this->context($schoolId, $examId, $learnerId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
             app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);

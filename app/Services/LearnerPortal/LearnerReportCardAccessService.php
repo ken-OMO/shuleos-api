@@ -25,11 +25,14 @@ class LearnerReportCardAccessService
         }
         $balance = (float) DB::table('fee_invoices')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('academic_year_id', $card->academic_year_id)->where('term_id', $card->term_id)->whereNull('cancelled_at')->whereRaw("LOWER(COALESCE(status,'')) <> 'cancelled'")->sum('balance');
         $settings = SchoolSettings::withoutGlobalScopes()->where('school_id', $user->school_id)->first();
+        if ($settings && ! $settings->learner_portal_show_report_cards) {
+            throw new AuthorizationException('Report cards are disabled.');
+        }
         $policy = $settings?->report_card_fee_policy ?? 'open';
         if (! in_array($policy, self::POLICIES, true)) {
             throw ValidationException::withMessages(['policy' => 'Unsupported report-card access policy.']);
         }
-        $override = ReportCardAccessOverride::withoutGlobalScopes()->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('access_allowed', true)->where(fn ($query) => $query->where('report_card_id', $card->id)->orWhere(fn ($nested) => $nested->whereNull('report_card_id')->where(fn ($scope) => $scope->where('exam_id', $card->exam_id)->orWhereNull('exam_id'))))->latest()->first();
+        $override = ReportCardAccessOverride::withoutGlobalScopes()->current()->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('access_allowed', true)->where(fn ($query) => $query->where('report_card_id', $card->id)->orWhere(fn ($nested) => $nested->whereNull('report_card_id')->where(fn ($scope) => $scope->where('exam_id', $card->exam_id)->orWhereNull('exam_id'))))->latest()->first();
         $view = $download = true;
         if (in_array($policy, ['view_only_when_balance', 'fully_restricted_when_balance'], true) && $balance > 0) {
             $view = $download = false;

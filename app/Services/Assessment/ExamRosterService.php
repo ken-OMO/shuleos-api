@@ -35,7 +35,7 @@ class ExamRosterService
         ])->validate();
 
         return DB::transaction(function () use ($schoolId, $examId, $userId, $expectedVersion, $validated) {
-            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $examId);
             $this->lifecycle->assertMutable($exam);
 
             $actor = DB::table('users')->where('id', $userId)

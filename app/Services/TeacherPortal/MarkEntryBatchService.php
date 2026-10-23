@@ -32,7 +32,7 @@ class MarkEntryBatchService
         [$paper, $assignment] = $this->scope($user, $paperId, $assignmentId);
 
         return DB::transaction(function () use ($user, $paper, $assignment, $marks) {
-            $exam = $this->lifecycle->lockExam($user->school_id, $paper->exam_id);
+            $exam = $this->lifecycle->lockExamForWrite($user->school_id, $paper->exam_id);
             $this->lifecycle->assertMutable($exam);
             abort_unless($exam->status === 'published', 409, 'Mark entry requires a published exam.');
 
@@ -65,7 +65,7 @@ class MarkEntryBatchService
     {
         return DB::transaction(function () use ($user, $batchId) {
             $candidate = $this->query($user)->whereKey($batchId)->firstOrFail();
-            $exam = $this->lifecycle->lockExam($user->school_id, $candidate->exam_id);
+            $exam = $this->lifecycle->lockExamForWrite($user->school_id, $candidate->exam_id);
             $this->lifecycle->assertMutable($exam);
             abort_unless($exam->status === 'published', 409, 'Mark submission requires a published exam.');
 
@@ -147,7 +147,21 @@ class MarkEntryBatchService
 
     public function correction(User $user, string $batchId, array $data)
     {
+        return DB::transaction(function () use ($user, $batchId, $data) {
+            $this->lifecycle->assertSchoolWritable($user->school_id);
+
+            return $this->correctionWritable($user, $batchId, $data);
+        });
+    }
+
+    private function correctionWritable(User $user, string $batchId, array $data)
+    {
         $batch = $this->query($user)->whereKey($batchId)->whereIn('status', ['submitted', 'approved', 'locked'])->firstOrFail();
+        $this->lifecycle->lockExam($user->school_id, $batch->exam_id);
+        $batch = $this->query($user)->whereKey($batchId)
+            ->whereIn('status', ['submitted', 'approved', 'locked'])
+            ->lockForUpdate()->firstOrFail();
+
         abort_if(DB::table('mark_correction_requests')->where('batch_id', $batch->id)->where('status', 'pending')->exists(), 409, 'A correction request is already pending.');
         $item = isset($data['batch_item_id']) ? $batch->items()->whereKey($data['batch_item_id'])->firstOrFail() : null;
         $proposal = null;

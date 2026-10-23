@@ -3,10 +3,14 @@
 namespace Tests\Feature;
 
 use App\Services\Assessment\AssessmentTypeService;
+use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\TestCase;
@@ -92,6 +96,133 @@ class ExamTest extends TestCase
             $exam->fresh(),
             'draft'
         );
+    }
+
+    public function test_rejected_mixed_update_preserves_status_and_details(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+        $before = $exam->fresh()->getAttributes();
+
+        try {
+            $service->update($exam, [
+                'status' => 'published', 'exam_name' => 'Rejected name',
+                'active' => false,
+            ]);
+            $this->fail('Mixed publication and detail changes must be rejected.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+    }
+
+    public function test_partial_date_update_checks_the_stored_other_boundary(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+        $before = $exam->fresh()->getAttributes();
+
+        foreach ([
+            ['end_date' => '2026-07-19'],
+            ['start_date' => '2026-07-26'],
+            ['end_date' => '2026-08-03'],
+        ] as $values) {
+            try {
+                $service->update($exam, $values);
+                $this->fail('Invalid merged exam dates must be rejected.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('start_date', $exception->errors());
+            }
+            $this->assertSame($before, $exam->fresh()->getAttributes());
+        }
+    }
+
+    public function test_draft_update_and_status_only_transition_succeed(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+
+        $updated = $service->update($exam, [
+            'exam_name' => ' Updated exam ',
+            'end_date' => '2026-07-24',
+        ]);
+        $this->assertSame('Updated exam', $updated->exam_name);
+        $this->assertSame('2026-07-24', $updated->end_date->toDateString());
+
+        $published = $service->update($exam, ['status' => 'published']);
+        $this->assertSame('published', $published->status);
+
+        // The original instance still says draft; stored state must win.
+        try {
+            $service->update($exam, ['exam_name' => 'Stale overwrite']);
+            $this->fail('A stale draft model must not change published details.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+        $this->assertSame('Updated exam', $exam->fresh()->exam_name);
+    }
+
+    public function test_empty_draft_deletion_archives_the_exam(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+
+        $service->delete($exam, null);
+
+        $stored = DB::table('exams')
+            ->where('id', $exam->id)->first();
+
+        $this->assertNotNull($stored);
+        $this->assertTrue((bool) $stored->is_deleted);
+        $this->assertFalse((bool) $stored->active);
+        $this->assertNotNull($stored->deleted_at);
+    }
+
+    public function test_deletion_rechecks_published_state_of_a_stale_draft(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+
+        $service->update($exam, ['status' => 'published']);
+        $before = $exam->fresh()->getAttributes();
+        $this->assertSame('draft', $exam->status);
+
+        try {
+            $service->delete($exam, null);
+            $this->fail('A stale draft must not delete a published exam.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+    }
+
+    public function test_deletion_rejects_a_draft_with_a_learning_area(): void
+    {
+        $service = app(ExamService::class);
+        $exam = $service->create($this->data(), $this->school->id, null);
+        $area = LearningAreaBuilder::create();
+
+        $attached = app(ExamLearningAreaService::class)
+            ->create([
+                'exam_id' => $exam->id,
+                'learning_area_id' => $area->id,
+                'number_of_papers' => 1,
+                'total_marks' => 100,
+            ], $this->school->id);
+
+        $before = $exam->fresh()->getAttributes();
+
+        try {
+            $service->delete($exam, null);
+            $this->fail('A draft with a learning area must not be deleted.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(400, $exception->getStatusCode());
+        }
+
+        $this->assertSame($before, $exam->fresh()->getAttributes());
+        $this->assertFalse($attached->fresh()->is_deleted);
     }
 
     private function data(): array

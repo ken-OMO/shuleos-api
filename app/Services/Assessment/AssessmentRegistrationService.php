@@ -4,12 +4,22 @@ namespace App\Services\Assessment;
 
 use App\Models\AssessmentRegistration;
 use App\Models\Learner;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class AssessmentRegistrationService
 {
     public function create(array $d, string $school, ?string $user): AssessmentRegistration
+    {
+        return DB::transaction(function () use ($d, $school, $user) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school, $user);
+        });
+    }
+
+    private function createWritable(array $d, string $school, ?string $user): AssessmentRegistration
     {
         $learner = Learner::whereKey($d['learner_id'])->where('school_id', $school)->where('active', true)->where('is_deleted', false)->first();
         if (! $learner) {

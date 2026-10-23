@@ -115,7 +115,23 @@ class LearnerPortalService
             throw new AuthorizationException('Report cards are disabled.');
         }
 
-        return ReportCard::current()->where('school_id', $u->school_id)->where('learner_id', $l->id)->where('status', 'published')->with('exam', 'term', 'overallGradingScale')->get();
+        return ReportCard::current()->where('school_id', $u->school_id)->where('learner_id', $l->id)->where('status', 'published')->with('exam', 'term', 'overallGradingScale')->get()
+            ->toBase()->map(function (ReportCard $card) use ($u) {
+                $decision = app(LearnerReportCardAccessService::class)
+                    ->decision($u, $card->id);
+
+                if ($decision['view']) {
+                    return $card;
+                }
+
+                return [
+                    'id' => $card->id,
+                    'access' => [
+                        'can_view' => false,
+                        'can_download' => (bool) $decision['download'],
+                    ],
+                ];
+            });
     }
 
     public function reportCard(User $u, string $id)

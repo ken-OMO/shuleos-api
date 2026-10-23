@@ -44,15 +44,9 @@ class ExamPaperController extends BaseCrudController
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Exam paper not found.');
-        }if ($x->examLearningArea->exam->status !== 'draft' || $x->results()->exists()) {
-            return $this->badRequest('Papers with results or a published exam cannot be changed.');
-        }$v = $r->validate(['paper_name' => 'sometimes|string|max:255', 'max_marks' => 'sometimes|integer|min:1|max:1000']);
-        if (isset($v['max_marks'])) {
-            $other = ExamPaper::current()->where('exam_learning_area_id', $x->exam_learning_area_id)->whereKeyNot($x->id)->sum('max_marks');
-            if ($other + $v['max_marks'] > $x->examLearningArea->total_marks) {
-                return $this->validation(['max_marks' => ['Paper marks would exceed the learning area total marks.']]);
-            }
-        }$x->update($v);
+        }
+        $v = $r->validate(['paper_name' => 'sometimes|string|max:255', 'max_marks' => 'sometimes|integer|min:1|max:1000']);
+        $x = $this->service->update($x, $v, $this->school($r));
 
         return $this->success(new ExamPaperResource($x->refresh()->load(self::RELATIONS)), 'Exam paper updated successfully.');
     }
@@ -62,9 +56,8 @@ class ExamPaperController extends BaseCrudController
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Exam paper not found.');
-        }if ($x->examLearningArea->exam->status !== 'draft' || $x->results()->exists()) {
-            return $this->badRequest('Only result-free papers on draft exams can be deleted.');
-        }$x->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        }
+        $this->service->delete($x, $this->school($r), auth()->id());
 
         return $this->success(null, 'Exam paper deleted successfully.');
     }

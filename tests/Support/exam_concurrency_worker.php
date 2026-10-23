@@ -1,13 +1,21 @@
 <?php
 
+use App\Models\Exam;
+use App\Models\ExamLearningArea;
+use App\Models\ExamPaper;
+use App\Services\Assessment\ExamLearningAreaService;
+use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamRosterService;
+use App\Services\Assessment\ExamService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -64,15 +72,30 @@ try {
 
     $result = DB::transaction(function () use ($payload) {
         if ($payload['hold_lock'] ?? false) {
-            app(ExamResultLifecycleService::class)->lockExam(
-                $payload['school_id'], $payload['exam_id']
-            );
+            if ($payload['operation'] === 'school_read_only') {
+                DB::table('schools')->where('id', $payload['school_id'])
+                    ->lockForUpdate()->firstOrFail();
+            } else {
+                app(ExamResultLifecycleService::class)->lockExamForWrite(
+                    $payload['school_id'], $payload['exam_id']
+                );
+            }
             workerMessage(['event' => 'locked']);
 
             $release = fgets(STDIN);
             if ($release === false || trim($release) !== 'release') {
                 throw new RuntimeException('Worker lock was not released by the test.');
             }
+        }
+
+        if ($payload['operation'] === 'school_read_only') {
+            // Exercise the same exclusive school-row lock as lifecycle changes.
+            // This worker tests database serialization, not platform permissions.
+            DB::table('schools')->where('id', $payload['school_id'])
+                ->lockForUpdate()->firstOrFail();
+
+            return DB::table('schools')->where('id', $payload['school_id'])
+                ->update(['lifecycle_state' => 'read_only']);
         }
 
         return match ($payload['operation']) {
@@ -103,15 +126,65 @@ try {
                 $payload['version'],
                 $payload['selections']
             )['version'],
+            'paper_create' => app(ExamPaperService::class)
+                ->create($payload['paper'], $payload['school_id'])->id,
+            'exam_publish' => app(ExamService::class)
+                ->update(
+                    Exam::withoutGlobalScopes()
+                        ->where('school_id', $payload['school_id'])
+                        ->findOrFail($payload['exam_id']),
+                    ['status' => 'published']
+                )->id,
+            'paper_update' => app(ExamPaperService::class)
+                ->update(
+                    ExamPaper::withoutGlobalScopes()
+                        ->findOrFail($payload['paper_id']),
+                    ['max_marks' => $payload['max_marks']],
+                    $payload['school_id']
+                )->id,
+            'area_delete' => app(ExamLearningAreaService::class)
+                ->delete(
+                    ExamLearningArea::withoutGlobalScopes()
+                        ->findOrFail($payload['exam_learning_area_id']),
+                    $payload['school_id'],
+                    $payload['actor_id']
+                ),
+            'exam_delete' => app(ExamService::class)
+                ->delete(
+                    Exam::withoutGlobalScopes()
+                        ->where('school_id', $payload['school_id'])
+                        ->findOrFail($payload['exam_id']),
+                    $payload['actor_id']
+                ),
+            'area_create' => app(ExamLearningAreaService::class)
+                ->create([
+                    'exam_id' => $payload['exam_id'],
+                    'learning_area_id' => $payload['area_id'],
+                    'number_of_papers' => 1,
+                    'total_marks' => 100,
+                ], $payload['school_id'])->id,
             default => throw new RuntimeException('Unsupported worker operation.'),
         };
     });
 
     workerMessage(['event' => 'finished', 'result' => $result]);
+} catch (AuthorizationException $exception) {
+    workerMessage([
+        'event' => 'rejected',
+        'fields' => ['school_access'],
+    ]);
+    exit(2);
 } catch (ValidationException $exception) {
     workerMessage([
         'event' => 'rejected',
         'fields' => array_keys($exception->errors()),
+    ]);
+    exit(2);
+} catch (HttpExceptionInterface $exception) {
+    workerMessage([
+        'event' => 'rejected',
+        'fields' => [],
+        'http_status' => $exception->getStatusCode(),
     ]);
     exit(2);
 } catch (Throwable $exception) {

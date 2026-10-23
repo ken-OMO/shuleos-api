@@ -22,7 +22,7 @@ class MeritListService
     public function generate(string $schoolId, string $examId, ?string $gradeId, ?string $streamId, string $generatedBy): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $gradeId, $streamId, $generatedBy) {
-            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
             app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);
@@ -232,7 +232,7 @@ class MeritListService
     public function publish(string $schoolId, string $examId, ?string $gradeId, ?string $streamId): Collection
     {
         return DB::transaction(function () use ($schoolId, $examId, $gradeId, $streamId) {
-            $exam = $this->lifecycle->lockExam($schoolId, $examId);
+            $exam = $this->lifecycle->lockExamForWrite($schoolId, $examId);
             $this->validateContext($schoolId, $examId, $gradeId, $streamId);
             $this->lifecycle->assertProcessedResultsFresh($exam);
             app(ExamCompletenessService::class)->assertComplete($schoolId, $examId);

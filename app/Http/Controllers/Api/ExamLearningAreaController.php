@@ -48,10 +48,9 @@ class ExamLearningAreaController extends BaseCrudController
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Exam learning area not found.');
-        }if ($x->exam->status !== 'draft' || $x->papers()->exists()) {
-            return $this->badRequest('Exam learning areas with papers or a published exam cannot be changed.');
-        }$v = $r->validate(['number_of_papers' => 'sometimes|integer|min:1|max:10', 'total_marks' => 'sometimes|integer|min:1|max:1000']);
-        $x->update($v);
+        }
+        $v = $r->validate(['number_of_papers' => 'sometimes|integer|min:1|max:10', 'total_marks' => 'sometimes|integer|min:1|max:1000']);
+        $x = $this->service->update($x, $v, $this->school($r));
 
         return $this->success(new ExamLearningAreaResource($x->refresh()->load(self::RELATIONS)), 'Exam learning area updated successfully.');
     }
@@ -61,9 +60,8 @@ class ExamLearningAreaController extends BaseCrudController
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Exam learning area not found.');
-        }if ($x->exam->status !== 'draft' || $x->papers()->exists()) {
-            return $this->badRequest('Only paperless learning areas on draft exams can be deleted.');
-        }$x->update(['is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        }
+        $this->service->delete($x, $this->school($r), auth()->id());
 
         return $this->success(null, 'Exam learning area deleted successfully.');
     }

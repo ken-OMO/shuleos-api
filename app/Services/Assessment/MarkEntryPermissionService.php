@@ -4,12 +4,22 @@ namespace App\Services\Assessment;
 
 use App\Models\Exam;
 use App\Models\MarkEntryPermission;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class MarkEntryPermissionService
 {
     public function create(array $d, string $school): MarkEntryPermission
+    {
+        return DB::transaction(function () use ($d, $school) {
+            app(ExamResultLifecycleService::class)->assertSchoolWritable($school);
+
+            return $this->createWritable($d, $school);
+        });
+    }
+
+    private function createWritable(array $d, string $school): MarkEntryPermission
     {
         $exam = Exam::current()->whereKey($d['exam_id'])->where('school_id', $school)->where('status', 'published')->where('active', true)->first();
         if (! $exam) {

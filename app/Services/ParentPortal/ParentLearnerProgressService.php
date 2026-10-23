@@ -34,7 +34,7 @@ class ParentLearnerProgressService
     {
         $rows = DB::table('learning_area_results as result')->join('exams as exam', 'exam.id', '=', 'result.exam_id')
             ->where('result.school_id', $user->school_id)->where('result.learner_id', $learnerId)->where('result.processing_status', 'processed')
-            ->where('result.is_deleted', false)->where('exam.status', 'published')->orderBy('result.processed_at')->limit(100)
+            ->where('result.is_deleted', false)->where('exam.status', 'published')->where('exam.is_deleted', false)->orderBy('result.processed_at')->limit(100)
             ->get(['result.learning_area_id', 'result.percentage', 'result.is_absent', 'result.processed_at'])->groupBy('learning_area_id');
 
         return $rows->map(function ($values, $area) {

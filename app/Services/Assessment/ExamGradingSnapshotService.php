@@ -52,6 +52,8 @@ class ExamGradingSnapshotService
             $rules = json_decode($snapshot->rules, true, 512, JSON_THROW_ON_ERROR);
             $snapshotId = $snapshot->id;
         } else {
+            // Capturing rules is a write; reading existing rules is not.
+            $lifecycle->assertSchoolWritable($schoolId);
             // Never initialize new rules behind already published outputs.
             $lifecycle->assertMutable($exam);
 

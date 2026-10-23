@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Attendance\AttendanceReadService;
 use App\Services\Communication\CommunicationNotificationService;
 use App\Services\Timetable\CurrentPeriodService;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -23,13 +24,43 @@ class LearnerPortalPhaseTwoService
         $tasks = $this->tasks->tasks($user);
         $today = now()->dayOfWeekIso;
         $timetable = DB::table('timetable_entries as entries')->join('timetables', 'timetables.id', '=', 'entries.timetable_id')->where('timetables.school_id', $user->school_id)->where('timetables.status', 'published')->where('timetables.active', true)->where('entries.grade_id', $learner->grade_id)->where('entries.stream_id', $learner->stream_id)->where('entries.day_of_week', $today)->where('entries.is_deleted', false)->orderBy('entries.period_id')->limit(12)->get();
-        $latestExamId = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('exams.status', 'published')->orderByDesc('results.processed_at')->value('results.exam_id');
-        $latestResult = $latestExamId ? DB::table('learning_area_results')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('exam_id', $latestExamId)->where('processing_status', 'processed')->selectRaw('exam_id, ROUND(AVG(percentage), 2) AS average_percentage')->groupBy('exam_id')->first() : null;
+        $showResults = (bool) (DB::table('school_settings')
+            ->where('school_id', $user->school_id)
+            ->value('learner_portal_show_results') ?? true);
+        $latestExamId = DB::table('learning_area_results as results')->join('exams', 'exams.id', '=', 'results.exam_id')->where('results.school_id', $user->school_id)->where('results.learner_id', $learner->id)->where('results.processing_status', 'processed')->where('exams.status', 'published')->where('exams.is_deleted', false)->where('results.is_deleted', false)->when(! $showResults, fn ($query) => $query->whereRaw('1 = 0'))->orderByDesc('results.processed_at')->value('results.exam_id');
+        $latestResult = $latestExamId ? DB::table('learning_area_results')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('exam_id', $latestExamId)->where('processing_status', 'processed')->where('is_deleted', false)->selectRaw('exam_id, ROUND(AVG(percentage), 2) AS average_percentage')->groupBy('exam_id')->first() : null;
+
+        $latestCard = DB::table('report_cards')
+            ->where('school_id', $user->school_id)
+            ->where('learner_id', $learner->id)
+            ->where('status', 'published')->where('is_deleted', false)
+            ->latest('published_at')
+            ->select('id', 'exam_id', 'overall_grade', 'average_percentage', 'published_at')
+            ->first();
+
+        if ($latestCard) {
+            try {
+                $decision = app(LearnerReportCardAccessService::class)
+                    ->decision($user, $latestCard->id);
+
+                if (! $decision['view']) {
+                    $latestCard = [
+                        'id' => $latestCard->id,
+                        'access' => [
+                            'can_view' => false,
+                            'can_download' => (bool) $decision['download'],
+                        ],
+                    ];
+                }
+            } catch (AuthorizationException) {
+                $latestCard = null;
+            }
+        }
 
         $attendance = $this->attendance->summary($this->attendance->learner($user)->whereDate('attendance_date', '>=', today()->subDays(89)));
         $announcements = $this->communications->announcements($user);
 
-        return ['learner' => ['id' => $learner->id, 'name' => trim($learner->first_name.' '.$learner->last_name), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id], 'academic_context' => ['academic_year' => DB::table('academic_years')->where('school_id', $user->school_id)->where('active', true)->select('id', 'year_name')->first(), 'term' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->select('id', 'term_name')->first()], 'today_timetable' => $timetable, 'current_period' => $this->currentPeriod->current($user), 'homework_due_soon' => $tasks->where('type', 'homework_due')->take(10)->values(), 'overdue_homework' => $tasks->where('type', 'homework_overdue')->take(10)->values(), 'submissions_awaiting_feedback' => DB::table('homework_submissions')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->whereIn('submission_status', ['submitted', 'late', 'resubmitted'])->count(), 'recently_returned_submissions' => $tasks->where('type', 'submission_returned')->take(10)->values(), 'tasks' => $tasks, 'unread_notifications' => DB::table('notifications')->where('school_id', $user->school_id)->where('user_id', $user->id)->where(fn ($query) => $query->where('is_read', false)->orWhere('state', 'unread'))->count(), 'announcements' => collect($announcements->items())->take(5)->values(), 'latest_result' => $latestResult, 'latest_report_card' => DB::table('report_cards')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->where('status', 'published')->where('is_deleted', false)->latest('published_at')->select('id', 'exam_id', 'overall_grade', 'average_percentage', 'published_at')->first(), 'attendance_summary' => $attendance, 'upcoming_school_events' => $this->calendar($user, true)['items'], 'available_offline_resources' => $this->offline->index($user)->count(), 'last_sync_at' => DB::table('learner_sync_operations')->where('user_id', $user->id)->max('created_at'), 'active_devices' => DB::table('learner_portal_devices')->where('user_id', $user->id)->whereNull('revoked_at')->count(), 'last_refreshed_at' => now()->toIso8601String()];
+        return ['learner' => ['id' => $learner->id, 'name' => trim($learner->first_name.' '.$learner->last_name), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id], 'academic_context' => ['academic_year' => DB::table('academic_years')->where('school_id', $user->school_id)->where('active', true)->select('id', 'year_name')->first(), 'term' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->select('id', 'term_name')->first()], 'today_timetable' => $timetable, 'current_period' => $this->currentPeriod->current($user), 'homework_due_soon' => $tasks->where('type', 'homework_due')->take(10)->values(), 'overdue_homework' => $tasks->where('type', 'homework_overdue')->take(10)->values(), 'submissions_awaiting_feedback' => DB::table('homework_submissions')->where('school_id', $user->school_id)->where('learner_id', $learner->id)->whereIn('submission_status', ['submitted', 'late', 'resubmitted'])->count(), 'recently_returned_submissions' => $tasks->where('type', 'submission_returned')->take(10)->values(), 'tasks' => $tasks, 'unread_notifications' => DB::table('notifications')->where('school_id', $user->school_id)->where('user_id', $user->id)->where(fn ($query) => $query->where('is_read', false)->orWhere('state', 'unread'))->count(), 'announcements' => collect($announcements->items())->take(5)->values(), 'latest_result' => $latestResult, 'latest_report_card' => $latestCard, 'attendance_summary' => $attendance, 'upcoming_school_events' => $this->calendar($user, true)['items'], 'available_offline_resources' => $this->offline->index($user)->count(), 'last_sync_at' => DB::table('learner_sync_operations')->where('user_id', $user->id)->max('created_at'), 'active_devices' => DB::table('learner_portal_devices')->where('user_id', $user->id)->whereNull('revoked_at')->count(), 'last_refreshed_at' => now()->toIso8601String()];
     }
 
     public function calendar(User $user, bool $upcoming = false): array
