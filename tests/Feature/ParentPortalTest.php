@@ -2,8 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\ParentPortalArrayResource;
+use App\Models\ReportCard;
 use App\Models\User;
 use App\Services\LearnerPortal\LearnerAccountService;
+use App\Services\LearnerPortal\LearnerPortalService;
 use App\Services\LearnerPortal\LearnerReportCardAccessService;
 use App\Services\ParentPortal\ParentPortalAccessService;
 use App\Services\ParentPortal\ParentPortalService;
@@ -553,6 +556,104 @@ class ParentPortalTest extends TestCase
             }
             $this->withToken($token)->getJson($base)->assertForbidden();
         }
+    }
+
+    public function test_learner_report_list_hides_restricted_scores_and_honours_override_scope(): void
+    {
+        $user = $this->reportLearnerUser();
+        $portal = app(LearnerPortalService::class);
+
+        $visible = $portal->reportCards($user)->firstWhere('id', $this->id['card']);
+        $this->assertInstanceOf(ReportCard::class, $visible);
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['report_card_fee_policy' => 'admin_approval']);
+
+        $locked = [
+            'id' => $this->id['card'],
+            'access' => ['can_view' => false, 'can_download' => false],
+        ];
+        $this->assertSame(
+            $locked,
+            $portal->reportCards($user)->firstWhere('id', $this->id['card'])
+        );
+
+        $override = (string) Str::uuid();
+        DB::table('report_card_access_overrides')->insert([
+            'id' => $override,
+            'school_id' => $this->id['school'],
+            'learner_id' => $this->id['learner1'],
+            'report_card_id' => $this->id['card'],
+            'access_scope' => 'download',
+            'access_allowed' => true,
+            'approved_by' => $this->id['user'],
+            'expires_at' => now()->addDay(),
+            'is_deleted' => false,
+        ]);
+
+        $downloadOnly = $locked;
+        $downloadOnly['access']['can_download'] = true;
+        $this->assertSame(
+            $downloadOnly,
+            $portal->reportCards($user)->firstWhere('id', $this->id['card'])
+        );
+
+        DB::table('report_card_access_overrides')->where('id', $override)
+            ->update(['access_scope' => 'view']);
+
+        $allowed = $portal->reportCards($user)->firstWhere('id', $this->id['card']);
+        $this->assertInstanceOf(ReportCard::class, $allowed);
+        $this->assertSame($visible->overall_score, $allowed->overall_score);
+
+        DB::table('report_card_access_overrides')->where('id', $override)
+            ->update(['expires_at' => now()->subDay()]);
+
+        $this->assertSame(
+            $locked,
+            $portal->reportCards($user)->firstWhere('id', $this->id['card'])
+        );
+    }
+
+    public function test_nested_parent_report_cards_respect_view_restrictions(): void
+    {
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['report_card_fee_policy' => 'admin_approval']);
+
+        $portal = app(ParentPortalService::class);
+        $rows = $portal->reportCards($this->user(), $this->id['learner1']);
+        $entry = $rows->first(fn ($row) => $row['report_card']->id === $this->id['card']);
+        $this->assertNotNull($entry);
+
+        $payload = (new ParentPortalArrayResource([
+            'latest_report_card' => $entry,
+            'report_cards' => collect([$entry]),
+        ]))->resolve(request());
+
+        foreach ([
+            $payload['latest_report_card'],
+            $payload['report_cards'][0],
+        ] as $card) {
+            $this->assertSame($this->id['card'], $card['id']);
+            $this->assertFalse($card['access']['can_view']);
+            $this->assertFalse($card['access']['can_download']);
+            $this->assertSame(['id', 'access'], array_keys($card));
+        }
+
+        DB::table('school_settings')->where('school_id', $this->id['school'])
+            ->update(['report_card_fee_policy' => 'open']);
+
+        $entry = $portal->reportCards($this->user(), $this->id['learner1'])
+            ->first(fn ($row) => $row['report_card']->id === $this->id['card']);
+
+        $visible = (new ParentPortalArrayResource([
+            'latest_report_card' => $entry,
+        ]))->resolve(request())['latest_report_card'];
+
+        $this->assertTrue($visible['access']['can_view']);
+        $this->assertArrayHasKey('overall_score', $visible);
+        $this->assertEquals($entry['report_card']->overall_score, $visible['overall_score']);
+        $this->assertArrayNotHasKey('report_card', $visible);
+        $this->assertArrayNotHasKey('school_id', $visible);
     }
 
     private function reportLearnerUser(): User

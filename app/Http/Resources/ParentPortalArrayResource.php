@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ReportCard;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Collection;
@@ -15,6 +16,13 @@ class ParentPortalArrayResource extends JsonResource
 
     private function sanitize(array $data): array
     {
+        if (($data['report_card'] ?? null) instanceof ReportCard
+            && isset($data['access'])) {
+            return $this->sanitize(
+                (new ParentReportCardResource($data))->resolve(request())
+            );
+        }
+
         $blocked = ['school_id', 'parent_id', 'guardian_id', 'user_id', 'storage_id', 'storage_path', 'path', 'audit_metadata', 'metadata', 'created_by', 'updated_by', 'deleted_by', 'approved_by', 'published_by', 'received_by', 'password', 'password_hash', 'push_token', 'push_token_encrypted', 'device_identifier_hash', 'provider_message_id', 'provider_response'];
 
         return collect($data)->except($blocked)->map(function ($value) {
