@@ -791,6 +791,62 @@ class ParentPortalTest extends TestCase
         $this->assertNull($dashboard()->json('data.latest_report_card'));
     }
 
+    public function test_authenticated_parent_progress_projects_nested_report_card_collections(): void
+    {
+        config(['jwt.secret' => str_repeat('assessment-http-test-', 4)]);
+        $user = $this->user();
+
+        $permission = DB::table('permissions')
+            ->where('permission_name', 'view_linked_learner_progress')->value('id');
+        $this->assertNotNull($permission);
+
+        if (! DB::table('role_permissions')
+            ->where('role_id', $user->role_id)
+            ->where('permission_id', $permission)->exists()) {
+            DB::table('role_permissions')->insert([
+                'id' => (string) Str::uuid(),
+                'role_id' => $user->role_id,
+                'permission_id' => $permission,
+                'created_at' => now(),
+            ]);
+        }
+
+        $token = JWTAuth::fromUser($user);
+        $base = '/api/parent/children/'.$this->id['learner1'].'/progress';
+
+        foreach (['admin_approval', 'open'] as $policy) {
+            DB::table('school_settings')->where('school_id', $this->id['school'])
+                ->update(['report_card_fee_policy' => $policy]);
+
+            foreach ([$base, $base.'/academics'] as $url) {
+                $response = $this->withToken($token)->getJson($url)->assertOk();
+                $cards = $response->json('data.academics.published_report_cards');
+
+                $this->assertIsArray($cards);
+                $this->assertCount(1, $cards);
+                $card = $cards[0];
+
+                $this->assertSame($this->id['card'], $card['id']);
+                $this->assertArrayNotHasKey('report_card', $card);
+                $this->assertArrayNotHasKey('school_id', $card);
+
+                if ($policy === 'admin_approval') {
+                    $this->assertSame(['id', 'access'], array_keys($card));
+                    $this->assertFalse($card['access']['can_view']);
+                    $this->assertFalse($card['access']['can_download']);
+                } else {
+                    $this->assertTrue($card['access']['can_view']);
+                    $this->assertArrayHasKey('overall_score', $card);
+                    $this->assertEquals(
+                        DB::table('report_cards')->where('id', $this->id['card'])
+                            ->value('overall_score'),
+                        $card['overall_score']
+                    );
+                }
+            }
+        }
+    }
+
     private function reportLearnerUser(): User
     {
         DB::table('school_settings')->where('school_id', $this->id['school'])
