@@ -3,6 +3,7 @@
 namespace App\Services\Pdf;
 
 use App\Models\ReportCard;
+use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -17,9 +18,15 @@ class ReportCardPdfService
         if (! in_array($card->status, ['generated', 'published'], true)) {
             throw ValidationException::withMessages(['report_card' => 'Only generated or published report cards can be rendered.']);
         }
+        $presentations = app(ReportCardPresentationSnapshotService::class);
+        $card = $presentations->forDisplay($card);
         $settings = $card->school->settings;
-        $logo = $this->safeImage($settings?->school_logo_url ?: $card->school->logo_url);
-        $signature = $this->safeImage($settings?->principal_signature_url);
+        $logo = $card->status === 'published'
+            ? $presentations->asset($card, 'logo')
+            : $this->safeImage($settings?->school_logo_url ?: $card->school->logo_url);
+        $signature = $card->status === 'published'
+            ? $presentations->asset($card, 'principal_signature')
+            : $this->safeImage($settings?->principal_signature_url);
         $pdf = Pdf::loadView('pdf.report-card', compact('card', 'settings', 'logo', 'signature'))->setPaper('a4', 'portrait');
 
         return ['pdf' => $pdf, 'filename' => $this->filename($card)];

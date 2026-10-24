@@ -369,7 +369,28 @@ class ReportCardService
                 ]);
             }
 
-            $cards->each->update(['status' => 'published', 'published_by' => $userId, 'published_at' => now()]);
+            $cards->load([
+                'school.settings', 'learner', 'exam', 'academicYear',
+                'term', 'grade', 'stream', 'pathwayRecommendation',
+                'learningAreas.learningArea',
+            ]);
+            $presentations = app(ReportCardPresentationSnapshotService::class);
+            $publishedAt = now();
+
+            foreach ($cards as $card) {
+                if ($card->presentation_snapshot !== null) {
+                    throw ValidationException::withMessages([
+                        'presentation_snapshot' => 'An existing publication snapshot cannot be replaced.',
+                    ]);
+                }
+
+                $card->update([
+                    'presentation_snapshot' => $presentations->capture($card),
+                    'status' => 'published',
+                    'published_by' => $userId,
+                    'published_at' => $publishedAt,
+                ]);
+            }
 
             return $cards->load(self::RELATIONS);
         });

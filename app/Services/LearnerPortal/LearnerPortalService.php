@@ -6,6 +6,7 @@ use App\Models\LearnerDashboardPreference;
 use App\Models\ReportCard;
 use App\Models\SchoolSettings;
 use App\Models\User;
+use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use App\Services\Communication\CommunicationNotificationService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -121,7 +122,9 @@ class LearnerPortalService
                     ->decision($u, $card->id);
 
                 if ($decision['view']) {
-                    return $card;
+                    return app(
+                        ReportCardPresentationSnapshotService::class
+                    )->forDisplay($card);
                 }
 
                 return [
@@ -136,7 +139,12 @@ class LearnerPortalService
 
     public function reportCard(User $u, string $id)
     {
-        return $this->a->requireReportCard($u, $id)->load('exam', 'term', 'overallGradingScale', 'learningAreas.learningArea', 'learningAreas.gradingScale');
+        $card = $this->a->requireReportCard($u, $id)
+            ->load('exam', 'term', 'overallGradingScale', 'learningAreas.learningArea', 'learningAreas.gradingScale');
+
+        return app(
+            ReportCardPresentationSnapshotService::class
+        )->forDisplay($card);
     }
 
     public function fees(User $u)
