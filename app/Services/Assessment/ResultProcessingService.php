@@ -88,30 +88,24 @@ class ResultProcessingService
                 ]);
             }
 
-            $values = app(PaperResultValueService::class);
-            $papersById = $papers->keyBy('id');
-            $normalized = $results->map(fn (ExamResult $result) => $values->normalize([
-                'is_absent' => $result->is_absent,
-                'marks' => $result->marks,
-            ], (float) $papersById[$result->paper_id]->max_marks));
+            $aggregate = app(PaperResultAggregationService::class)->calculate(
+                $papers->map(fn ($paper): array => [
+                    'id' => $paper->id,
+                    'max_marks' => $paper->max_marks,
+                ])->all(),
+                $results->map(fn ($result): array => [
+                    'paper_id' => $result->paper_id,
+                    'marks' => $result->marks,
+                    'is_absent' => $result->is_absent,
+                ])->all(),
+                (float) $examLearningArea->total_marks
+            );
 
-            $isAbsent = $normalized->contains(fn (array $value) => $value['is_absent']);
-            $marksObtained = $isAbsent ? null : round((float) $normalized->sum('marks'), 2);
-            $maximumMarks = round((float) $papers->sum('max_marks'), 2);
+            $isAbsent = $aggregate['is_absent'];
+            $marksObtained = $aggregate['marks_obtained'];
+            $maximumMarks = $aggregate['maximum_marks'];
+            $percentage = $aggregate['percentage'];
 
-            if ($maximumMarks <= 0 || abs($maximumMarks - (float) $examLearningArea->total_marks) > 0.001) {
-                throw ValidationException::withMessages([
-                    'maximum_marks' => 'The paper maximum marks do not equal the exam learning area total marks.',
-                ]);
-            }
-
-            if ($marksObtained > $maximumMarks) {
-                throw ValidationException::withMessages([
-                    'marks_obtained' => 'Aggregated marks exceed the available maximum marks.',
-                ]);
-            }
-
-            $percentage = $isAbsent ? null : round(($marksObtained / $maximumMarks) * 100, 2);
             $grade = $isAbsent ? [
                 'format_version' => 1,
                 'rules_snapshot_id' => null,

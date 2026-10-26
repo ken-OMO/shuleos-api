@@ -86,4 +86,5 @@ return [
     'fee-invoices' => 'manage_finance',
     'payments' => 'manage_finance',
     'payment-allocations' => 'manage_finance',
+    'assessment-reissues' => 'view_assessment_publication_history',
 ];

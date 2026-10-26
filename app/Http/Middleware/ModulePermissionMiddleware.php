@@ -26,6 +26,7 @@ class ModulePermissionMiddleware
         $prefix = $request->segment(2);
 
         $assessmentRequest = in_array($prefix, [
+            'assessment-reissues',
             'assessment-registrations',
             'assessment-types',
             'exams',

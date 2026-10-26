@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Support\Facades\DB;
+
 class ReportCard extends TenantModel
 {
     protected $table = 'report_cards';
@@ -16,7 +18,36 @@ class ReportCard extends TenantModel
 
     protected $hidden = ['presentation_snapshot'];
 
-    protected $appends = ['presentation_history'];
+    protected $appends = ['presentation_history', 'publication_revision'];
+
+    private ?int $archivedPublicationRevision = null;
+
+    public function useArchivedPublicationRevision(int $revision): void
+    {
+        if ($revision < 1) {
+            throw new \InvalidArgumentException('Publication revisions start at one.');
+        }
+
+        $this->archivedPublicationRevision = $revision;
+    }
+
+    public function getPublicationRevisionAttribute(): ?int
+    {
+        if ($this->status !== 'published') {
+            return null;
+        }
+
+        if ($this->archivedPublicationRevision !== null) {
+            return $this->archivedPublicationRevision;
+        }
+
+        return (int) (DB::table('assessment_publication_versions')
+            ->where('school_id', $this->school_id)
+            ->where('exam_id', $this->exam_id)
+            ->where('output_type', 'report_card')
+            ->where('output_id', $this->id)
+            ->max('revision_number') ?? 1);
+    }
 
     public function getPresentationHistoryAttribute(): array
     {
