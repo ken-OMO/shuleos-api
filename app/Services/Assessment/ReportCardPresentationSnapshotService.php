@@ -37,7 +37,7 @@ class ReportCardPresentationSnapshotService
             ]),
             'learner' => $this->fields($card->learner, [
                 'id', 'first_name', 'middle_name', 'last_name',
-                'admission_no', 'assessment_no', 'gender',
+                'admission_no', 'assessment_no', 'upi', 'kemis_no', 'gender',
             ]),
             'exam' => $this->fields($card->exam, ['id', 'exam_name']),
             'academic_year' => $this->fields($card->academicYear, [
