@@ -554,6 +554,86 @@ class ReportCardPdfTest extends ReportCardTest
         }
     }
 
+    public function test_pdf_identifiers_preserve_leading_zeros_and_publication_history(): void
+    {
+        $context = $this->context();
+        $learnerId = $context['learner']->id;
+        $cardId = $context['card']->id;
+
+        DB::table('learners')->where('id', $learnerId)->update([
+            'upi' => '0000123401',
+            'kemis_no' => '0000567802',
+        ]);
+
+        $html = function () use ($context): string {
+            $card = $context['card']->fresh()->load([
+                'school.settings', 'learner', 'exam', 'academicYear', 'term',
+                'grade', 'stream', 'overallGradingScale', 'pathwayRecommendation',
+                'learningAreas.learningArea', 'learningAreas.gradingScale',
+            ]);
+
+            return view('pdf.report-card', [
+                'card' => $card,
+                'settings' => $card->school->settings,
+                'logo' => null,
+                'signature' => null,
+            ])->render();
+        };
+
+        $preview = $html();
+        $this->assertStringContainsString('KEMIS No:', $preview);
+        $this->assertStringContainsString('UPI:', $preview);
+        $this->assertStringContainsString('0000123401', $preview);
+        $this->assertStringContainsString('0000567802', $preview);
+
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $learnerId, null, null, $context['user']->id
+        );
+
+        $snapshot = $context['card']->fresh()->presentation_snapshot;
+        $this->assertSame('0000123401', $snapshot['learner']['upi']);
+        $this->assertSame('0000567802', $snapshot['learner']['kemis_no']);
+
+        DB::table('learners')->where('id', $learnerId)->update([
+            'upi' => 'CURRENT-UPI-CHANGED',
+            'kemis_no' => 'CURRENT-KEMIS-CHANGED',
+        ]);
+
+        $published = $html();
+        $this->assertStringContainsString('0000123401', $published);
+        $this->assertStringContainsString('0000567802', $published);
+        $this->assertStringNotContainsString('CURRENT-UPI-CHANGED', $published);
+        $this->assertStringNotContainsString('CURRENT-KEMIS-CHANGED', $published);
+
+        $document = app(ReportCardPdfService::class)->make(
+            $context['exam']->school_id, $cardId
+        );
+        $this->assertStringStartsWith('%PDF', $document['pdf']->output());
+
+        // Older captured presentations have no identifier keys.
+        unset($snapshot['learner']['upi'], $snapshot['learner']['kemis_no']);
+        DB::table('report_cards')->where('id', $cardId)->update([
+            'presentation_snapshot' => json_encode($snapshot, JSON_THROW_ON_ERROR),
+        ]);
+
+        $older = $html();
+        $this->assertStringContainsString('KEMIS No:</span> —', $older);
+        $this->assertStringContainsString('UPI:</span> —', $older);
+        $this->assertStringNotContainsString('CURRENT-UPI-CHANGED', $older);
+        $this->assertStringNotContainsString('CURRENT-KEMIS-CHANGED', $older);
+
+        // Reports predating presentation capture must also avoid live values.
+        DB::table('report_cards')->where('id', $cardId)
+            ->update(['presentation_snapshot' => null]);
+
+        $legacy = $html();
+        $this->assertStringContainsString('KEMIS No:</span> —', $legacy);
+        $this->assertStringContainsString('UPI:</span> —', $legacy);
+        $this->assertStringNotContainsString('CURRENT-UPI-CHANGED', $legacy);
+        $this->assertStringNotContainsString('CURRENT-KEMIS-CHANGED', $legacy);
+    }
+
     private function context(bool $primary = false): array
     {
         $exam = DB::table('exams')
