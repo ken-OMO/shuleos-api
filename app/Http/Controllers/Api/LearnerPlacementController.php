@@ -166,6 +166,19 @@ class LearnerPlacementController extends BaseCrudController
                 ]);
             }
 
+            if ($grade->grade_number === null) {
+                throw ValidationException::withMessages([
+                    'grade_id' => 'Classify the destination grade before placing learners.',
+                ]);
+            }
+
+            if ($grade->requiresAssessmentNumber()
+                && blank($lockedLearner->assessment_no)) {
+                throw ValidationException::withMessages([
+                    'assessment_no' => 'Enter the school-provided assessment number on the learner profile before placement into Grades 3–9.',
+                ]);
+            }
+
             $placementType =
                 $lockedLearner->grade_id === $grade->id
                     ? 'stream_change'

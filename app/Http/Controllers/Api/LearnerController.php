@@ -175,6 +175,11 @@ class LearnerController extends BaseCrudController
                 'string',
                 'max:50',
             ],
+            'kemis_no' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
             'first_name' => [
                 'required',
                 'string',
@@ -225,6 +230,12 @@ class LearnerController extends BaseCrudController
             (string) $validated['stream_id']
         );
 
+        $this->validateAssessmentNumber(
+            $schoolId,
+            (string) $validated['grade_id'],
+            $validated['assessment_no'] ?? null
+        );
+
         $duplicate = Learner::query()
             ->withoutGlobalScopes()
             ->where('school_id', $schoolId)
@@ -252,6 +263,7 @@ class LearnerController extends BaseCrudController
                     'school_id' => $schoolId,
                     'admission_no' => $validated['admission_no'],
                     'upi' => $validated['upi'] ?? null,
+                    'kemis_no' => $validated['kemis_no'] ?? null,
                     'first_name' => $validated['first_name'],
                     'middle_name' => $validated['middle_name'] ?? null,
                     'last_name' => $validated['last_name'],
@@ -354,6 +366,12 @@ class LearnerController extends BaseCrudController
                 'string',
                 'max:50',
             ],
+            'kemis_no' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:50',
+            ],
             'first_name' => [
                 'sometimes',
                 'required',
@@ -423,7 +441,22 @@ class LearnerController extends BaseCrudController
             $validated,
             $oldValues
         ) {
-            $learner->update($validated);
+            $lockedLearner = $this->learnerQuery($request)
+                ->whereKey($learner->id)
+                ->where('is_deleted', false)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $this->validateAssessmentNumber(
+                (string) $lockedLearner->school_id,
+                (string) $lockedLearner->grade_id,
+                array_key_exists('assessment_no', $validated)
+                    ? $validated['assessment_no']
+                    : $lockedLearner->assessment_no
+            );
+
+            $oldValues = $lockedLearner->toArray();
+            $lockedLearner->update($validated);
 
             $learner->refresh();
 
@@ -488,6 +521,30 @@ class LearnerController extends BaseCrudController
             null,
             'Learner deleted successfully.'
         );
+    }
+
+    private function validateAssessmentNumber(
+        string $schoolId,
+        string $gradeId,
+        ?string $assessmentNumber
+    ): void {
+        $grade = Grade::withoutGlobalScopes()
+            ->where('school_id', $schoolId)
+            ->whereKey($gradeId)
+            ->first();
+
+        if ($grade && $grade->grade_number === null) {
+            throw ValidationException::withMessages([
+                'grade_id' => 'Classify this grade before admitting or updating its learners.',
+            ]);
+        }
+
+        if ($grade?->requiresAssessmentNumber()
+            && blank($assessmentNumber)) {
+            throw ValidationException::withMessages([
+                'assessment_no' => 'A school-provided assessment number is required for Grades 3–9.',
+            ]);
+        }
     }
 
     private function validatePlacement(

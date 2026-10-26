@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Grade;
+use App\Models\Stream;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamService;
@@ -524,6 +526,119 @@ class ExamConcurrencyTest extends TestCase
             ['operation' => 'paper_create',
                 'paper' => $this->racePaper(2, $secondMarks)] + $this->fixture
         );
+    }
+
+    public function test_competing_grade_classification_preserves_first_committed_number(): void
+    {
+        $gradeId = DB::table('learners')
+            ->where('id', $this->fixture['learner_id'])->value('grade_id');
+
+        DB::table('grades')->where('id', $gradeId)->update([
+            'grade_name' => 'Classification race '.Str::random(12),
+            'grade_number' => null,
+        ]);
+
+        $base = [
+            'operation' => 'grade_classify',
+            'grade_id' => $gradeId,
+        ] + $this->fixture;
+
+        try {
+            $outcome = (new ExamConcurrencyRunner)->run(
+                ['grade_number' => 7] + $base,
+                ['grade_number' => 2] + $base
+            );
+
+            $this->assertTrue($outcome['contention_verified']);
+            $this->assertSame('finished', $outcome['first']['event']);
+            $this->assertSame(0, $outcome['first']['exit_code']);
+            $this->assertSame('rejected', $outcome['second']['event']);
+            $this->assertContains('grade_number', $outcome['second']['fields']);
+
+            $this->assertSame(7, (int) DB::table('grades')
+                ->where('id', $gradeId)->value('grade_number'));
+
+            $this->assertSame(1, DB::table('audit_logs')
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('table_name', 'grades')
+                ->where('record_id', $gradeId)
+                ->where('action', 'Update')->count());
+        } finally {
+            DB::table('audit_logs')
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('table_name', 'grades')
+                ->where('record_id', $gradeId)->delete();
+        }
+    }
+
+    public function test_promotion_and_assessment_clearing_serialize_in_both_orders(): void
+    {
+        $learnerId = $this->fixture['learner_id'];
+        $original = DB::table('learners')->where('id', $learnerId)->first();
+
+        $destinationGrade = Grade::withoutGlobalScopes()
+            ->findOrFail($original->grade_id);
+        DB::table('grades')->where('id', $destinationGrade->id)
+            ->update(['grade_number' => 3]);
+
+        $sourceGrade = $destinationGrade->replicate();
+        $sourceGrade->id = (string) Str::uuid();
+        $sourceGrade->grade_name = 'Source grade '.Str::random(12);
+        $sourceGrade->grade_number = 2;
+        $sourceGrade->save();
+
+        $sourceStream = Stream::withoutGlobalScopes()
+            ->findOrFail($original->stream_id)->replicate();
+        $sourceStream->id = (string) Str::uuid();
+        $sourceStream->grade_id = $sourceGrade->id;
+        $sourceStream->stream_name = 'Source '.Str::random(8);
+        $sourceStream->save();
+
+        $base = [
+            'destination_grade_id' => $original->grade_id,
+            'destination_stream_id' => $original->stream_id,
+        ] + $this->fixture;
+
+        try {
+            foreach ([
+                ['learner_promote', 'learner_clear_assessment'],
+                ['learner_clear_assessment', 'learner_promote'],
+            ] as [$first, $second]) {
+                DB::table('learners')->where('id', $learnerId)->update([
+                    'grade_id' => $sourceGrade->id,
+                    'stream_id' => $sourceStream->id,
+                    'assessment_no' => '00000321',
+                ]);
+
+                $outcome = (new ExamConcurrencyRunner)->run(
+                    ['operation' => $first] + $base,
+                    ['operation' => $second] + $base
+                );
+
+                $this->assertTrue($outcome['contention_verified']);
+                $this->assertSame('finished', $outcome['first']['event']);
+                $this->assertSame(0, $outcome['first']['exit_code']);
+                $this->assertSame('rejected', $outcome['second']['event']);
+                $this->assertContains('assessment_no', $outcome['second']['fields']);
+
+                $stored = DB::table('learners')->where('id', $learnerId)->first();
+                $promoted = $first === 'learner_promote';
+
+                $this->assertSame(
+                    $promoted ? $original->grade_id : $sourceGrade->id,
+                    $stored->grade_id
+                );
+                $this->assertSame(
+                    $promoted ? '00000321' : null,
+                    $stored->assessment_no
+                );
+            }
+        } finally {
+            DB::table('learner_placement_history')->where('learner_id', $learnerId)->delete();
+            DB::table('audit_logs')
+                ->where('school_id', $this->fixture['school_id'])
+                ->where('record_id', $learnerId)->delete();
+        }
     }
 
     private function race(string $first, string $second, array $extra = []): array

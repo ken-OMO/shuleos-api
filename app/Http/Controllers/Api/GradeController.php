@@ -61,7 +61,26 @@ class GradeController extends BaseCrudController
             'education_level_id' => 'required|uuid|exists:education_levels,id',
             'grade_name' => 'required|string|max:50',
             'grade_order' => 'required|integer|min:1',
+            'grade_number' => 'sometimes|required|integer|min:0|max:12',
         ]);
+
+        $inferredNumber = Grade::numberFromStandardName($validated['grade_name']);
+
+        if (array_key_exists('grade_number', $validated)
+            && $inferredNumber !== null
+            && (int) $validated['grade_number'] !== $inferredNumber) {
+            throw ValidationException::withMessages([
+                'grade_number' => 'The classification must match the standard grade name.',
+            ]);
+        }
+
+        $validated['grade_number'] = $validated['grade_number'] ?? $inferredNumber;
+
+        if ($validated['grade_number'] === null) {
+            throw ValidationException::withMessages([
+                'grade_number' => 'Classify this custom grade: use 0 for pre-primary or 1–12 for a numbered grade.',
+            ]);
+        }
 
         $schoolId = $this->schoolId($request);
 
@@ -94,6 +113,7 @@ class GradeController extends BaseCrudController
                         'education_level_id' => $validated['education_level_id'],
                         'grade_name' => $validated['grade_name'],
                         'grade_order' => $validated['grade_order'],
+                        'grade_number' => $validated['grade_number'],
                         'active' => true,
                         'created_at' => now(),
                     ]);
@@ -151,6 +171,7 @@ class GradeController extends BaseCrudController
         $validated = $request->validate([
             'grade_name' => 'sometimes|string|max:50',
             'grade_order' => 'sometimes|integer|min:1',
+            'grade_number' => 'sometimes|required|integer|min:0|max:12',
             'active' => 'sometimes|boolean',
         ]);
 
@@ -185,6 +206,33 @@ class GradeController extends BaseCrudController
                     $grade,
                     $validated
                 ) {
+                    $grade = $this->gradeQuery($request)
+                        ->whereKey($grade->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    $effectiveNumber = array_key_exists('grade_number', $validated)
+                        ? (int) $validated['grade_number']
+                        : $grade->grade_number;
+
+                    if ($grade->grade_number !== null
+                        && $effectiveNumber !== $grade->grade_number) {
+                        throw ValidationException::withMessages([
+                            'grade_number' => 'An established grade classification cannot be changed through ordinary grade updates.',
+                        ]);
+                    }
+
+                    $inferredNumber = Grade::numberFromStandardName(
+                        $validated['grade_name'] ?? $grade->grade_name
+                    );
+
+                    if ($inferredNumber !== null && $effectiveNumber !== null
+                        && $inferredNumber !== $effectiveNumber) {
+                        throw ValidationException::withMessages([
+                            'grade_name' => 'The standard grade name must match its stored classification.',
+                        ]);
+                    }
+
                     $oldValues = $grade->toArray();
 
                     $grade->update($validated);
@@ -208,6 +256,8 @@ class GradeController extends BaseCrudController
                 new GradeResource($grade),
                 'Grade updated successfully.'
             );
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             $this->logError(
                 'Failed to update grade.',

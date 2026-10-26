@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use Illuminate\Http\Request;
 
 class ParentReportCardResource extends ParentPortalArrayResource
@@ -23,7 +24,16 @@ class ParentReportCardResource extends ParentPortalArrayResource
                 ];
             }
 
+            $card = app(
+                ReportCardPresentationSnapshotService::class
+            )->forDisplay($card);
+
             return [
+                'presentation_history' => [
+                    'status' => $card->status !== 'published' ? 'preview'
+                        : ($card->presentation_snapshot === null ? 'legacy_unavailable' : 'captured'),
+                    'version' => $card->presentation_snapshot['version'] ?? null,
+                ],
                 'id' => $card->id,
                 'exam' => $card->exam ? ['id' => $card->exam->id, 'name' => $card->exam->exam_name] : null,
                 'term' => $card->term ? ['id' => $card->term->id, 'name' => $card->term->term_name] : null,

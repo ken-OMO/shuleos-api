@@ -2,16 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\ParentReportCardResource;
 use App\Http\Resources\ReportCardLearningAreaResource;
 use App\Http\Resources\ReportCardResource;
+use App\Models\Learner;
 use App\Models\ReportCard;
 use App\Models\User;
+use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use App\Services\Assessment\ReportCardService;
+use App\Services\LearnerPortal\LearnerAccountService;
+use App\Services\LearnerPortal\LearnerPortalAccessService;
+use App\Services\LearnerPortal\LearnerPortalService;
 use App\Services\Pdf\ReportCardPdfService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class ReportCardPdfTest extends ReportCardTest
 {
@@ -134,6 +141,417 @@ class ReportCardPdfTest extends ReportCardTest
         }
 
         $this->assertSame(0, DB::table('report_cards')->where('exam_id', $exam->id)->count());
+    }
+
+    public function test_publication_captures_presentation_without_rewriting_legacy_cards(): void
+    {
+        $context = $this->context();
+        $card = $context['card']->fresh();
+
+        $this->assertNull($card->presentation_snapshot);
+
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        $card = $card->fresh();
+        $snapshot = $card->presentation_snapshot;
+
+        $this->assertSame('published', $card->status);
+        $this->assertSame(1, $snapshot['version']);
+        $this->assertSame($card->learner_id, $snapshot['learner']['id']);
+        $this->assertSame($context['learner']->admission_no, $snapshot['learner']['admission_no']);
+        $this->assertSame($context['exam']->exam_name, $snapshot['exam']['exam_name']);
+        $this->assertSame('Knowledge and Integrity', $snapshot['settings']['school_motto']);
+        $this->assertCount($card->learningAreas()->count(), $snapshot['learning_areas']);
+
+        DB::table('learners')->where('id', $card->learner_id)
+            ->update(['first_name' => 'Changed after publication']);
+        DB::table('exams')->where('id', $card->exam_id)
+            ->update(['exam_name' => 'Changed after publication']);
+        DB::table('school_settings')->where('school_id', $card->school_id)
+            ->update(['school_motto' => 'Changed after publication']);
+
+        $this->assertSame($snapshot, $card->fresh()->presentation_snapshot);
+
+        // Simulate a report published before presentation capture existed.
+        DB::table('report_cards')->where('id', $card->id)
+            ->update(['presentation_snapshot' => null]);
+
+        $legacy = $card->fresh();
+        $this->assertSame('published', $legacy->status);
+        $this->assertNull($legacy->presentation_snapshot);
+    }
+
+    public function test_published_pdf_presentation_survives_live_identity_and_branding_edits(): void
+    {
+        $context = $this->context();
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        $relations = [
+            'school.settings', 'learner', 'exam', 'academicYear', 'term',
+            'grade', 'stream', 'overallGradingScale', 'pathwayRecommendation',
+            'learningAreas.learningArea', 'learningAreas.gradingScale',
+        ];
+        $render = function () use ($context, $relations) {
+            return view('pdf.report-card', [
+                'card' => $context['card']->fresh()->load($relations),
+                'settings' => null, 'logo' => null, 'signature' => null,
+            ])->render();
+        };
+
+        $before = $render();
+        $documentBefore = app(ReportCardPdfService::class)->make(
+            $context['exam']->school_id, $context['card']->id
+        );
+
+        DB::table('learners')->where('id', $context['learner']->id)->update([
+            'first_name' => 'CHANGED_LIVE_LEARNER',
+            'admission_no' => 'CHANGED-LIVE-ADMISSION',
+        ]);
+        DB::table('schools')->where('id', $context['exam']->school_id)
+            ->update(['school_name' => 'CHANGED_LIVE_SCHOOL']);
+        DB::table('exams')->where('id', $context['exam']->id)
+            ->update(['exam_name' => 'CHANGED_LIVE_EXAM']);
+        DB::table('school_settings')->where('school_id', $context['exam']->school_id)
+            ->update([
+                'school_motto' => 'CHANGED_LIVE_MOTTO',
+                'principal_name' => 'CHANGED_LIVE_PRINCIPAL',
+            ]);
+
+        $this->assertSame($before, $render());
+
+        $documentAfter = app(ReportCardPdfService::class)->make(
+            $context['exam']->school_id, $context['card']->id
+        );
+        $this->assertSame($documentBefore['filename'], $documentAfter['filename']);
+        $this->assertStringStartsWith('%PDF', $documentAfter['pdf']->output());
+
+        DB::table('report_cards')->where('id', $context['card']->id)
+            ->update(['presentation_snapshot' => null]);
+
+        $legacy = $render();
+        $this->assertStringContainsString('Historical presentation details were not captured', $legacy);
+        foreach ([
+            'CHANGED_LIVE_LEARNER', 'CHANGED_LIVE_SCHOOL',
+            'CHANGED_LIVE_EXAM', 'CHANGED_LIVE_MOTTO',
+        ] as $value) {
+            $this->assertStringNotContainsString($value, $legacy);
+        }
+    }
+
+    public function test_publication_preserves_image_bytes_after_source_replacement(): void
+    {
+        $context = $this->context();
+        $relative = 'snapshot-test-'.Str::uuid().'.png';
+        $path = public_path($relative);
+        $bytes = base64_decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=',
+            true
+        );
+
+        try {
+            file_put_contents($path, $bytes);
+            DB::table('school_settings')->where('school_id', $context['exam']->school_id)
+                ->update([
+                    'school_logo_url' => $relative,
+                    'principal_signature_url' => $relative,
+                ]);
+
+            app(ReportCardService::class)->publish(
+                $context['exam']->school_id, $context['exam']->id,
+                $context['learner']->id, null, null, $context['user']->id
+            );
+
+            $card = $context['card']->fresh();
+            $presentations = app(ReportCardPresentationSnapshotService::class);
+            $expected = 'data:image/png;base64,'.base64_encode($bytes);
+
+            foreach (['logo', 'principal_signature'] as $name) {
+                $this->assertSame('captured', $card->presentation_snapshot['assets'][$name]['status']);
+                $this->assertSame(hash('sha256', $bytes), $card->presentation_snapshot['assets'][$name]['sha256']);
+                $this->assertSame($expected, $presentations->asset($card, $name));
+            }
+
+            file_put_contents($path, 'Replaced after publication');
+            $this->assertSame($expected, $presentations->asset($card->fresh(), 'logo'));
+
+            unlink($path);
+            $this->assertSame($expected, $presentations->asset($card->fresh(), 'principal_signature'));
+
+            $document = app(ReportCardPdfService::class)->make(
+                $context['exam']->school_id, $card->id
+            );
+            $this->assertStringStartsWith('%PDF', $document['pdf']->output());
+        } finally {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+    }
+
+    public function test_presentation_failure_rolls_back_the_entire_publication_batch(): void
+    {
+        $context = $this->context();
+        $service = app(ReportCardService::class);
+        $service->generate(
+            $context['exam']->school_id, $context['exam']->id,
+            null, null, null, $context['user']->id
+        );
+
+        $query = fn () => DB::table('report_cards')
+            ->where('school_id', $context['exam']->school_id)
+            ->where('exam_id', $context['exam']->id)->orderBy('id');
+
+        $before = $query()->get()->map(fn ($row) => (array) $row)->all();
+        $this->assertGreaterThanOrEqual(2, count($before));
+
+        $real = new ReportCardPresentationSnapshotService;
+        $seen = 0;
+        $this->mock(ReportCardPresentationSnapshotService::class)
+            ->shouldReceive('capture')->andReturnUsing(
+                function ($card) use ($real, &$seen) {
+                    $seen++;
+                    if ($seen === 2) {
+                        throw new \RuntimeException('Injected presentation capture failure.');
+                    }
+
+                    return $real->capture($card);
+                }
+            );
+
+        try {
+            $service->publish(
+                $context['exam']->school_id, $context['exam']->id,
+                null, null, null, $context['user']->id
+            );
+            $this->fail('The injected failure must abort publication.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame(
+                'Injected presentation capture failure.', $exception->getMessage()
+            );
+        }
+
+        $this->assertSame(2, $seen);
+        $this->assertSame(
+            $before, $query()->get()->map(fn ($row) => (array) $row)->all()
+        );
+
+        $this->app->instance(
+            ReportCardPresentationSnapshotService::class, $real
+        );
+
+        $published = $service->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            null, null, null, $context['user']->id
+        );
+
+        $this->assertCount(count($before), $published);
+        foreach ($published as $card) {
+            $this->assertSame('published', $card->status);
+            $this->assertSame(1, $card->presentation_snapshot['version']);
+        }
+    }
+
+    public function test_published_api_resources_use_captured_presentation_without_image_payloads(): void
+    {
+        $context = $this->context();
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        $payloads = function () use ($context): array {
+            $card = $context['card']->fresh()->load([
+                'school.settings', 'learner', 'exam', 'academicYear', 'term',
+                'grade', 'stream', 'overallGradingScale', 'pathwayRecommendation',
+                'learningAreas.learningArea', 'learningAreas.gradingScale',
+            ]);
+
+            return json_decode(json_encode([
+                'staff' => (new ReportCardResource($card))->resolve(request()),
+                'parent' => (new ParentReportCardResource([
+                    'report_card' => $card,
+                    'access' => [
+                        'can_view' => true, 'can_download' => true,
+                        'restriction_message' => null,
+                    ],
+                ]))->resolve(request()),
+            ], JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        };
+
+        $before = $payloads();
+        $this->assertSame('captured', $before['staff']['presentation_history']['status']);
+        $this->assertSame('captured', $before['parent']['presentation_history']['status']);
+
+        DB::table('learners')->where('id', $context['learner']->id)
+            ->update(['first_name' => 'LIVE_API_NAME_CHANGED']);
+        DB::table('exams')->where('id', $context['exam']->id)
+            ->update(['exam_name' => 'LIVE_API_EXAM_CHANGED']);
+
+        $this->assertSame($before, $payloads());
+        $serialized = json_encode($payloads(), JSON_THROW_ON_ERROR);
+        $this->assertStringNotContainsString('presentation_snapshot', $serialized);
+        $this->assertStringNotContainsString('"base64"', $serialized);
+
+        $this->assertArrayNotHasKey(
+            'presentation_snapshot', $context['card']->fresh()->toArray()
+        );
+
+        DB::table('report_cards')->where('id', $context['card']->id)
+            ->update(['presentation_snapshot' => null]);
+
+        $legacy = $payloads();
+        $this->assertSame('legacy_unavailable', $legacy['staff']['presentation_history']['status']);
+        $this->assertSame('legacy_unavailable', $legacy['parent']['presentation_history']['status']);
+        $this->assertStringNotContainsString(
+            'LIVE_API_EXAM_CHANGED', json_encode($legacy, JSON_THROW_ON_ERROR)
+        );
+    }
+
+    public function test_learner_report_models_use_historical_labels_and_hide_snapshot_bytes(): void
+    {
+        $context = $this->context();
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        $user = User::withoutGlobalScopes()->findOrFail($context['user']->id);
+        $learner = Learner::withoutGlobalScopes()
+            ->findOrFail($context['learner']->id);
+
+        DB::table('school_settings')->where('school_id', $user->school_id)->update([
+            'learner_portal_show_report_cards' => true,
+            'report_card_fee_policy' => 'open',
+        ]);
+
+        $access = $this->mock(LearnerPortalAccessService::class);
+        $access->shouldReceive('learner')->with($user)->andReturn($learner);
+        $access->shouldReceive('requireReportCard')->with($user, $context['card']->id)
+            ->andReturnUsing(fn () => $context['card']->fresh());
+
+        $portal = app(LearnerPortalService::class);
+        $read = function () use ($portal, $user, $context): array {
+            return [
+                'list' => $portal->reportCards($user)
+                    ->firstWhere('id', $context['card']->id)->toArray(),
+                'detail' => $portal->reportCard($user, $context['card']->id)->toArray(),
+            ];
+        };
+
+        $before = $read();
+        $this->assertSame(
+            $context['exam']->exam_name, $before['list']['exam']['exam_name']
+        );
+
+        DB::table('exams')->where('id', $context['exam']->id)
+            ->update(['exam_name' => 'LIVE_LEARNER_EXAM_CHANGED']);
+
+        $this->assertSame($before, $read());
+
+        foreach ($read() as $payload) {
+            $this->assertArrayNotHasKey('presentation_snapshot', $payload);
+            $this->assertStringNotContainsString(
+                'LIVE_LEARNER_EXAM_CHANGED', json_encode($payload, JSON_THROW_ON_ERROR)
+            );
+        }
+
+        DB::table('report_cards')->where('id', $context['card']->id)
+            ->update(['presentation_snapshot' => null]);
+
+        foreach ($read() as $payload) {
+            $this->assertStringNotContainsString(
+                'LIVE_LEARNER_EXAM_CHANGED', json_encode($payload, JSON_THROW_ON_ERROR)
+            );
+        }
+    }
+
+    public function test_authenticated_learner_reports_preserve_history_and_identify_legacy_data(): void
+    {
+        $context = $this->context();
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        DB::table('school_settings')->where('school_id', $context['exam']->school_id)
+            ->update([
+                'learner_portal_enabled' => true,
+                'learner_portal_show_report_cards' => true,
+                'report_card_fee_policy' => 'open',
+            ]);
+        DB::table('learners')->where('id', $context['learner']->id)
+            ->update(['portal_enabled' => true]);
+
+        $account = app(LearnerAccountService::class)
+            ->create($context['exam']->school_id, $context['learner']->id, []);
+        $user = User::withoutGlobalScopes()->with('role')
+            ->findOrFail($account['user']['id']);
+
+        config(['jwt.secret' => str_repeat('assessment-http-test-', 4)]);
+        foreach (['access_learner_portal', 'view_own_report_cards'] as $name) {
+            $permission = DB::table('permissions')
+                ->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission, 'Missing permission: '.$name);
+
+            if (! DB::table('role_permissions')
+                ->where('role_id', $user->role_id)
+                ->where('permission_id', $permission)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $user->role_id,
+                    'permission_id' => $permission,
+                    'created_at' => now(),
+                ]);
+            }
+        }
+
+        $token = JWTAuth::fromUser($user);
+        auth()->guard()->forgetUser();
+
+        $read = function () use ($token, $context): array {
+            $list = $this->withToken($token)->getJson('/api/learner/report-cards')
+                ->assertOk()->json('data');
+            $detail = $this->withToken($token)
+                ->getJson('/api/learner/report-cards/'.$context['card']->id)
+                ->assertOk()->json('data');
+
+            return [
+                collect($list)->firstWhere('id', $context['card']->id),
+                $detail,
+            ];
+        };
+
+        $before = $read();
+        foreach ($before as $payload) {
+            $this->assertSame('captured', $payload['presentation_history']['status']);
+            $this->assertSame(1, $payload['presentation_history']['version']);
+            $this->assertSame($context['exam']->exam_name, $payload['exam']['exam_name']);
+            $this->assertArrayNotHasKey('presentation_snapshot', $payload);
+        }
+
+        DB::table('exams')->where('id', $context['exam']->id)
+            ->update(['exam_name' => 'CHANGED_AUTHENTICATED_EXAM']);
+        DB::table('learners')->where('id', $context['learner']->id)
+            ->update(['first_name' => 'CHANGED_AUTHENTICATED_LEARNER']);
+
+        $this->assertSame($before, $read());
+
+        DB::table('report_cards')->where('id', $context['card']->id)
+            ->update(['presentation_snapshot' => null]);
+
+        foreach ($read() as $payload) {
+            $this->assertSame('legacy_unavailable', $payload['presentation_history']['status']);
+            $this->assertNull($payload['presentation_history']['version']);
+            $json = json_encode($payload, JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('CHANGED_AUTHENTICATED_EXAM', $json);
+            $this->assertStringNotContainsString('CHANGED_AUTHENTICATED_LEARNER', $json);
+        }
     }
 
     private function context(bool $primary = false): array

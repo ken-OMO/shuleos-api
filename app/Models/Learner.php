@@ -24,6 +24,8 @@ class Learner extends TenantModel
 
         'upi',
 
+        'kemis_no',
+
         'first_name',
 
         'middle_name',

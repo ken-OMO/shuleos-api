@@ -968,6 +968,150 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         $this->assertSame($auditCount, DB::table('audit_logs')->count());
     }
 
+    public function test_assessment_number_is_required_for_every_grade_three_to_nine(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        $token = $this->tokenFor($user);
+
+        foreach (range(3, 9) as $number) {
+            [$grade, $stream] = $this->gradeAndStream($school, 'Grade '.$number);
+            $payload = $this->learnerPayload($grade, $stream);
+            $payload['admission_no'] = 'REQUIRED-'.$number;
+            unset($payload['assessment_no']);
+
+            $this->withToken($token)->postJson('/api/learners', $payload)
+                ->assertUnprocessable()->assertJsonValidationErrors('assessment_no');
+
+            $this->assertDatabaseMissing('learners', [
+                'school_id' => $school->id,
+                'admission_no' => $payload['admission_no'],
+            ]);
+
+            $payload['assessment_no'] = '0000'.$number;
+            $this->withToken($token)->postJson('/api/learners', $payload)
+                ->assertCreated()
+                ->assertJsonPath('data.assessment_no', '0000'.$number);
+        }
+    }
+
+    public function test_early_grades_allow_missing_assessment_numbers(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        $token = $this->tokenFor($user);
+
+        foreach (['PP1', 'PP2', 'Grade 1', 'Grade 2'] as $index => $name) {
+            [$grade, $stream] = $this->gradeAndStream($school, $name);
+            $payload = $this->learnerPayload($grade, $stream);
+            $payload['admission_no'] = 'EARLY-'.$index;
+            unset($payload['assessment_no']);
+
+            $this->withToken($token)->postJson('/api/learners', $payload)
+                ->assertCreated()->assertJsonPath('data.assessment_no', null);
+        }
+    }
+
+    public function test_kemis_and_assessment_numbers_preserve_leading_zeros_and_validate_updates(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school, 'Grade 3');
+        $payload = $this->learnerPayload($grade, $stream);
+        $payload['kemis_no'] = '0000123456';
+        $payload['assessment_no'] = '0000987654';
+        $token = $this->tokenFor($user);
+
+        $response = $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.kemis_no', '0000123456')
+            ->assertJsonPath('data.assessment_no', '0000987654');
+        $id = $response->json('data.id');
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $id,
+            'kemis_no' => '0000123456',
+            'assessment_no' => '0000987654',
+        ]);
+
+        foreach ([null, '', '   '] as $missing) {
+            $this->withToken($token)->putJson('/api/learners/'.$id, [
+                'assessment_no' => $missing,
+                'first_name' => 'MustNotChange',
+            ])->assertUnprocessable()->assertJsonValidationErrors('assessment_no');
+        }
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $id,
+            'first_name' => $payload['first_name'],
+            'assessment_no' => '0000987654',
+        ]);
+
+        $this->withToken($token)->putJson('/api/learners/'.$id, [
+            'kemis_no' => '0000000042',
+        ])->assertOk()
+            ->assertJsonPath('data.kemis_no', '0000000042')
+            ->assertJsonPath('data.assessment_no', '0000987654');
+
+        $this->withToken($token)->putJson('/api/learners/'.$id, [
+            'kemis_no' => str_repeat('1', 51),
+        ])->assertUnprocessable()->assertJsonValidationErrors('kemis_no');
+
+        $this->withToken($token)->putJson('/api/learners/'.$id, [
+            'kemis_no' => null,
+        ])->assertOk()->assertJsonPath('data.kemis_no', null);
+    }
+
+    public function test_renamed_grade_keeps_its_assessment_number_requirement(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school, 'Grade 3');
+
+        $grade->update(['grade_name' => 'Cedar Class']);
+        $this->assertSame(3, $grade->fresh()->grade_number);
+
+        $payload = $this->learnerPayload($grade, $stream);
+        unset($payload['assessment_no']);
+        $token = $this->tokenFor($user);
+
+        $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('assessment_no');
+
+        $this->assertDatabaseMissing('learners', [
+            'school_id' => $school->id,
+            'admission_no' => $payload['admission_no'],
+        ]);
+
+        $payload['assessment_no'] = '00000309';
+        $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertCreated()->assertJsonPath('data.assessment_no', '00000309');
+    }
+
+    public function test_unclassified_custom_grade_blocks_admission_until_classified(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school, 'Legacy Custom Class');
+        $this->assertNull($grade->fresh()->grade_number);
+
+        $payload = $this->learnerPayload($grade, $stream);
+        $token = $this->tokenFor($user);
+
+        $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('grade_id');
+
+        $this->assertDatabaseMissing('learners', [
+            'school_id' => $school->id,
+            'admission_no' => $payload['admission_no'],
+        ]);
+
+        $grade->update(['grade_number' => 7]);
+        unset($payload['assessment_no']);
+
+        $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('assessment_no');
+
+        $payload['assessment_no'] = '00000709';
+        $this->withToken($token)->postJson('/api/learners', $payload)
+            ->assertCreated()->assertJsonPath('data.assessment_no', '00000709');
+    }
+
     private function schoolAdminWithPermission(): array
     {
         $school = $this->school();

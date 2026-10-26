@@ -20,6 +20,8 @@ class LearnerResource extends JsonResource
 
             'upi' => $this->upi,
 
+            'kemis_no' => $this->kemis_no,
+
             'assessment_no' => $this->assessment_no,
 
             'first_name' => $this->first_name,

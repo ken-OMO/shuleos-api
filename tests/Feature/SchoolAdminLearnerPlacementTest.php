@@ -1046,6 +1046,51 @@ class SchoolAdminLearnerPlacementTest extends TestCase
         );
     }
 
+    public function test_grade_two_to_three_requires_stored_school_assessment_number(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$gradeTwo, $streamTwo] = $this->gradeAndStream($school, 'Grade 2');
+        [$gradeThree, $streamThree] = $this->gradeAndStream($school, 'Grade 3');
+        $learner = $this->learner($school, $gradeTwo, $streamTwo);
+        $learner->update(['assessment_no' => null]);
+
+        $token = $this->tokenFor($user);
+        $url = '/api/learners/'.$learner->id.'/placements';
+        $placement = [
+            'grade_id' => $gradeThree->id,
+            'stream_id' => $streamThree->id,
+        ];
+        $historyBefore = DB::table('learner_placement_history')
+            ->where('learner_id', $learner->id)->count();
+
+        $this->withToken($token)->postJson($url, $placement)
+            ->assertUnprocessable()->assertJsonValidationErrors('assessment_no');
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id,
+            'grade_id' => $gradeTwo->id,
+            'stream_id' => $streamTwo->id,
+            'assessment_no' => null,
+        ]);
+        $this->assertSame($historyBefore, DB::table('learner_placement_history')
+            ->where('learner_id', $learner->id)->count());
+
+        $this->withToken($token)->putJson('/api/learners/'.$learner->id, [
+            'assessment_no' => '00000321',
+        ])->assertOk()->assertJsonPath('data.assessment_no', '00000321');
+
+        $this->withToken($token)->postJson($url, $placement)->assertSuccessful();
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id,
+            'grade_id' => $gradeThree->id,
+            'stream_id' => $streamThree->id,
+            'assessment_no' => '00000321',
+        ]);
+        $this->assertSame($historyBefore + 1, DB::table('learner_placement_history')
+            ->where('learner_id', $learner->id)->count());
+    }
+
     private function schoolAdminWithPermission(): array
     {
         $school = $this->school();
@@ -1180,6 +1225,7 @@ class SchoolAdminLearnerPlacementTest extends TestCase
                 'school_id' => $school->id,
                 'admission_no' => $admissionNo.'-'.
                     Str::upper(Str::random(6)),
+                'assessment_no' => 'ASM-'.Str::upper(Str::random(10)),
                 'first_name' => 'Existing',
                 'last_name' => 'Learner',
                 'grade_id' => $grade->id,
