@@ -16,6 +16,17 @@ class ReportCard extends TenantModel
 
     protected $hidden = ['presentation_snapshot'];
 
+    protected $appends = ['presentation_history'];
+
+    public function getPresentationHistoryAttribute(): array
+    {
+        return [
+            'status' => $this->status !== 'published' ? 'preview'
+                : ($this->presentation_snapshot === null ? 'legacy_unavailable' : 'captured'),
+            'version' => $this->presentation_snapshot['version'] ?? null,
+        ];
+    }
+
     protected $fillable = ['presentation_snapshot', 'grading_snapshot', 'id', 'school_id', 'learner_id', 'exam_id', 'academic_year_id', 'term_id', 'merit_list_id', 'has_absence', 'grade_id', 'stream_id', 'overall_score', 'maximum_marks', 'average_percentage', 'overall_grade', 'overall_grading_system_id', 'overall_grading_scale_id', 'total_points', 'stream_position', 'grade_position', 'school_position', 'total_learners', 'attendance_present', 'attendance_absent', 'attendance_late', 'attendance_total_sessions', 'attendance_percentage', 'class_teacher_comment', 'principal_comment', 'pathway_recommendation', 'pathway_recommendation_id', 'status', 'generated_by', 'generated_at', 'published_by', 'published_at', 'is_deleted', 'deleted_at', 'deleted_by'];
 
     protected $casts = ['presentation_snapshot' => 'array', 'grading_snapshot' => 'array', 'has_absence' => 'boolean', 'overall_score' => 'decimal:2', 'maximum_marks' => 'decimal:2', 'average_percentage' => 'decimal:2', 'total_points' => 'integer', 'stream_position' => 'integer', 'grade_position' => 'integer', 'school_position' => 'integer', 'total_learners' => 'integer', 'attendance_present' => 'integer', 'attendance_absent' => 'integer', 'attendance_late' => 'integer', 'attendance_total_sessions' => 'integer', 'attendance_percentage' => 'decimal:2', 'generated_at' => 'datetime', 'published_at' => 'datetime', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime'];

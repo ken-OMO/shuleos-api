@@ -10,6 +10,7 @@ use App\Models\ReportCard;
 use App\Models\User;
 use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use App\Services\Assessment\ReportCardService;
+use App\Services\LearnerPortal\LearnerAccountService;
 use App\Services\LearnerPortal\LearnerPortalAccessService;
 use App\Services\LearnerPortal\LearnerPortalService;
 use App\Services\Pdf\ReportCardPdfService;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class ReportCardPdfTest extends ReportCardTest
 {
@@ -466,6 +468,89 @@ class ReportCardPdfTest extends ReportCardTest
             $this->assertStringNotContainsString(
                 'LIVE_LEARNER_EXAM_CHANGED', json_encode($payload, JSON_THROW_ON_ERROR)
             );
+        }
+    }
+
+    public function test_authenticated_learner_reports_preserve_history_and_identify_legacy_data(): void
+    {
+        $context = $this->context();
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        DB::table('school_settings')->where('school_id', $context['exam']->school_id)
+            ->update([
+                'learner_portal_enabled' => true,
+                'learner_portal_show_report_cards' => true,
+                'report_card_fee_policy' => 'open',
+            ]);
+        DB::table('learners')->where('id', $context['learner']->id)
+            ->update(['portal_enabled' => true]);
+
+        $account = app(LearnerAccountService::class)
+            ->create($context['exam']->school_id, $context['learner']->id, []);
+        $user = User::withoutGlobalScopes()->with('role')
+            ->findOrFail($account['user']['id']);
+
+        config(['jwt.secret' => str_repeat('assessment-http-test-', 4)]);
+        foreach (['access_learner_portal', 'view_own_report_cards'] as $name) {
+            $permission = DB::table('permissions')
+                ->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission, 'Missing permission: '.$name);
+
+            if (! DB::table('role_permissions')
+                ->where('role_id', $user->role_id)
+                ->where('permission_id', $permission)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $user->role_id,
+                    'permission_id' => $permission,
+                    'created_at' => now(),
+                ]);
+            }
+        }
+
+        $token = JWTAuth::fromUser($user);
+        auth()->guard()->forgetUser();
+
+        $read = function () use ($token, $context): array {
+            $list = $this->withToken($token)->getJson('/api/learner/report-cards')
+                ->assertOk()->json('data');
+            $detail = $this->withToken($token)
+                ->getJson('/api/learner/report-cards/'.$context['card']->id)
+                ->assertOk()->json('data');
+
+            return [
+                collect($list)->firstWhere('id', $context['card']->id),
+                $detail,
+            ];
+        };
+
+        $before = $read();
+        foreach ($before as $payload) {
+            $this->assertSame('captured', $payload['presentation_history']['status']);
+            $this->assertSame(1, $payload['presentation_history']['version']);
+            $this->assertSame($context['exam']->exam_name, $payload['exam']['exam_name']);
+            $this->assertArrayNotHasKey('presentation_snapshot', $payload);
+        }
+
+        DB::table('exams')->where('id', $context['exam']->id)
+            ->update(['exam_name' => 'CHANGED_AUTHENTICATED_EXAM']);
+        DB::table('learners')->where('id', $context['learner']->id)
+            ->update(['first_name' => 'CHANGED_AUTHENTICATED_LEARNER']);
+
+        $this->assertSame($before, $read());
+
+        DB::table('report_cards')->where('id', $context['card']->id)
+            ->update(['presentation_snapshot' => null]);
+
+        foreach ($read() as $payload) {
+            $this->assertSame('legacy_unavailable', $payload['presentation_history']['status']);
+            $this->assertNull($payload['presentation_history']['version']);
+            $json = json_encode($payload, JSON_THROW_ON_ERROR);
+            $this->assertStringNotContainsString('CHANGED_AUTHENTICATED_EXAM', $json);
+            $this->assertStringNotContainsString('CHANGED_AUTHENTICATED_LEARNER', $json);
         }
     }
 
