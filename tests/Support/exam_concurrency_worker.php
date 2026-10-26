@@ -7,6 +7,8 @@ use App\Models\Exam;
 use App\Models\ExamLearningArea;
 use App\Models\ExamPaper;
 use App\Models\User;
+use App\Services\Assessment\AssessmentReissuePublicationService;
+use App\Services\Assessment\AssessmentReissueRequestService;
 use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultLifecycleService;
@@ -170,6 +172,28 @@ try {
             }
 
             return $response->getStatusCode();
+        }
+
+        if (in_array($payload['operation'], ['reissue_publish', 'reissue_cancel'], true)) {
+            $actor = User::withoutGlobalScopes()
+                ->where('school_id', $payload['school_id'])
+                ->findOrFail($payload['actor_id']);
+            auth()->guard()->setUser($actor);
+
+            if ($payload['operation'] === 'reissue_cancel') {
+                app(AssessmentReissueRequestService::class)
+                    ->cancel($actor, $payload['request_id'], 'Concurrency cancellation.');
+
+                return 'cancelled';
+            }
+
+            return app(AssessmentReissuePublicationService::class)
+                ->publish(
+                    $actor,
+                    $payload['request_id'],
+                    $payload['prepared_sha256'],
+                    'Concurrency publication.'
+                );
         }
 
         return match ($payload['operation']) {

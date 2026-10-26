@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AdministratorOperationsController;
 use App\Http\Controllers\Api\AdministratorPortalController;
 use App\Http\Controllers\Api\AssessmentRegistrationController;
+use App\Http\Controllers\Api\AssessmentReissueController;
 use App\Http\Controllers\Api\AssessmentTypeController;
 use App\Http\Controllers\Api\AttendanceAlertController;
 use App\Http\Controllers\Api\AttendanceLeadershipController;
@@ -2770,4 +2771,37 @@ Route::middleware($secure)->group(function () {
                 [TeacherDutyRosterController::class, 'endAssignment']
             );
         });
+});
+
+// Published assessment correction and reissue workflow.
+Route::prefix('assessment-reissues')->middleware($secure)->group(function () {
+    $controller = AssessmentReissueController::class;
+
+    Route::get('/publications', [$controller, 'versions'])
+        ->middleware('permission:view_assessment_publication_history');
+    Route::get('/publications/{version}/merit', [$controller, 'meritVersion'])
+        ->whereUuid('version')->middleware('permission:view_assessment_publication_history');
+    Route::get('/publications/{version}/report', [$controller, 'reportVersion'])
+        ->whereUuid('version')->middleware('permission:view_assessment_publication_history');
+    Route::get('/publications/{version}/pdf', [$controller, 'reportVersionPdf'])
+        ->whereUuid('version')->middleware('permission:view_assessment_publication_history');
+
+    Route::get('/', [$controller, 'index'])
+        ->middleware('permission:view_assessment_publication_history');
+    Route::post('/', [$controller, 'store'])
+        ->middleware('permission:request_assessment_reissues');
+    Route::get('/{reissue}', [$controller, 'show'])
+        ->whereUuid('reissue')->middleware('permission:view_assessment_publication_history');
+    Route::get('/{reissue}/drafts', [$controller, 'drafts'])
+        ->whereUuid('reissue')->middleware('permission:review_assessment_reissues');
+    Route::post('/{reissue}/decision', [$controller, 'decide'])
+        ->whereUuid('reissue')->middleware('permission:approve_assessment_reissues');
+    Route::post('/{reissue}/cancel', [$controller, 'cancel'])
+        ->whereUuid('reissue')->middleware('permission:approve_assessment_reissues');
+    Route::post('/{reissue}/prepare', [$controller, 'prepare'])
+        ->whereUuid('reissue')->middleware('permission:prepare_assessment_reissues');
+    Route::post('/{reissue}/review', [$controller, 'review'])
+        ->whereUuid('reissue')->middleware('permission:review_assessment_reissues');
+    Route::post('/{reissue}/publish', [$controller, 'publish'])
+        ->whereUuid('reissue')->middleware('permission:publish_assessment_reissues');
 });

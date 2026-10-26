@@ -14,7 +14,7 @@ class ReportCardResource extends JsonResource
             ReportCardPresentationSnapshotService::class
         )->forDisplay($this->resource);
 
-        return ['presentation_history' => [
+        return ['publication_revision' => $this->publication_revision, 'presentation_history' => [
             'status' => $this->status !== 'published' ? 'preview'
                 : ($this->presentation_snapshot === null ? 'legacy_unavailable' : 'captured'),
             'version' => $this->presentation_snapshot['version'] ?? null,

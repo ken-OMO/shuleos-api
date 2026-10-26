@@ -29,6 +29,7 @@ class ParentReportCardResource extends ParentPortalArrayResource
             )->forDisplay($card);
 
             return [
+                'publication_revision' => $card->publication_revision,
                 'presentation_history' => [
                     'status' => $card->status !== 'published' ? 'preview'
                         : ($card->presentation_snapshot === null ? 'legacy_unavailable' : 'captured'),

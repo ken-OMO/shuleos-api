@@ -4,6 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\Grade;
 use App\Models\Stream;
+use App\Models\User;
+use App\Services\Assessment\AssessmentReissuePreparationService;
+use App\Services\Assessment\AssessmentReissueRequestService;
+use App\Services\Assessment\AssessmentReissueReviewService;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamService;
@@ -641,6 +645,138 @@ class ExamConcurrencyTest extends TestCase
         }
     }
 
+    public function test_competing_reissue_publications_publish_exactly_once(): void
+    {
+        $this->assertReissueRace('reissue_publish', 'reissue_publish');
+    }
+
+    public function test_reissue_publication_first_rejects_waiting_cancellation(): void
+    {
+        $this->assertReissueRace('reissue_publish', 'reissue_cancel');
+    }
+
+    public function test_reissue_cancellation_first_rejects_waiting_publication(): void
+    {
+        $this->assertReissueRace('reissue_cancel', 'reissue_publish');
+    }
+
+    private function assertReissueRace(string $first, string $second): void
+    {
+        $actor = User::withoutGlobalScopes()
+            ->findOrFail($this->fixture['actor_id']);
+        $actor->forceFill(['active' => true, 'is_deleted' => false])->save();
+        DB::table('roles')->where('id', $actor->role_id)->update(['active' => true]);
+
+        foreach ([
+            'request_assessment_reissues',
+            'approve_assessment_reissues',
+            'prepare_assessment_reissues',
+            'review_assessment_reissues',
+            'publish_assessment_reissues',
+        ] as $name) {
+            $permission = DB::table('permissions')
+                ->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission, 'Missing permission: '.$name);
+
+            if (! DB::table('role_permissions')
+                ->where('role_id', $actor->role_id)
+                ->where('permission_id', $permission)->exists()) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $actor->role_id,
+                    'permission_id' => $permission,
+                    'created_at' => now(),
+                ]);
+            }
+        }
+
+        $reviewer = $actor->replicate();
+        $reviewer->id = (string) Str::uuid();
+        $reviewer->username = 'reissue-'.Str::random(16);
+        $reviewer->email = Str::random(16).'@example.test';
+        $reviewer->phone = null;
+        $reviewer->save();
+
+        app(ReportCardService::class)->publish(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            $this->fixture['learner_id'],
+            null, null, $actor->id
+        );
+
+        $requests = app(AssessmentReissueRequestService::class);
+        $id = $requests->submit(
+            $actor, $this->fixture['exam_id'], 'Correct verified paper mark.',
+            [[
+                'exam_result_id' => $this->fixture['result_id'],
+                'marks' => 65,
+                'is_absent' => false,
+            ]]
+        );
+        $requests->decide($reviewer, $id, 'approved', 'Checked original mark sheet.');
+
+        $prepared = app(AssessmentReissuePreparationService::class)
+            ->prepare($actor, $id, 'Prepare corrected outputs.');
+        app(AssessmentReissueReviewService::class)->approve(
+            $reviewer, $id, $prepared['prepared_sha256'], 'Checked recalculated outputs.'
+        );
+
+        $original = (array) DB::table('assessment_publication_versions')
+            ->where('output_id', $this->fixture['card_id'])
+            ->where('revision_number', 1)->first();
+        $this->assertNotEmpty($original);
+
+        $base = [
+            'request_id' => $id,
+            'prepared_sha256' => $prepared['prepared_sha256'],
+        ] + $this->fixture;
+
+        $outcome = (new ExamConcurrencyRunner)->run(
+            ['operation' => $first] + $base,
+            ['operation' => $second] + $base
+        );
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+        $this->assertContains('reissue_request', $outcome['second']['fields']);
+
+        $published = $first === 'reissue_publish';
+        $this->assertSame(
+            $published ? 'published' : 'cancelled',
+            DB::table('assessment_reissue_requests')->where('id', $id)->value('status')
+        );
+        $this->assertEquals(
+            $published ? 65 : 80,
+            DB::table('exam_results')->where('id', $this->fixture['result_id'])
+                ->value('marks')
+        );
+        $this->assertEquals(
+            $published ? 65 : 80,
+            DB::table('report_cards')->where('id', $this->fixture['card_id'])
+                ->value('overall_score')
+        );
+        $this->assertSame(
+            $published ? 2 : 1,
+            DB::table('assessment_publication_versions')
+                ->where('output_id', $this->fixture['card_id'])->count()
+        );
+        $this->assertSame(
+            $original,
+            (array) DB::table('assessment_publication_versions')
+                ->where('id', $original['id'])->first()
+        );
+        foreach (['published', 'cancelled'] as $action) {
+            $this->assertSame(
+                $action === ($published ? 'published' : 'cancelled') ? 1 : 0,
+                DB::table('assessment_reissue_events')->where('request_id', $id)
+                    ->where('action', $action)->count()
+            );
+        }
+    }
+
     private function race(string $first, string $second, array $extra = []): array
     {
         $base = $extra + $this->fixture + ['marks' => 65];
@@ -657,6 +793,15 @@ class ExamConcurrencyTest extends TestCase
         $examId = $this->fixture['exam_id'];
 
         DB::transaction(function () use ($schoolId, $examId) {
+            $requestIds = DB::table('assessment_reissue_requests')
+                ->where('school_id', $schoolId)->where('exam_id', $examId)->pluck('id');
+            DB::table('assessment_reissue_events')->whereIn('request_id', $requestIds)->delete();
+            DB::table('assessment_reissue_drafts')->whereIn('request_id', $requestIds)->delete();
+            DB::table('assessment_publication_versions')
+                ->where('school_id', $schoolId)->where('exam_id', $examId)->delete();
+            DB::table('assessment_reissue_requests')->whereIn('id', $requestIds)->delete();
+            DB::table('role_permissions')->where('role_id', $this->fixture['role_id'])->delete();
+
             $cardIds = DB::table('report_cards')->where('exam_id', $examId)->pluck('id');
             DB::table('report_card_learning_areas')->whereIn('report_card_id', $cardIds)->delete();
 

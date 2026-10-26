@@ -128,69 +128,12 @@ class MeritListService
                 );
             unset($gradingEntries);
 
-            $rows = $results->groupBy('learner_id')->map(function (Collection $items) use ($awards) {
-                $learner = $items->first()->learner;
-
-                if ($items->contains(fn (LearningAreaResult $item) => $item->grading_snapshot === null)) {
-                    throw ValidationException::withMessages([
-                        'results' => 'Legacy processed results must be reprocessed to capture grading before merit generation.',
-                    ]);
-                }
-
-                if ($items->contains(fn (LearningAreaResult $item) => (bool) $item->is_absent)) {
-                    return [
-                        'learner' => $learner,
-                        'total_score' => null,
-                        'maximum_marks' => round((float) $items->sum('maximum_marks'), 2),
-                        'average_percentage' => null,
-                        'total_points' => null,
-                        'grading_system_id' => null,
-                        'grading_scale_id' => null,
-                        'ranking_method' => 'not_ranked_absent',
-                        'grading_snapshot' => [
-                            'format_version' => 1,
-                            'rules_snapshot_id' => null,
-                            'grading_system_id' => null,
-                            'grading_scale_id' => null,
-                            'grade_code' => null,
-                            'grade_description' => null,
-                            'points' => null,
-                        ],
-                    ];
-                }
-
-                $score = round((float) $items->sum('marks_obtained'), 2);
-                $maximum = round((float) $items->sum('maximum_marks'), 2);
-                $average = round((float) $items->avg('percentage'), 2);
-                $pointValues = $items->map(fn (LearningAreaResult $item) => $item->grading_snapshot['points'])
-                    ->filter(fn ($value) => $value !== null);
-                $grade = $awards[$learner->id];
-
-                return [
-                    'learner' => $learner, 'total_score' => $score, 'maximum_marks' => $maximum,
-                    'average_percentage' => $average, 'total_points' => $pointValues->isEmpty() ? null : (int) $pointValues->sum(),
-                    'grading_system_id' => $grade['grading_system_id'], 'grading_scale_id' => $grade['grading_scale_id'],
-                    'grading_snapshot' => $grade,
-                ];
-            })->values();
+            $rows = app(MeritTotalsService::class)->calculate($results, $awards);
 
             // Ranking needs learner totals, not the detailed result models.
             unset($results, $selectedResults, $examLearners, $query);
 
-            $rankedRows = $rows->reject(
-                fn (array $row) => ($row['ranking_method'] ?? 'competition') === 'not_ranked_absent'
-            );
-            $schoolPositions = $this->positions($rankedRows);
-            $gradePositions = $rankedRows->groupBy(fn ($row) => $row['learner']->grade_id)->flatMap(fn ($group) => $this->positions($group));
-            $streamPositions = $rankedRows->groupBy(fn ($row) => $row['learner']->stream_id)->flatMap(fn ($group) => $this->positions($group));
-            $rows = $rows->map(function ($row) use ($schoolPositions, $gradePositions, $streamPositions) {
-                $id = $row['learner']->id;
-                $row['school_position'] = $schoolPositions->get($id);
-                $row['grade_position'] = $gradePositions->get($id);
-                $row['stream_position'] = $streamPositions->get($id);
-
-                return $row;
-            });
+            $rows = app(MeritRankingService::class)->rank($rows);
 
             $rows = $rows->filter(fn (array $row) => $learnerIds->contains($row['learner']->id));
 
@@ -272,27 +215,5 @@ class MeritListService
         if ($streamId && ! Stream::query()->whereKey($streamId)->where('school_id', $schoolId)->when($gradeId, fn ($q) => $q->where('grade_id', $gradeId))->exists()) {
             throw ValidationException::withMessages(['stream_id' => 'The stream does not belong to this school or grade.']);
         }
-    }
-
-    private function positions(Collection $rows): Collection
-    {
-        $sorted = $rows->sort(fn ($a, $b) => $this->compare($a, $b))->values();
-        $positions = collect();
-        $previous = null;
-        foreach ($sorted as $index => $row) {
-            $key = [$row['average_percentage'], $row['total_points'], $row['total_score']];
-            $position = $previous !== null && $key === $previous['key'] ? $previous['position'] : $index + 1;
-            $positions->put($row['learner']->id, $position);
-            $previous = ['key' => $key, 'position' => $position];
-        }
-
-        return $positions;
-    }
-
-    private function compare(array $a, array $b): int
-    {
-        return $b['average_percentage'] <=> $a['average_percentage']
-            ?: (($b['total_points'] ?? PHP_INT_MIN) <=> ($a['total_points'] ?? PHP_INT_MIN))
-            ?: $b['total_score'] <=> $a['total_score'];
     }
 }
