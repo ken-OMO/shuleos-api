@@ -1,8 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\GradeController;
+use App\Http\Controllers\Api\LearnerController;
+use App\Http\Controllers\Api\LearnerPlacementController;
 use App\Models\Exam;
 use App\Models\ExamLearningArea;
 use App\Models\ExamPaper;
+use App\Models\User;
 use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultLifecycleService;
@@ -13,6 +17,7 @@ use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -72,7 +77,15 @@ try {
 
     $result = DB::transaction(function () use ($payload) {
         if ($payload['hold_lock'] ?? false) {
-            if ($payload['operation'] === 'school_read_only') {
+            if ($payload['operation'] === 'grade_classify') {
+                DB::table('grades')->where('school_id', $payload['school_id'])
+                    ->where('id', $payload['grade_id'])
+                    ->lockForUpdate()->firstOrFail();
+            } elseif (in_array($payload['operation'], ['learner_promote', 'learner_clear_assessment'], true)) {
+                DB::table('learners')->where('school_id', $payload['school_id'])
+                    ->where('id', $payload['learner_id'])
+                    ->lockForUpdate()->firstOrFail();
+            } elseif ($payload['operation'] === 'school_read_only') {
                 DB::table('schools')->where('id', $payload['school_id'])
                     ->lockForUpdate()->firstOrFail();
             } else {
@@ -96,6 +109,67 @@ try {
 
             return DB::table('schools')->where('id', $payload['school_id'])
                 ->update(['lifecycle_state' => 'read_only']);
+        }
+
+        if ($payload['operation'] === 'grade_classify') {
+            $actor = User::withoutGlobalScopes()
+                ->where('school_id', $payload['school_id'])
+                ->findOrFail($payload['actor_id']);
+            auth()->guard()->setUser($actor);
+
+            $request = Request::create(
+                '/api/grades/'.$payload['grade_id'],
+                'PUT',
+                ['grade_number' => $payload['grade_number']]
+            );
+            $request->attributes->set('tenant_school_id', $payload['school_id']);
+            $request->setUserResolver(fn () => $actor);
+
+            $response = app(GradeController::class)
+                ->update($request, $payload['grade_id']);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new RuntimeException(
+                    'Unexpected grade response: '.$response->getStatusCode()
+                );
+            }
+
+            return DB::table('grades')->where('id', $payload['grade_id'])
+                ->value('grade_number');
+        }
+
+        if (in_array($payload['operation'], ['learner_promote', 'learner_clear_assessment'], true)) {
+            $actor = User::withoutGlobalScopes()
+                ->where('school_id', $payload['school_id'])
+                ->findOrFail($payload['actor_id']);
+            auth()->guard()->setUser($actor);
+
+            $promoting = $payload['operation'] === 'learner_promote';
+            $request = Request::create(
+                '/api/learners/'.$payload['learner_id'],
+                $promoting ? 'POST' : 'PUT',
+                $promoting ? [
+                    'grade_id' => $payload['destination_grade_id'],
+                    'stream_id' => $payload['destination_stream_id'],
+                    'reason' => 'Assessment-number concurrency regression.',
+                ] : ['assessment_no' => null]
+            );
+            $request->attributes->set('tenant_school_id', $payload['school_id']);
+            $request->setUserResolver(fn () => $actor);
+
+            $response = $promoting
+                ? app(LearnerPlacementController::class)
+                    ->store($request, $payload['learner_id'])
+                : app(LearnerController::class)
+                    ->update($request, $payload['learner_id']);
+
+            if ($response->getStatusCode() !== 200) {
+                throw new RuntimeException(
+                    'Unexpected learner response: '.$response->getStatusCode()
+                );
+            }
+
+            return $response->getStatusCode();
         }
 
         return match ($payload['operation']) {

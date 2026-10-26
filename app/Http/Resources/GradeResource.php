@@ -20,6 +20,10 @@ class GradeResource extends JsonResource
 
             'grade_order' => $this->grade_order,
 
+            'grade_number' => $this->grade_number,
+
+            'requires_assessment_number' => $this->resource->requiresAssessmentNumber(),
+
             'active' => $this->active,
 
             'education_level' => $this->whenLoaded(

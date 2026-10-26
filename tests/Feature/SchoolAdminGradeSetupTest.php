@@ -215,6 +215,119 @@ class SchoolAdminGradeSetupTest extends TestCase
         );
     }
 
+    public function test_custom_grade_requires_explicit_classification_and_preserves_it_after_rename(): void
+    {
+        [$school, , , $token] = $this->schoolAdminContext();
+        $level = $this->createEducationLevel();
+
+        $payload = [
+            'education_level_id' => $level->id,
+            'grade_name' => 'Upper Cedar',
+            'grade_order' => 50,
+        ];
+
+        $this->withJwtToken($token)->postJson('/api/grades', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('grade_number');
+
+        $this->assertDatabaseMissing('grades', [
+            'school_id' => $school->id,
+            'grade_name' => 'Upper Cedar',
+        ]);
+
+        $payload['grade_number'] = 3;
+        $response = $this->withJwtToken($token)->postJson('/api/grades', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.grade_number', 3)
+            ->assertJsonPath('data.requires_assessment_number', true);
+
+        $id = $response->json('data.id');
+
+        $this->withJwtToken($token)->putJson('/api/grades/'.$id, [
+            'grade_name' => 'Cedar Renamed',
+            'grade_order' => 99,
+        ])->assertOk()
+            ->assertJsonPath('data.grade_number', 3)
+            ->assertJsonPath('data.requires_assessment_number', true);
+
+        foreach ([null, 0, 2, 10] as $number) {
+            $this->withJwtToken($token)->putJson('/api/grades/'.$id, [
+                'grade_number' => $number,
+            ])->assertUnprocessable()->assertJsonValidationErrors('grade_number');
+        }
+
+        $this->withJwtToken($token)->putJson('/api/grades/'.$id, [
+            'grade_name' => 'Grade 2',
+        ])->assertUnprocessable()->assertJsonValidationErrors('grade_name');
+
+        $this->assertDatabaseHas('grades', [
+            'id' => $id,
+            'school_id' => $school->id,
+            'grade_name' => 'Cedar Renamed',
+            'grade_number' => 3,
+            'grade_order' => 99,
+        ]);
+    }
+
+    public function test_standard_grade_classification_is_inferred_and_cannot_conflict(): void
+    {
+        [$school, , , $token] = $this->schoolAdminContext();
+        $level = $this->createEducationLevel();
+
+        foreach ([
+            ['PP1', 0, false],
+            ['Grade 2', 2, false],
+            ['Grade 3', 3, true],
+            ['Grade 9', 9, true],
+            ['Grade 10', 10, false],
+        ] as [$name, $number, $required]) {
+            $this->withJwtToken($token)->postJson('/api/grades', [
+                'education_level_id' => $level->id,
+                'grade_name' => $name,
+                'grade_order' => 100,
+            ])->assertCreated()
+                ->assertJsonPath('data.grade_number', $number)
+                ->assertJsonPath('data.requires_assessment_number', $required);
+        }
+
+        $this->withJwtToken($token)->postJson('/api/grades', [
+            'education_level_id' => $level->id,
+            'grade_name' => 'Grade 7',
+            'grade_order' => 101,
+            'grade_number' => 2,
+        ])->assertUnprocessable()->assertJsonValidationErrors('grade_number');
+
+        $this->assertDatabaseMissing('grades', [
+            'school_id' => $school->id,
+            'grade_name' => 'Grade 7',
+        ]);
+    }
+
+    public function test_existing_custom_grade_can_be_classified_once(): void
+    {
+        [$school, , , $token] = $this->schoolAdminContext();
+        $level = $this->createEducationLevel();
+        $grade = $this->createGrade($school, $level, [
+            'grade_name' => 'Legacy Cedar',
+            'grade_number' => null,
+        ]);
+
+        $this->withJwtToken($token)->putJson('/api/grades/'.$grade->id, [
+            'grade_number' => 7,
+        ])->assertOk()
+            ->assertJsonPath('data.grade_number', 7)
+            ->assertJsonPath('data.requires_assessment_number', true);
+
+        $this->withJwtToken($token)->putJson('/api/grades/'.$grade->id, [
+            'grade_number' => 1,
+        ])->assertUnprocessable()->assertJsonValidationErrors('grade_number');
+
+        $this->assertDatabaseHas('grades', [
+            'id' => $grade->id,
+            'school_id' => $school->id,
+            'grade_number' => 7,
+        ]);
+    }
+
     public function test_school_admin_can_create_grade_without_supplying_school_id(): void
     {
         [$school, , , $token] =
