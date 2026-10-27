@@ -12,39 +12,22 @@ namespace App\Core\Security\File;
  */
 final readonly class MagicNumber
 {
+    public string $extension;
+
+    public string $signature;
+
     /**
      * Create a magic number.
      */
     public function __construct(
-
-        public string $extension,
-
-        public string $signature,
-
+        string $extension,
+        string $signature,
         public int $offset = 0
-
     ) {
-
-        $this->extension = strtolower(
-
-            trim($this->extension)
-
-        );
-
+        $this->extension = strtolower(trim($extension));
         $this->signature = strtoupper(
-
-            preg_replace(
-
-                '/\s+/',
-
-                '',
-
-                trim($this->signature)
-
-            ) ?? ''
-
+            preg_replace('/\s+/', '', trim($signature)) ?? ''
         );
-
     }
 
     /**

@@ -57,8 +57,11 @@ class ReportCardPresentationSnapshotService
                     ?? $detail->learningArea?->name,
             ])->values()->all(),
             'assets' => [
-                'logo' => $this->image($logo),
-                'principal_signature' => $this->image($settings?->principal_signature_url),
+                'logo' => app(ReportBrandingAssetService::class)
+                    ->read((string) $card->school_id, 'logo') ?? $this->image($logo),
+                'principal_signature' => app(ReportBrandingAssetService::class)
+                    ->read((string) $card->school_id, 'principal_signature')
+                    ?? $this->image($settings?->principal_signature_url),
             ],
         ];
     }

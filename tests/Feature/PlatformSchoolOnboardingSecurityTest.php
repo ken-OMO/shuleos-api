@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\SchoolResource;
+use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\School\SchoolSettingsProvisioningService;
@@ -40,6 +42,70 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
         $this->schoolAdminRoleId = $this->systemRole(
             'School Admin'
+        );
+    }
+
+    public function test_onboarding_saves_school_contacts_separately_from_admin_email(): void
+    {
+        $owner = $this->platformOwner();
+        $adminEmail = 'contact-admin-'.Str::lower(Str::random(12)).'@example.test';
+
+        $response = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools',
+            [
+                'school_name' => 'Contact Capture School',
+                'email' => 'school-office@example.test',
+                'phone' => '+254700123456',
+                'postal_address' => 'P.O. Box 123 - 00100, Nairobi',
+                'physical_address' => 'School Road, Nairobi',
+                'admin' => [
+                    'first_name' => 'Contact',
+                    'last_name' => 'Administrator',
+                    'email' => $adminEmail,
+                ],
+            ]
+        )->assertCreated();
+
+        $schoolId = DB::table('users')->where('email', $adminEmail)->value('school_id');
+        $this->assertNotNull($schoolId);
+
+        $school = School::withoutGlobalScopes()->findOrFail($schoolId);
+        $this->assertSame('school-office@example.test', $school->email);
+        $this->assertSame('+254700123456', $school->phone);
+        $this->assertSame('P.O. Box 123 - 00100, Nairobi', $school->postal_address);
+        $this->assertSame('School Road, Nairobi', $school->physical_address);
+
+        $payload = (new SchoolResource($school))->resolve(request());
+        $this->assertSame($school->postal_address, $payload['postal_address']);
+        $this->assertSame($school->physical_address, $payload['physical_address']);
+        $this->assertNotSame($adminEmail, $payload['email']);
+    }
+
+    public function test_onboarding_rejects_invalid_school_contacts_without_creating_school(): void
+    {
+        $owner = $this->platformOwner();
+        $name = 'Invalid contacts '.Str::random(12);
+
+        $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools',
+            [
+                'school_name' => $name,
+                'email' => 'invalid-email',
+                'phone' => str_repeat('1', 31),
+                'postal_address' => str_repeat('P', 256),
+                'physical_address' => str_repeat('A', 256),
+                'admin' => [
+                    'first_name' => 'Contact',
+                    'last_name' => 'Administrator',
+                    'email' => 'invalid-contact-admin-'.Str::random(12).'@example.test',
+                ],
+            ]
+        )->assertUnprocessable()->assertJsonValidationErrors([
+            'email', 'phone', 'postal_address', 'physical_address',
+        ]);
+
+        $this->assertFalse(
+            DB::table('schools')->where('school_name', $name)->exists()
         );
     }
 

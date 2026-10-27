@@ -6,6 +6,7 @@ use App\Models\ReportCard;
 use App\Models\User;
 use App\Services\Assessment\AssessmentPublicationHistoryService;
 use App\Services\Assessment\ExamResultLifecycleService;
+use App\Services\Assessment\ReportBrandingAssetService;
 use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\DB;
@@ -62,10 +63,12 @@ class ReportCardPdfService
         $settings = $card->school->settings;
         $logo = $card->status === 'published'
             ? $presentations->asset($card, 'logo')
-            : $this->safeImage($settings?->school_logo_url ?: $card->school->logo_url);
+            : ($this->uploadedImage((string) $card->school_id, 'logo')
+                ?? $this->safeImage($settings?->school_logo_url ?: $card->school->logo_url));
         $signature = $card->status === 'published'
             ? $presentations->asset($card, 'principal_signature')
-            : $this->safeImage($settings?->principal_signature_url);
+            : ($this->uploadedImage((string) $card->school_id, 'principal_signature')
+                ?? $this->safeImage($settings?->principal_signature_url));
         $pdf = Pdf::loadView('pdf.report-card', compact('card', 'settings', 'logo', 'signature', 'revisionNumber'))->setPaper('a4', 'portrait');
 
         return [
@@ -81,6 +84,17 @@ class ReportCardPdfService
         $parts = [$card->learner->admission_no ?: 'learner', $card->exam->exam_name ?: 'exam', $card->term->term_name ?? 'term'];
 
         return Str::slug(implode('-', $parts)).'-report-card.pdf';
+    }
+
+    private function uploadedImage(string $schoolId, string $name): ?string
+    {
+        $asset = app(
+            ReportBrandingAssetService::class
+        )->read($schoolId, $name);
+
+        return $asset === null
+            ? null
+            : 'data:'.$asset['mime'].';base64,'.$asset['base64'];
     }
 
     private function safeImage(?string $value): ?string
