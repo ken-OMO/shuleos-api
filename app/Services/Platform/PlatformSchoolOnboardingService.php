@@ -91,6 +91,15 @@ class PlatformSchoolOnboardingService
 
                     'login_prefix' => $loginPrefix,
 
+                    'email' => isset($data['email'])
+                        ? strtolower(trim($data['email'])) : null,
+                    'phone' => isset($data['phone'])
+                        ? trim($data['phone']) : null,
+                    'postal_address' => isset($data['postal_address'])
+                        ? trim($data['postal_address']) : null,
+                    'physical_address' => isset($data['physical_address'])
+                        ? trim($data['physical_address']) : null,
+
                     'active' => true,
 
                     'is_deleted' => false,

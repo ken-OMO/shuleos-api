@@ -305,6 +305,11 @@ class AdministratorPortalController extends BaseApiController
         $validated = $request->validate([
             'school_name' => 'required|string|max:255',
 
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:30',
+            'postal_address' => 'nullable|string|max:255',
+            'physical_address' => 'nullable|string|max:255',
+
             'school_code' => 'prohibited',
 
             'timezone' => 'nullable|string|max:60',
@@ -357,6 +362,8 @@ class AdministratorPortalController extends BaseApiController
             'county' => 'required|string|max:100',
             'phone' => 'required|string|max:30',
             'email' => 'required|email|max:255',
+            'postal_address' => 'sometimes|nullable|string|max:255',
+            'physical_address' => 'sometimes|nullable|string|max:255',
             'timezone' => 'required|timezone',
             'locale' => 'required|string|max:10',
         ];

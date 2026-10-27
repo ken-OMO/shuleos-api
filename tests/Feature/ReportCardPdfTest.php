@@ -2,12 +2,15 @@
 
 namespace Tests\Feature;
 
+use App\Core\Security\File\SecureFileStorage;
 use App\Http\Resources\ParentReportCardResource;
 use App\Http\Resources\ReportCardLearningAreaResource;
 use App\Http\Resources\ReportCardResource;
 use App\Models\Learner;
 use App\Models\ReportCard;
 use App\Models\User;
+use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\Administrator\SchoolBrandingAdministrationService;
 use App\Services\Assessment\AssessmentCorrectionProposalService;
 use App\Services\Assessment\AssessmentPublicationArchiveService;
 use App\Services\Assessment\AssessmentPublicationHistoryService;
@@ -19,6 +22,7 @@ use App\Services\Assessment\AssessmentReissueRequestService;
 use App\Services\Assessment\AssessmentReissueReviewService;
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\MeritListService;
+use App\Services\Assessment\ReportBrandingAssetService;
 use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\LearnerPortal\LearnerAccountService;
@@ -27,6 +31,7 @@ use App\Services\LearnerPortal\LearnerPortalService;
 use App\Services\Pdf\ReportCardPdfService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -2784,6 +2789,210 @@ class ReportCardPdfTest extends ReportCardTest
             DB::table('assessment_reissue_events')->where('request_id', $id)
                 ->where('action', 'published')->count()
         );
+    }
+
+    public function test_report_contacts_remain_captured_after_profile_changes_and_reissue(): void
+    {
+        $context = $this->context();
+        $schoolId = $context['exam']->school_id;
+        $contacts = [
+            'email' => 'office@example.test',
+            'phone' => '+254700123456',
+            'postal_address' => 'P.O. Box 123 - 00100, Nairobi',
+            'physical_address' => 'School Road, Nairobi',
+        ];
+        DB::table('schools')->where('id', $schoolId)->update($contacts);
+
+        app(ReportCardService::class)->publish(
+            $schoolId, $context['exam']->id, $context['learner']->id,
+            null, null, $context['user']->id
+        );
+
+        $card = $context['card']->fresh();
+        foreach ($contacts as $field => $value) {
+            $this->assertSame($value, $card->presentation_snapshot['school'][$field]);
+        }
+
+        $render = function ($card): string {
+            $display = app(
+                ReportCardPresentationSnapshotService::class
+            )->forDisplay($card);
+
+            return view('pdf.report-card', [
+                'card' => $display,
+                'settings' => $display->school->settings,
+                'logo' => null,
+                'signature' => null,
+                'revisionNumber' => 1,
+            ])->render();
+        };
+
+        $before = $render($card);
+        foreach ($contacts as $value) {
+            $this->assertStringContainsString($value, $before);
+        }
+
+        DB::table('schools')->where('id', $schoolId)->update([
+            'email' => 'changed@example.test',
+            'phone' => '+254799999999',
+            'postal_address' => 'CHANGED POSTAL ADDRESS',
+            'physical_address' => 'CHANGED PHYSICAL ADDRESS',
+        ]);
+
+        $this->assertSame($before, $render($context['card']->fresh()));
+
+        $actor = User::withoutGlobalScopes()->findOrFail($context['user']->id);
+        $actor->forceFill(['active' => true, 'is_deleted' => false])->save();
+        DB::table('roles')->where('id', $actor->role_id)->update(['active' => true]);
+
+        foreach ([
+            'request_assessment_reissues', 'approve_assessment_reissues',
+            'prepare_assessment_reissues', 'review_assessment_reissues',
+            'publish_assessment_reissues', 'view_assessment_publication_history',
+        ] as $permission) {
+            $this->grantReissueTestPermission($actor, $permission);
+        }
+
+        $reviewer = $actor->replicate();
+        $reviewer->id = (string) Str::uuid();
+        $reviewer->username = 'contact-review-'.Str::random(12);
+        $reviewer->email = Str::random(12).'@example.test';
+        $reviewer->phone = null;
+        $reviewer->save();
+
+        $result = DB::table('exam_results')->where('exam_id', $context['exam']->id)
+            ->where('learner_id', $context['learner']->id)
+            ->where('is_deleted', false)->where('is_absent', false)->first();
+        $this->assertNotNull($result);
+
+        $requests = app(AssessmentReissueRequestService::class);
+        $id = $requests->submit($actor, $context['exam']->id, 'Verified mark correction.', [[
+            'exam_result_id' => $result->id,
+            'marks' => (float) $result->marks === 0.0 ? 1 : 0,
+            'is_absent' => false,
+        ]]);
+        $requests->decide($reviewer, $id, 'approved', 'Checked source marks.');
+
+        $prepared = app(
+            AssessmentReissuePreparationService::class
+        )->prepare($actor, $id, 'Prepare correction.');
+
+        app(AssessmentReissueReviewService::class)->approve(
+            $reviewer, $id, $prepared['prepared_sha256'], 'Checked prepared report.'
+        );
+        app(AssessmentReissuePublicationService::class)->publish(
+            $actor, $id, $prepared['prepared_sha256'], 'Publish correction.'
+        );
+
+        $history = app(
+            AssessmentPublicationHistoryService::class
+        );
+        $versions = DB::table('assessment_publication_versions')
+            ->where('school_id', $schoolId)->where('output_type', 'report_card')
+            ->where('output_id', $card->id)->orderBy('revision_number')->get();
+        $this->assertCount(2, $versions);
+
+        foreach ($versions as $version) {
+            $archived = $history->reportCard($actor, $version->id)['card'];
+            $html = $render($archived);
+
+            foreach ($contacts as $field => $value) {
+                $this->assertSame($value, $archived->school->$field);
+                $this->assertStringContainsString($value, $html);
+            }
+            $this->assertStringNotContainsString('changed@example.test', $html);
+            $this->assertStringNotContainsString('CHANGED POSTAL ADDRESS', $html);
+        }
+    }
+
+    public function test_uploaded_branding_reaches_preview_and_publication_without_changing_history(): void
+    {
+        $context = $this->context();
+        $schoolId = $context['exam']->school_id;
+        $actor = User::withoutGlobalScopes()->findOrFail($context['user']->id);
+
+        // Exercise real image validation, quarantine, encryption and decryption.
+        // Portal authorization is isolated here; HTTP permission tests are separate.
+        $this->mock(
+            AdministratorPortalAccessService::class
+        )->shouldReceive('require')
+            ->with($actor, 'manage_school_branding')
+            ->andReturn(['school_id' => $schoolId]);
+
+        $branding = app(
+            SchoolBrandingAdministrationService::class
+        );
+        $reader = app(
+            ReportBrandingAssetService::class
+        );
+        $storage = app(SecureFileStorage::class);
+
+        try {
+            $branding->upload(
+                $actor,
+                UploadedFile::fake()->image('school-logo.png', 100, 100),
+                'report_card_logo'
+            );
+            $captured = $reader->read($schoolId, 'logo');
+            $this->assertSame('captured', $captured['status']);
+            $this->assertSame('image/png', $captured['mime']);
+            $expected = 'data:'.$captured['mime'].';base64,'.$captured['base64'];
+
+            $logos = [];
+            $document = \Mockery::mock(\Barryvdh\DomPDF\PDF::class);
+            $document->shouldReceive('setPaper')->with('a4', 'portrait')
+                ->twice()->andReturnSelf();
+
+            Pdf::shouldReceive('loadView')
+                ->twice()->andReturnUsing(
+                    function ($view, $data) use (&$logos, $document) {
+                        $this->assertSame('pdf.report-card', $view);
+                        $logos[] = $data['logo'];
+
+                        return $document;
+                    }
+                );
+
+            $pdfs = app(ReportCardPdfService::class);
+            $pdfs->make($schoolId, $context['card']->id);
+
+            app(ReportCardService::class)->publish(
+                $schoolId, $context['exam']->id, $context['learner']->id,
+                null, null, $actor->id
+            );
+
+            $card = $context['card']->fresh();
+            $storedLogo = $card->presentation_snapshot['assets']['logo'];
+            $expectedLogo = $captured;
+            ksort($storedLogo);
+            ksort($expectedLogo);
+            $this->assertSame($expectedLogo, $storedLogo);
+
+            $branding->upload(
+                $actor,
+                UploadedFile::fake()->image('replacement.png', 140, 90),
+                'report_card_logo'
+            );
+            $this->assertNotSame(
+                $captured['sha256'], $reader->read($schoolId, 'logo')['sha256']
+            );
+
+            $pdfs->make($schoolId, $card->id);
+            $this->assertSame([$expected, $expected], $logos);
+            $refreshedLogo = $card->fresh()->presentation_snapshot['assets']['logo'];
+            ksort($refreshedLogo);
+            $this->assertSame($expectedLogo, $refreshedLogo);
+
+            $this->assertNull(
+                $reader->read((string) Str::uuid(), 'logo')
+            );
+        } finally {
+            $ids = DB::table('administrator_branding_assets')
+                ->where('school_id', $schoolId)->pluck('storage_id');
+            foreach ($ids as $storageId) {
+                $storage->delete($storageId);
+            }
+        }
     }
 
     private function context(bool $primary = false): array
