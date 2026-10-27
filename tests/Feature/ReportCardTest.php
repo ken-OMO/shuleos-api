@@ -848,7 +848,8 @@ class ReportCardTest extends TestCase
         $this->assertSame($this->juniorGrade->id, $junior->grade_id);
         $this->assertSame($this->juniorStream->id, $junior->stream_id);
         $this->assertSame('STEM', $junior->pathway_recommendation);
-        $this->assertSame(1, $junior->total_learners);
+        // School position includes both ranked exam participants across grades.
+        $this->assertSame(2, $junior->total_learners);
 
         $this->assertSame($this->primaryGrade->id, $primary->grade_id);
         $this->assertSame($this->primaryStream->id, $primary->stream_id);
@@ -877,7 +878,8 @@ class ReportCardTest extends TestCase
 
         $card = $this->generate($this->juniorLearner->id)->first();
 
-        $this->assertSame(1, $card->total_learners);
+        // Both ranked exam participants count; the unrostered classmate does not.
+        $this->assertSame(2, $card->total_learners);
     }
 
     private function publishJuniorCard(): void

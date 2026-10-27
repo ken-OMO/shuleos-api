@@ -423,15 +423,13 @@ class ReportCardService
 
     private function totalLearners(string $schoolId, string $examId, Learner $learner): int
     {
-        return DB::table('exam_roster_learners')
+        // School positions use the exam-wide ranked population.
+        return DB::table('merit_lists')
             ->where('school_id', $schoolId)
             ->where('exam_id', $examId)
-            ->where('grade_id', $learner->grade_id)
-            ->when(
-                $learner->stream_id,
-                fn ($query) => $query->where('stream_id', $learner->stream_id)
-            )
-            ->count();
+            ->where('is_deleted', false)
+            ->whereNotNull('school_position')
+            ->distinct()->count('learner_id');
     }
 
     private function attendanceForLearners(

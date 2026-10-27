@@ -39,6 +39,7 @@ class AssessmentReissuePublicationService
             'grading_snapshot', 'overall_grade', 'overall_grading_system_id',
             'overall_grading_scale_id', 'total_points',
             'stream_position', 'grade_position', 'school_position',
+            'total_learners',
         ],
     ];
 

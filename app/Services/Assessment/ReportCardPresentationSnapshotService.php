@@ -69,7 +69,9 @@ class ReportCardPresentationSnapshotService
     public function forDisplay(ReportCard $card): ReportCard
     {
         if ($card->status !== 'published') {
-            return $card;
+            $card->loadMissing('learningAreas.learningArea');
+
+            return $this->alphabetical($card);
         }
 
         // Replace relations on a display copy; never persist this projection.
@@ -123,6 +125,28 @@ class ReportCardPresentationSnapshotService
                 return $copy;
             }
         ));
+
+        return $this->alphabetical($display);
+    }
+
+    private function alphabetical(ReportCard $card): ReportCard
+    {
+        $display = clone $card;
+        $display->setRelation('learningAreas', $card->learningAreas->sort(
+            function ($left, $right): int {
+                $leftName = trim((string) (
+                    $left->learningArea?->learning_area_name
+                    ?? $left->learningArea?->name ?? ''
+                ));
+                $rightName = trim((string) (
+                    $right->learningArea?->learning_area_name
+                    ?? $right->learningArea?->name ?? ''
+                ));
+
+                return strnatcasecmp($leftName, $rightName)
+                    ?: strcmp((string) $left->id, (string) $right->id);
+            }
+        )->values());
 
         return $display;
     }
