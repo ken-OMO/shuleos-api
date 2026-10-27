@@ -1459,6 +1459,13 @@ class ReportCardPdfTest extends ReportCardTest
         $this->assertEquals($merit['total_score'], $candidate['overall_score']);
         $this->assertEquals($merit['average_percentage'], $candidate['average_percentage']);
         $this->assertSame($merit['school_position'], $candidate['school_position']);
+        $rankedCount = collect($calculated['merit_lists'])
+            ->whereNotNull('school_position')->count();
+        $this->assertGreaterThan(1, $rankedCount);
+        $this->assertSame($rankedCount, $candidate['total_learners']);
+        $this->assertLessThanOrEqual(
+            $candidate['total_learners'], $candidate['school_position']
+        );
         $this->assertNotEquals(
             (float) $storedCard['overall_score'], (float) $candidate['overall_score']
         );
@@ -1808,6 +1815,16 @@ class ReportCardPdfTest extends ReportCardTest
         $this->assertSame(1, $result['publication_version_count']);
         $stored = DB::table('report_cards')->where('id', $cardId)->first();
         $this->assertSame('published', $stored->status);
+        $rankedCount = DB::table('merit_lists')
+            ->where('school_id', $context['exam']->school_id)
+            ->where('exam_id', $examId)->where('is_deleted', false)
+            ->whereNotNull('school_position')->distinct()->count('learner_id');
+        $this->assertGreaterThan(1, $rankedCount);
+        $this->assertSame($rankedCount, (int) $stored->total_learners);
+        $this->assertSame($rankedCount, $payload['output']['total_learners']);
+        $this->assertLessThanOrEqual(
+            (int) $stored->total_learners, (int) $stored->school_position
+        );
         $this->assertEquals($payload['output']['overall_score'], $stored->overall_score);
         $this->assertEquals(
             $payload['output']['average_percentage'], $stored->average_percentage
@@ -2993,6 +3010,85 @@ class ReportCardPdfTest extends ReportCardTest
                 $storage->delete($storageId);
             }
         }
+    }
+
+    public function test_report_learning_areas_sort_alphabetically_using_captured_names(): void
+    {
+        $context = $this->context();
+        $details = $context['card']->fresh()->learningAreas;
+        $this->assertCount(2, $details);
+
+        DB::table('learning_areas')->where('id', $details[0]->learning_area_id)
+            ->update(['learning_area_name' => 'zoology']);
+        DB::table('learning_areas')->where('id', $details[1]->learning_area_id)
+            ->update(['learning_area_name' => 'English']);
+
+        $service = app(
+            ReportCardPresentationSnapshotService::class
+        );
+        $names = fn ($card) => $service->forDisplay($card)->learningAreas
+            ->map(fn ($detail) => $detail->learningArea->learning_area_name)->all();
+
+        $preview = $context['card']->fresh()->load('learningAreas.learningArea');
+        $beforeOrder = $preview->learningAreas->pluck('id')->all();
+        $this->assertSame(['English', 'zoology'], $names($preview));
+        $this->assertSame($beforeOrder, $preview->learningAreas->pluck('id')->all());
+
+        app(ReportCardService::class)->publish(
+            $context['exam']->school_id, $context['exam']->id,
+            $context['learner']->id, null, null, $context['user']->id
+        );
+
+        $snapshot = $context['card']->fresh()->presentation_snapshot;
+        DB::table('learning_areas')->where('id', $details[0]->learning_area_id)
+            ->update(['learning_area_name' => 'A changed live name']);
+        DB::table('learning_areas')->where('id', $details[1]->learning_area_id)
+            ->update(['learning_area_name' => 'Z changed live name']);
+
+        $published = $context['card']->fresh()->load('learningAreas.learningArea');
+        $published->setRelation('learningAreas', $published->learningAreas->reverse()->values());
+        $this->assertSame(['English', 'zoology'], $names($published));
+        $this->assertSame($snapshot, $context['card']->fresh()->presentation_snapshot);
+    }
+
+    public function test_original_and_reissued_reports_share_alphabetical_display_order(): void
+    {
+        [$context, $actor, $reviewer, $id, $prepared] = $this->reissueReviewContext();
+        $this->grantReissueTestPermission($actor, 'view_assessment_publication_history');
+        $this->grantReissueTestPermission($actor, 'publish_assessment_reissues');
+
+        app(AssessmentReissueReviewService::class)->approve(
+            $reviewer, $id, $prepared['prepared_sha256'], 'Verified alphabetical report.'
+        );
+        app(AssessmentReissuePublicationService::class)->publish(
+            $actor, $id, $prepared['prepared_sha256'], 'Publish corrected report.'
+        );
+
+        $versions = DB::table('assessment_publication_versions')
+            ->where('school_id', $context['exam']->school_id)
+            ->where('output_type', 'report_card')
+            ->where('output_id', $context['card']->id)
+            ->orderBy('revision_number')->get();
+        $this->assertCount(2, $versions);
+
+        $orders = [];
+        foreach ($versions as $version) {
+            $card = app(
+                AssessmentPublicationHistoryService::class
+            )->reportCard($actor, $version->id)['card'];
+            $display = app(
+                ReportCardPresentationSnapshotService::class
+            )->forDisplay($card);
+            $names = $display->learningAreas->map(
+                fn ($detail) => $detail->learningArea->learning_area_name
+            )->all();
+            $expected = $names;
+            usort($expected, 'strnatcasecmp');
+            $this->assertSame($expected, $names);
+            $orders[] = $names;
+        }
+
+        $this->assertSame($orders[0], $orders[1]);
     }
 
     private function context(bool $primary = false): array

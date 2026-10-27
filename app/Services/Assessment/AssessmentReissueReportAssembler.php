@@ -22,6 +22,7 @@ class AssessmentReissueReportAssembler
         app(ExamResultLifecycleService::class)->lockExamForWrite($schoolId, $examId);
 
         $merits = collect($calculated['merit_lists'])->keyBy('learner_id');
+        $totalRankedLearners = $merits->whereNotNull('school_position')->count();
         $areasByLearner = collect($calculated['all_learning_area_results'])
             ->groupBy('learner_id');
 
@@ -67,6 +68,7 @@ class AssessmentReissueReportAssembler
                 'stream_position' => $merit['stream_position'],
                 'grade_position' => $merit['grade_position'],
                 'school_position' => $merit['school_position'],
+                'total_learners' => $totalRankedLearners,
             ]);
 
             $details = DB::table('report_card_learning_areas')
