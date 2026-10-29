@@ -2,9 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Exam;
 use App\Models\User;
+use App\Services\Assessment\AssessmentRegistrationService;
 use App\Services\Assessment\ExamRosterService;
+use App\Services\Assessment\ExamService;
+use App\Services\Assessment\MarkEntryPermissionService;
 use App\Services\Assessment\MeritListService;
+use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -27,6 +32,370 @@ class AssessmentProductionReadinessTest extends TestCase
 
         config(['jwt.secret' => str_repeat('assessment-readiness-test-', 3)]);
         $this->fixture = ExamBenchmarkFixture::create(251);
+    }
+
+    public function test_assessment_generator_cannot_publish_without_publication_permission(): void
+    {
+        $actor = $this->actor(true);
+
+        $this->withToken(JWTAuth::fromUser($actor))
+            ->getJson('/api/report-cards')->assertOk();
+
+        // Authorization must reject the action before payload validation.
+        $this->withToken(JWTAuth::fromUser($actor))
+            ->postJson('/api/report-cards/publish', [])
+            ->assertForbidden();
+    }
+
+    public function test_assessment_requests_reject_client_school_ownership(): void
+    {
+        $actor = $this->actor(true);
+        $token = JWTAuth::fromUser($actor);
+
+        $this->withToken($token)
+            ->getJson('/api/report-cards')->assertOk();
+
+        foreach ([
+            $this->fixture['school_id'],
+            (string) Str::uuid(),
+        ] as $schoolId) {
+            $this->withToken($token)
+                ->getJson('/api/report-cards?school_id='.$schoolId)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('school_id');
+        }
+
+        $this->withToken($token)
+            ->postJson('/api/report-cards/generate', [
+                'school_id' => $this->fixture['school_id'],
+                'exam_id' => $this->fixture['exam_id'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('school_id');
+    }
+
+    public function test_assessment_publisher_has_separate_tenant_scoped_authority(): void
+    {
+        $migration = require database_path(
+            'migrations/2026_10_29_210000_add_assessment_action_permissions.php'
+        );
+        $migration->up();
+
+        $foreign = ExamBenchmarkFixture::create(1);
+
+        $actor = $this->actor(false);
+        $permissionId = DB::table('permissions')
+            ->where('permission_name', 'publish_report_cards')->value('id');
+        $this->assertNotNull($permissionId);
+
+        DB::table('role_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'role_id' => $actor->role_id,
+            'permission_id' => $permissionId,
+        ]);
+
+        $token = JWTAuth::fromUser($actor);
+
+        $this->withToken($token)
+            ->postJson('/api/report-cards/generate', [])
+            ->assertForbidden();
+
+        $this->generateMerits();
+        $learnerId = $this->fixture['learner_ids'][0];
+
+        $card = app(ReportCardService::class)->generate(
+            $this->fixture['school_id'],
+            $this->fixture['exam_id'],
+            $learnerId, null, null, $actor->id
+        )->sole();
+
+        $this->withToken($token)
+            ->postJson('/api/report-cards/publish', [
+                'exam_id' => $this->fixture['exam_id'],
+                'learner_id' => $learnerId,
+            ])->assertOk();
+
+        $published = DB::table('report_cards')->where('id', $card->id)->first();
+        $this->assertSame('published', $published->status);
+        $this->assertSame($actor->id, $published->published_by);
+        $this->assertNotNull($published->published_at);
+
+        $foreignBefore = DB::table('report_cards')
+            ->where('school_id', $foreign['school_id'])
+            ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
+
+        // No school_id payload: ownership must come from the authenticated user.
+        $this->withToken($token)
+            ->postJson('/api/report-cards/publish', [
+                'exam_id' => $foreign['exam_id'],
+            ])->assertUnprocessable()->assertJsonValidationErrors('exam_id');
+
+        $this->assertSame(
+            $foreignBefore,
+            DB::table('report_cards')
+                ->where('school_id', $foreign['school_id'])
+                ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all()
+        );
+    }
+
+    public function test_assessment_action_permission_migration_preserves_identity_and_grants(): void
+    {
+        $this->assertGreaterThan(0, DB::transactionLevel());
+
+        $migration = require database_path(
+            'migrations/2026_10_29_210000_add_assessment_action_permissions.php'
+        );
+        $grantsBeforeCreation = DB::table('role_permissions')
+            ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
+
+        $migration->up();
+
+        $this->assertSame(
+            $grantsBeforeCreation,
+            DB::table('role_permissions')
+                ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all()
+        );
+
+        $permission = DB::table('permissions')
+            ->where('permission_name', 'publish_report_cards')->sole();
+
+        DB::table('permissions')->where('id', $permission->id)->update([
+            'module_name' => 'existing_module',
+            'description' => 'Preserve explicit publication permission metadata.',
+        ]);
+
+        $actor = $this->actor(false);
+        DB::table('role_permissions')->insert([
+            'id' => (string) Str::uuid(),
+            'role_id' => $actor->role_id,
+            'permission_id' => $permission->id,
+        ]);
+
+        $before = (array) DB::table('permissions')
+            ->where('id', $permission->id)->first();
+        $grantsBefore = DB::table('role_permissions')
+            ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all();
+
+        $migration->up();
+        $migration->up();
+        $migration->down();
+
+        $this->assertSame(1, DB::table('permissions')
+            ->where('permission_name', 'publish_report_cards')->count());
+        $this->assertSame(
+            $before,
+            (array) DB::table('permissions')->where('id', $permission->id)->first()
+        );
+        $this->assertSame(
+            $grantsBefore,
+            DB::table('role_permissions')
+                ->orderBy('id')->get()->map(fn ($row) => (array) $row)->all()
+        );
+    }
+
+    public function test_assessment_mutations_require_their_explicit_action_permission(): void
+    {
+        $migration = require database_path(
+            'migrations/2026_10_29_210000_add_assessment_action_permissions.php'
+        );
+        $migration->up();
+
+        $actor = $this->actor(false);
+
+        foreach ([
+            ['create_exam', 'manage_assessment_registrations',
+                'POST', '/api/assessment-registrations', 422],
+            ['approve_exam_results', 'manage_mark_entry_permissions',
+                'POST', '/api/mark-entry-permissions', 422],
+            ['approve_exam_results', 'publish_merit_lists',
+                'POST', '/api/merit-lists/publish', 422],
+            ['generate_report_cards', 'update_report_card_comments',
+                'PATCH', '/api/report-cards/'.Str::uuid().'/comments', 422],
+        ] as [$legacy, $required, $method, $url, $authorizedStatus]) {
+            DB::table('role_permissions')->where('role_id', $actor->role_id)->delete();
+
+            // Provision only this test role's explicitly selected permissions.
+            foreach ([$legacy, $required] as $name) {
+                if (! DB::table('permissions')->where('permission_name', $name)->exists()) {
+                    DB::table('permissions')->insert([
+                        'id' => (string) Str::uuid(),
+                        'permission_name' => $name,
+                        'module_name' => 'assessment',
+                        'description' => 'Authorization test fixture',
+                        'created_at' => now(),
+                    ]);
+                }
+            }
+
+            DB::table('role_permissions')->insert([
+                'id' => (string) Str::uuid(),
+                'role_id' => $actor->role_id,
+                'permission_id' => DB::table('permissions')
+                    ->where('permission_name', $legacy)->value('id'),
+            ]);
+
+            $this->withToken(JWTAuth::fromUser($actor))
+                ->json($method, $url, [])->assertForbidden();
+
+            // The new action permission must work without the legacy grant.
+            DB::table('role_permissions')->where('role_id', $actor->role_id)->delete();
+            DB::table('role_permissions')->insert([
+                'id' => (string) Str::uuid(),
+                'role_id' => $actor->role_id,
+                'permission_id' => DB::table('permissions')
+                    ->where('permission_name', $required)->value('id'),
+            ]);
+
+            $this->withToken(JWTAuth::fromUser($actor))
+                ->json($method, $url, [])->assertStatus($authorizedStatus);
+        }
+    }
+
+    public function test_assessment_authorized_mutations_preserve_tenant_and_audit_ownership(): void
+    {
+        $foreign = ExamBenchmarkFixture::create(1);
+        $foreignRegistration = app(
+            AssessmentRegistrationService::class
+        )->create([
+            'learner_id' => $foreign['learner_ids'][0],
+            'assessment_type' => 'KJSEA',
+            'assessment_year' => 2026,
+            'candidate_number' => 'FOREIGN-'.Str::uuid(),
+            'registration_number' => 'FOREIGN-'.Str::uuid(),
+        ], $foreign['school_id'], $foreign['actor_id']);
+
+        $foreignExam = Exam::withoutGlobalScopes()
+            ->findOrFail($foreign['exam_id']);
+        app(ExamService::class)
+            ->transition($foreignExam, 'published');
+
+        $createdForeignPermission = app(
+            MarkEntryPermissionService::class
+        )->create([
+            'exam_id' => $foreign['exam_id'],
+            'role_name' => 'Foreign fixture '.Str::uuid(),
+            'active' => true,
+        ], $foreign['school_id']);
+
+        $foreignPermission = DB::table('mark_entry_permissions')
+            ->where('id', $createdForeignPermission->id)->first();
+        $this->assertNotNull($foreignPermission);
+
+        $exam = Exam::withoutGlobalScopes()
+            ->findOrFail($this->fixture['exam_id']);
+        app(ExamService::class)->transition($exam, 'published');
+
+        $migration = require database_path(
+            'migrations/2026_10_29_210000_add_assessment_action_permissions.php'
+        );
+        $migration->up();
+
+        $actor = $this->actor(false);
+        foreach ([
+            'manage_assessment_registrations',
+            'manage_mark_entry_permissions',
+        ] as $name) {
+            DB::table('role_permissions')->insert([
+                'id' => (string) Str::uuid(),
+                'role_id' => $actor->role_id,
+                'permission_id' => DB::table('permissions')
+                    ->where('permission_name', $name)->value('id'),
+            ]);
+        }
+
+        $token = JWTAuth::fromUser($actor);
+        $registrationData = [
+            'learner_id' => $this->fixture['learner_ids'][0],
+            'assessment_type' => 'KJSEA',
+            'assessment_year' => 2026,
+            'candidate_number' => 'OWN-'.Str::uuid(),
+            'registration_number' => 'OWN-'.Str::uuid(),
+        ];
+
+        $response = $this->withToken($token)
+            ->postJson('/api/assessment-registrations', $registrationData)
+            ->assertCreated();
+        $registrationId = $response->json('data.id');
+        $this->assertNotNull($registrationId);
+
+        $registration = DB::table('assessment_registrations')
+            ->where('id', $registrationId)->first();
+        $this->assertSame($this->fixture['school_id'], $registration->school_id);
+        $this->assertSame($actor->id, $registration->created_by);
+
+        $permissionData = [
+            'exam_id' => $this->fixture['exam_id'],
+            'role_name' => 'Authorized fixture '.Str::uuid(),
+            'active' => true,
+        ];
+        $response = $this->withToken($token)
+            ->postJson('/api/mark-entry-permissions', $permissionData)
+            ->assertCreated();
+        $permissionId = $response->json('data.id');
+        $this->assertNotNull($permissionId);
+
+        foreach ([
+            ['assessment_registrations', '/api/assessment-registrations/', $registrationId],
+            ['mark_entry_permissions', '/api/mark-entry-permissions/', $permissionId],
+        ] as [$table, $url, $id]) {
+            $before = (array) DB::table($table)->where('id', $id)->first();
+
+            foreach ([
+                'school_id' => $foreign['school_id'],
+                'created_by' => $foreign['actor_id'],
+                'id' => (string) Str::uuid(),
+                'created_at' => '2000-01-01 00:00:00',
+                'is_deleted' => true,
+            ] as $field => $value) {
+                $this->withToken($token)
+                    ->putJson($url.$id, [$field => $value])
+                    ->assertUnprocessable()->assertJsonValidationErrors($field);
+
+                $this->assertSame(
+                    $before,
+                    (array) DB::table($table)->where('id', $id)->first()
+                );
+            }
+        }
+
+        $foreignRegistrationBefore = (array) DB::table('assessment_registrations')
+            ->where('id', $foreignRegistration->id)->first();
+        $foreignPermissionBefore = (array) $foreignPermission;
+
+        $this->withToken($token)
+            ->putJson('/api/assessment-registrations/'.$foreignRegistration->id, [
+                'status' => 'registered',
+            ])->assertNotFound();
+
+        $this->withToken($token)
+            ->putJson('/api/mark-entry-permissions/'.$foreignPermission->id, [
+                'active' => false,
+            ])->assertNotFound();
+
+        $this->assertSame(
+            $foreignRegistrationBefore,
+            (array) DB::table('assessment_registrations')
+                ->where('id', $foreignRegistration->id)->first()
+        );
+        $this->assertSame(
+            $foreignPermissionBefore,
+            (array) DB::table('mark_entry_permissions')
+                ->where('id', $foreignPermission->id)->first()
+        );
+
+        $this->withToken($token)
+            ->putJson('/api/assessment-registrations/'.$registrationId, [
+                'status' => 'registered',
+            ])->assertOk();
+        $this->assertSame('registered', DB::table('assessment_registrations')
+            ->where('id', $registrationId)->value('status'));
+
+        $this->withToken($token)
+            ->putJson('/api/mark-entry-permissions/'.$permissionId, [
+                'active' => false,
+            ])->assertOk();
+        $this->assertFalse((bool) DB::table('mark_entry_permissions')
+            ->where('id', $permissionId)->value('active'));
     }
 
     private function actor(bool $grantPermission): User

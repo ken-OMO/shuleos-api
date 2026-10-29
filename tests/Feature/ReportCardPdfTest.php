@@ -3194,37 +3194,38 @@ class ReportCardPdfTest extends ReportCardTest
     public function test_cross_school_missing_and_invalid_status_are_rejected(): void
     {
         $this->withoutMiddleware();
-
         $context = $this->context();
 
         $otherSchool = DB::table('schools')
-            ->where('id', '!=', $context['exam']->school_id)
-            ->value('id');
+            ->where('id', '!=', $context['exam']->school_id)->first();
+        $this->assertNotNull($otherSchool);
+
+        $foreignRole = RoleBuilder::create([
+            'role_name' => 'Foreign PDF reader '.Str::random(8),
+        ]);
+        $foreignRecord = UserBuilder::create($otherSchool, $foreignRole);
+        $foreignUser = User::withoutGlobalScopes()->findOrFail($foreignRecord->id);
+        $owner = User::withoutGlobalScopes()->findOrFail($context['user']->id);
+
+        Auth::setUser($foreignUser);
+
+        try {
+            $this->get('/api/report-cards/'.$context['card']->id.'/pdf')
+                ->assertNotFound();
+        } finally {
+            Auth::setUser($owner);
+        }
 
         $this->get(
-            '/api/report-cards/'
-            .$context['card']->id
-            .'/pdf?school_id='
-            .$otherSchool
-        )->assertNotFound();
-
-        $this->get(
-            '/api/report-cards/'
-            .'00000000-0000-0000-0000-000000000000'
-            .'/pdf?school_id='
-            .$context['exam']->school_id
+            '/api/report-cards/00000000-0000-0000-0000-000000000000/pdf'
         )->assertNotFound();
 
         DB::table('report_cards')
             ->where('id', $context['card']->id)
             ->update(['status' => 'draft']);
 
-        $this->getJson(
-            '/api/report-cards/'
-            .$context['card']->id
-            .'/pdf?school_id='
-            .$context['exam']->school_id
-        )->assertUnprocessable();
+        $this->getJson('/api/report-cards/'.$context['card']->id.'/pdf')
+            ->assertUnprocessable();
     }
 
     public function test_pdf_handles_optional_null_fields(): void

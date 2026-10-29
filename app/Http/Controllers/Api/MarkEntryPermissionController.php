@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
+use App\Http\Requests\Assessment\StoreMarkEntryPermissionRequest;
+use App\Http\Requests\Assessment\UpdateMarkEntryPermissionRequest;
 use App\Http\Resources\MarkEntryPermissionResource;
 use App\Models\MarkEntryPermission;
+use App\Services\Assessment\AssessmentTenantContext;
 use App\Services\Assessment\MarkEntryPermissionService;
 use Illuminate\Http\Request;
 
@@ -53,16 +56,9 @@ class MarkEntryPermissionController extends BaseCrudController
             : $this->notFound('Mark entry permission not found.');
     }
 
-    public function store(Request $request)
+    public function store(StoreMarkEntryPermissionRequest $request)
     {
-        $validated = $request->validate([
-            'school_id' => 'sometimes|uuid|exists:schools,id',
-            'exam_id' => 'required|uuid|exists:exams,id',
-            'role_name' => 'required|string|max:255',
-            'active' => 'sometimes|boolean',
-            'opens_at' => 'nullable|date',
-            'closes_at' => 'nullable|date',
-        ]);
+        $validated = $request->validated();
 
         $permission = $this->service->create(
             $validated,
@@ -77,7 +73,7 @@ class MarkEntryPermissionController extends BaseCrudController
         );
     }
 
-    public function update(Request $request, string $id)
+    public function update(UpdateMarkEntryPermissionRequest $request, string $id)
     {
         $permission = $this->tenantQuery($request)->find($id);
 
@@ -85,11 +81,7 @@ class MarkEntryPermissionController extends BaseCrudController
             return $this->notFound('Mark entry permission not found.');
         }
 
-        $validated = $request->validate([
-            'active' => 'sometimes|boolean',
-            'opens_at' => 'nullable|date',
-            'closes_at' => 'nullable|date',
-        ]);
+        $validated = $request->validated();
 
         $permission = $this->service->update($this->schoolId($request), $id, $validated);
 
@@ -121,12 +113,6 @@ class MarkEntryPermissionController extends BaseCrudController
 
     private function schoolId(Request $request, array $validated = []): string
     {
-        $schoolId = $request->attributes->get('tenant_school_id')
-            ?? $validated['school_id']
-            ?? $request->input('school_id');
-
-        abort_if(! $schoolId, 403, 'School context not found.');
-
-        return (string) $schoolId;
+        return AssessmentTenantContext::schoolId($request);
     }
 }

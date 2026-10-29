@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\LearningAreaResultResource;
 use App\Models\LearningAreaResult;
+use App\Services\Assessment\AssessmentTenantContext;
 use App\Services\Assessment\ResultProcessingService;
 use Illuminate\Http\Request;
 
@@ -54,9 +55,6 @@ class LearningAreaResultController extends BaseCrudController
 
     private function school(Request $request, array $validated = []): string
     {
-        $id = $request->attributes->get('tenant_school_id') ?? $validated['school_id'] ?? $request->input('school_id');
-        abort_if(! $id, 403, 'School context not found.');
-
-        return (string) $id;
+        return AssessmentTenantContext::schoolId($request);
     }
 }

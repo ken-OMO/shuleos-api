@@ -793,6 +793,11 @@ class ExamRosterTest extends TestCase
             'school_id' => (string) Str::uuid(),
             'version' => 0,
             'learners' => [$this->selection()],
+        ])->assertUnprocessable()->assertJsonValidationErrors('school_id');
+
+        $this->withToken($token)->putJson($url.'/roster', [
+            'version' => 0,
+            'learners' => [$this->selection()],
         ])->assertOk()->assertJsonPath('data.version', 1);
 
         $this->withToken($token)->getJson($url.'/roster')

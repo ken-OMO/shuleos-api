@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\ExamResource;
 use App\Models\Exam;
+use App\Services\Assessment\AssessmentTenantContext;
 use App\Services\Assessment\ExamService;
 use Illuminate\Http\Request;
 
@@ -72,9 +73,6 @@ class ExamController extends BaseCrudController
 
     private function school(Request $r, array $v = []): string
     {
-        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
-        abort_if(! $id, 403, 'School context not found.');
-
-        return (string) $id;
+        return AssessmentTenantContext::schoolId($r);
     }
 }

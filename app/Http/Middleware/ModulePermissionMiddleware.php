@@ -9,6 +9,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
 class ModulePermissionMiddleware
@@ -53,6 +54,24 @@ class ModulePermissionMiddleware
         }
 
         $required = match (true) {
+            $prefix === 'assessment-registrations'
+                && ! $request->isMethodSafe() => 'manage_assessment_registrations',
+
+            $prefix === 'mark-entry-permissions'
+                && ! $request->isMethodSafe() => 'manage_mark_entry_permissions',
+
+            $prefix === 'merit-lists'
+                && $request->isMethod('POST')
+                && $request->segment(3) === 'publish' => 'publish_merit_lists',
+
+            $prefix === 'report-cards'
+                && $request->isMethod('PATCH')
+                && $request->segment(4) === 'comments' => 'update_report_card_comments',
+
+            $prefix === 'report-cards'
+                && $request->isMethod('POST')
+                && $request->segment(3) === 'publish' => 'publish_report_cards',
+
             $prefix === 'learners'
                 && $request->segment(4) === 'guardians' => config('module_permissions.guardians'),
 
@@ -71,6 +90,13 @@ class ModulePermissionMiddleware
             return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
         } catch (AuthorizationException) {
             return response()->json(['success' => false, 'message' => 'Access is unavailable.'], 403);
+        }
+
+        if ($assessmentRequest
+            && $request->attributes->get('client_supplied_school_id') === true) {
+            throw ValidationException::withMessages([
+                'school_id' => ['The school_id field is prohibited.'],
+            ]);
         }
 
         if ($assessmentRequest && ! $request->isMethodSafe()) {
