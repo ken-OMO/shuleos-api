@@ -16,6 +16,7 @@ use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamRosterService;
 use App\Services\Assessment\ExamService;
+use App\Services\Assessment\MarkEntryPermissionService;
 use App\Services\Assessment\ReportCardService;
 use App\Services\Assessment\ResultProcessingService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -205,6 +206,23 @@ try {
         }
 
         return match ($payload['operation']) {
+            'permission_revoke' => app(MarkEntryPermissionService::class)
+                ->revoke(
+                    $payload['school_id'],
+                    $payload['permission_id'],
+                    $payload['actor_id']
+                ),
+            'permission_update' => app(MarkEntryPermissionService::class)
+                ->update(
+                    $payload['school_id'],
+                    $payload['permission_id'],
+                    $payload['permission_values']
+                )->id,
+            'permission_create' => app(MarkEntryPermissionService::class)
+                ->create(
+                    $payload['permission_values'],
+                    $payload['school_id']
+                )->id,
             'registration_create' => app(AssessmentRegistrationService::class)
                 ->create(
                     $payload['registration_data'],

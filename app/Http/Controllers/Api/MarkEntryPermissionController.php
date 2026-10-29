@@ -61,7 +61,7 @@ class MarkEntryPermissionController extends BaseCrudController
             'role_name' => 'required|string|max:255',
             'active' => 'sometimes|boolean',
             'opens_at' => 'nullable|date',
-            'closes_at' => 'nullable|date|after:opens_at',
+            'closes_at' => 'nullable|date',
         ]);
 
         $permission = $this->service->create(
@@ -88,10 +88,10 @@ class MarkEntryPermissionController extends BaseCrudController
         $validated = $request->validate([
             'active' => 'sometimes|boolean',
             'opens_at' => 'nullable|date',
-            'closes_at' => 'nullable|date|after:opens_at',
+            'closes_at' => 'nullable|date',
         ]);
 
-        $permission->update($validated);
+        $permission = $this->service->update($this->schoolId($request), $id, $validated);
 
         return $this->success(
             new MarkEntryPermissionResource($permission->refresh()->load('exam')),
@@ -107,12 +107,7 @@ class MarkEntryPermissionController extends BaseCrudController
             return $this->notFound('Mark entry permission not found.');
         }
 
-        $permission->update([
-            'active' => false,
-            'is_deleted' => true,
-            'deleted_at' => now(),
-            'deleted_by' => auth()->id(),
-        ]);
+        $this->service->revoke($this->schoolId($request), $id, auth()->id());
 
         return $this->success(null, 'Mark entry permission revoked successfully.');
     }
