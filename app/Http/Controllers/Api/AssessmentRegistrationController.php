@@ -36,7 +36,7 @@ class AssessmentRegistrationController extends BaseCrudController
 
     public function store(Request $r)
     {
-        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'learner_id' => 'required|uuid|exists:learners,id', 'assessment_type' => 'required|string|max:255', 'assessment_year' => 'required|integer|min:2000|max:2100', 'candidate_number' => 'required|string|max:100', 'registration_number' => 'required|string|max:100', 'status' => 'sometimes|in:pending,registered,verified', 'created_by' => 'sometimes|nullable|uuid|exists:users,id']);
+        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'learner_id' => 'required|uuid|exists:learners,id', 'assessment_type' => 'required|string|max:255', 'assessment_year' => 'required|integer|min:2000|max:2100', 'candidate_number' => 'required|string|max:100', 'registration_number' => 'required|string|max:100', 'status' => 'sometimes|in:pending', 'created_by' => 'sometimes|nullable|uuid|exists:users,id']);
         $x = $this->service->create($v, $this->school($r, $v), auth()->id());
         $this->audit($r, self::MODULE, 'Create', $x, null, $x->toArray(), 'Created assessment registration.');
 
@@ -49,11 +49,7 @@ class AssessmentRegistrationController extends BaseCrudController
         if (! $x) {
             return $this->notFound('Assessment registration not found.');
         }$v = $r->validate(['candidate_number' => 'sometimes|string|max:100', 'registration_number' => 'sometimes|string|max:100', 'status' => 'sometimes|in:pending,registered,verified,rejected,cancelled']);
-        foreach (['candidate_number', 'registration_number'] as $f) {
-            if (isset($v[$f]) && AssessmentRegistration::current()->where('school_id', $x->school_id)->where('assessment_year', $x->assessment_year)->whereKeyNot($x->id)->where($f, $v[$f])->exists()) {
-                return $this->validation([$f => ['This value is already in use.']]);
-            }
-        }$x->update($v);
+        $x = $this->service->update($this->school($r), $id, $v);
 
         return $this->success(new AssessmentRegistrationResource($x->refresh()->load(self::RELATIONS)), 'Assessment registration updated successfully.');
     }
@@ -63,9 +59,8 @@ class AssessmentRegistrationController extends BaseCrudController
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Assessment registration not found.');
-        }if ($x->status === 'verified') {
-            return $this->badRequest('Verified registrations cannot be deleted.');
-        }$x->update(['status' => 'cancelled', 'is_deleted' => true, 'deleted_at' => now(), 'deleted_by' => auth()->id()]);
+        }
+        $this->service->delete($this->school($r), $id, auth()->id());
 
         return $this->success(null, 'Assessment registration deleted successfully.');
     }

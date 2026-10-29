@@ -7,6 +7,7 @@ use App\Models\Exam;
 use App\Models\ExamLearningArea;
 use App\Models\ExamPaper;
 use App\Models\User;
+use App\Services\Assessment\AssessmentRegistrationService;
 use App\Services\Assessment\AssessmentReissuePublicationService;
 use App\Services\Assessment\AssessmentReissueRequestService;
 use App\Services\Assessment\ExamLearningAreaService;
@@ -79,7 +80,14 @@ try {
 
     $result = DB::transaction(function () use ($payload) {
         if ($payload['hold_lock'] ?? false) {
-            if ($payload['operation'] === 'grade_classify') {
+            if (str_starts_with($payload['operation'], 'registration_')) {
+                app(ExamResultLifecycleService::class)
+                    ->assertSchoolWritable($payload['school_id']);
+                DB::selectOne(
+                    'SELECT pg_advisory_xact_lock(hashtextextended(?, 0))',
+                    ['assessment_registrations:'.$payload['school_id']]
+                );
+            } elseif ($payload['operation'] === 'grade_classify') {
                 DB::table('grades')->where('school_id', $payload['school_id'])
                     ->where('id', $payload['grade_id'])
                     ->lockForUpdate()->firstOrFail();
@@ -197,6 +205,24 @@ try {
         }
 
         return match ($payload['operation']) {
+            'registration_create' => app(AssessmentRegistrationService::class)
+                ->create(
+                    $payload['registration_data'],
+                    $payload['school_id'],
+                    $payload['actor_id']
+                )->id,
+            'registration_update' => app(AssessmentRegistrationService::class)
+                ->update(
+                    $payload['school_id'],
+                    $payload['registration_id'],
+                    $payload['registration_values']
+                )->id,
+            'registration_delete' => app(AssessmentRegistrationService::class)
+                ->delete(
+                    $payload['school_id'],
+                    $payload['registration_id'],
+                    $payload['actor_id']
+                ),
             'process' => app(ResultProcessingService::class)->process(
                 $payload['school_id'],
                 $payload['exam_learning_area_id'],

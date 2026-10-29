@@ -2,9 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Models\AssessmentRegistration;
 use App\Models\Grade;
 use App\Models\Stream;
 use App\Models\User;
+use App\Services\Assessment\AssessmentRegistrationService;
 use App\Services\Assessment\AssessmentReissuePreparationService;
 use App\Services\Assessment\AssessmentReissueRequestService;
 use App\Services\Assessment\AssessmentReissueReviewService;
@@ -777,6 +779,155 @@ class ExamConcurrencyTest extends TestCase
         }
     }
 
+    public function test_registration_duplicate_creation_serializes(): void
+    {
+        foreach (['learner_id', 'candidate_number', 'registration_number'] as $field) {
+            DB::table('assessment_registrations')
+                ->where('school_id', $this->fixture['school_id'])->delete();
+
+            $first = $this->registrationRaceData();
+            $second = array_replace($first, [
+                'assessment_type' => $field === 'learner_id' ? 'KPSEA' : 'KJSEA',
+                'candidate_number' => $field === 'candidate_number' ? 'C-001' : 'C-002',
+                'registration_number' => $field === 'registration_number' ? 'R-001' : 'R-002',
+            ]);
+
+            $outcome = $this->registrationRace(
+                ['operation' => 'registration_create', 'registration_data' => $first],
+                ['operation' => 'registration_create', 'registration_data' => $second]
+            );
+
+            $this->assertRegistrationRaceRejected($outcome, $field);
+            $this->assertSame(1, DB::table('assessment_registrations')
+                ->where('school_id', $this->fixture['school_id'])->count());
+        }
+    }
+
+    public function test_registration_competing_identifier_updates_serialize(): void
+    {
+        $service = app(AssessmentRegistrationService::class);
+
+        foreach (['candidate_number', 'registration_number'] as $field) {
+            DB::table('assessment_registrations')
+                ->where('school_id', $this->fixture['school_id'])->delete();
+
+            $first = $service->create(
+                $this->registrationRaceData(),
+                $this->fixture['school_id'], $this->fixture['actor_id']
+            );
+            $second = $service->create(array_replace($this->registrationRaceData(), [
+                'assessment_type' => 'KJSEA',
+                'candidate_number' => 'C-002',
+                'registration_number' => 'R-002',
+            ]), $this->fixture['school_id'], $this->fixture['actor_id']);
+            $before = $second->fresh()->getRawOriginal();
+
+            $outcome = $this->registrationRace(
+                [
+                    'operation' => 'registration_update',
+                    'registration_id' => $first->id,
+                    'registration_values' => [$field => 'SHARED'],
+                ],
+                [
+                    'operation' => 'registration_update',
+                    'registration_id' => $second->id,
+                    'registration_values' => [$field => 'SHARED', 'status' => 'registered'],
+                ]
+            );
+
+            $this->assertRegistrationRaceRejected($outcome, $field);
+            $this->assertSame('SHARED', $first->fresh()->{$field});
+            $this->assertSame($before, $second->fresh()->getRawOriginal());
+        }
+    }
+
+    public function test_registration_verification_first_blocks_waiting_deletion(): void
+    {
+        $registration = $this->registeredRaceFixture();
+        $outcome = $this->registrationRace(
+            [
+                'operation' => 'registration_update',
+                'registration_id' => $registration->id,
+                'registration_values' => ['status' => 'verified'],
+            ],
+            [
+                'operation' => 'registration_delete',
+                'registration_id' => $registration->id,
+            ]
+        );
+
+        $this->assertRegistrationRaceRejected($outcome, 'status');
+        $this->assertSame('verified', $registration->fresh()->status);
+        $this->assertFalse($registration->fresh()->is_deleted);
+    }
+
+    public function test_registration_deletion_first_blocks_waiting_verification(): void
+    {
+        $registration = $this->registeredRaceFixture();
+        $outcome = $this->registrationRace(
+            [
+                'operation' => 'registration_delete',
+                'registration_id' => $registration->id,
+            ],
+            [
+                'operation' => 'registration_update',
+                'registration_id' => $registration->id,
+                'registration_values' => ['status' => 'verified'],
+            ]
+        );
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertSame(404, $outcome['second']['http_status']);
+        $this->assertSame('cancelled', $registration->fresh()->status);
+        $this->assertTrue($registration->fresh()->is_deleted);
+        $this->assertSame($this->fixture['actor_id'], $registration->fresh()->deleted_by);
+    }
+
+    private function registrationRaceData(): array
+    {
+        return [
+            'learner_id' => $this->fixture['learner_id'],
+            'assessment_type' => 'KPSEA',
+            'assessment_year' => 2026,
+            'candidate_number' => 'C-001',
+            'registration_number' => 'R-001',
+        ];
+    }
+
+    private function registeredRaceFixture(): AssessmentRegistration
+    {
+        $service = app(AssessmentRegistrationService::class);
+        $registration = $service->create(
+            $this->registrationRaceData(),
+            $this->fixture['school_id'], $this->fixture['actor_id']
+        );
+
+        return $service->update(
+            $this->fixture['school_id'], $registration->id,
+            ['status' => 'registered']
+        );
+    }
+
+    private function registrationRace(array $first, array $second): array
+    {
+        return (new ExamConcurrencyRunner)->run(
+            $first + $this->fixture,
+            $second + $this->fixture
+        );
+    }
+
+    private function assertRegistrationRaceRejected(array $outcome, string $field): void
+    {
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertContains($field, $outcome['second']['fields']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame(2, $outcome['second']['exit_code']);
+    }
+
     private function race(string $first, string $second, array $extra = []): array
     {
         $base = $extra + $this->fixture + ['marks' => 65];
@@ -817,6 +968,8 @@ class ExamConcurrencyTest extends TestCase
 
             $systemIds = DB::table('grading_systems')->where('school_id', $schoolId)->pluck('id');
             DB::table('grading_scales')->whereIn('grading_system_id', $systemIds)->delete();
+
+            DB::table('assessment_registrations')->where('school_id', $schoolId)->delete();
 
             foreach (['grading_systems', 'learners', 'streams', 'grades',
                 'terms', 'academic_years', 'assessment_types', 'users'] as $table) {
