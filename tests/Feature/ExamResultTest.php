@@ -2,15 +2,19 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamLearningAreaService;
 use App\Services\Assessment\ExamPaperService;
 use App\Services\Assessment\ExamResultService;
 use App\Services\Assessment\ExamService;
+use App\Services\Assessment\MarkEntryPermissionService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearnerBuilder;
@@ -209,6 +213,219 @@ class ExamResultTest extends TestCase
             ],
             $this->school->id,
             $this->user->id
+        );
+    }
+
+    public function test_permission_window_rejects_invalid_resulting_intervals(): void
+    {
+        $service = app(MarkEntryPermissionService::class);
+        $stored = DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first();
+        $before = (array) $stored;
+
+        foreach ([
+            ['opens_at' => $stored->closes_at],
+            ['opens_at' => now()->addHours(2)->toDateTimeString()],
+            ['closes_at' => $stored->opens_at],
+            ['closes_at' => now()->subHours(2)->toDateTimeString()],
+        ] as $values) {
+            $this->assertPermissionValidationRejected(
+                fn () => $service->update(
+                    $this->school->id, $this->permission->id, $values
+                ),
+                'closes_at'
+            );
+
+            $this->assertSame($before, (array) DB::table('mark_entry_permissions')
+                ->where('id', $this->permission->id)->first());
+        }
+
+        foreach ([
+            ['opens_at' => '2026-07-20 10:00:00', 'closes_at' => '2026-07-20 10:00:00'],
+            ['opens_at' => '2026-07-20 11:00:00', 'closes_at' => '2026-07-20 10:00:00'],
+        ] as $window) {
+            $this->assertPermissionValidationRejected(
+                fn () => $service->create([
+                    'exam_id' => $this->exam->id,
+                    'role_name' => 'Window validation',
+                    ...$window,
+                ], $this->school->id),
+                'closes_at'
+            );
+        }
+
+        $this->assertSame(1, DB::table('mark_entry_permissions')
+            ->where('exam_id', $this->exam->id)->count());
+    }
+
+    public function test_permission_window_accepts_nullable_boundaries(): void
+    {
+        $service = app(MarkEntryPermissionService::class);
+        $before = DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first();
+
+        $permission = $service->update(
+            $this->school->id, $this->permission->id, ['opens_at' => null]
+        );
+        $this->assertNull($permission->opens_at);
+        $this->assertSame(
+            $before->closes_at,
+            DB::table('mark_entry_permissions')
+                ->where('id', $this->permission->id)->value('closes_at')
+        );
+
+        $permission = $service->update(
+            $this->school->id, $this->permission->id,
+            [
+                'opens_at' => now()->addDay()->toDateTimeString(),
+                'closes_at' => null,
+            ]
+        );
+        $this->assertNull($permission->closes_at);
+        $this->assertFalse($permission->isOpen());
+
+        $permission = $service->update(
+            $this->school->id, $this->permission->id,
+            ['opens_at' => null, 'closes_at' => null]
+        );
+        $this->assertTrue($permission->isOpen());
+
+        $permission = $service->update(
+            $this->school->id, $this->permission->id, ['active' => false]
+        );
+        $this->assertFalse($permission->isOpen());
+
+        $created = $service->create([
+            'exam_id' => $this->exam->id,
+            'role_name' => 'Unbounded role',
+            'opens_at' => null,
+            'closes_at' => null,
+        ], $this->school->id);
+
+        $this->assertTrue($created->isOpen());
+    }
+
+    public function test_permission_mutations_reject_another_schools_record(): void
+    {
+        $service = app(MarkEntryPermissionService::class);
+        $foreignSchool = SchoolBuilder::create();
+        $before = (array) DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first();
+
+        foreach ([
+            fn () => $service->update(
+                $foreignSchool->id, $this->permission->id, ['active' => false]
+            ),
+            fn () => $service->revoke(
+                $foreignSchool->id, $this->permission->id, null
+            ),
+        ] as $operation) {
+            try {
+                $operation();
+                $this->fail('Expected another school permission to be unavailable.');
+            } catch (HttpExceptionInterface $exception) {
+                $this->assertSame(404, $exception->getStatusCode());
+            }
+
+            $this->assertSame($before, (array) DB::table('mark_entry_permissions')
+                ->where('id', $this->permission->id)->first());
+        }
+    }
+
+    public function test_permission_revocation_blocks_reactivation_and_mark_entry(): void
+    {
+        $service = app(MarkEntryPermissionService::class);
+        $service->revoke(
+            $this->school->id, $this->permission->id, $this->user->id
+        );
+
+        $stored = DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first();
+        $this->assertFalse((bool) $stored->active);
+        $this->assertTrue((bool) $stored->is_deleted);
+        $this->assertSame($this->user->id, $stored->deleted_by);
+        $this->assertNotNull($stored->deleted_at);
+
+        try {
+            $service->update(
+                $this->school->id, $this->permission->id, ['active' => true]
+            );
+            $this->fail('Expected revoked permission to be unavailable.');
+        } catch (HttpExceptionInterface $exception) {
+            $this->assertSame(404, $exception->getStatusCode());
+        }
+
+        $this->assertPermissionValidationRejected(
+            fn () => app(ExamResultService::class)->create([
+                'learner_id' => $this->learner->id,
+                'paper_id' => $this->paper->id,
+                'marks' => 65,
+            ], $this->school->id, $this->user->id),
+            'permission'
+        );
+
+        $this->assertSame(0, DB::table('exam_results')
+            ->where('exam_id', $this->exam->id)->count());
+        $this->assertSame((array) $stored, (array) DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first());
+    }
+
+    public function test_closed_exam_permission_cannot_reopen_but_can_be_revoked(): void
+    {
+        $service = app(MarkEntryPermissionService::class);
+        DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->update(['active' => false]);
+
+        app(ExamService::class)->transition($this->exam, 'closed');
+
+        $this->assertPermissionValidationRejected(
+            fn () => $service->update(
+                $this->school->id, $this->permission->id, ['active' => true]
+            ),
+            'exam_id'
+        );
+
+        $service->revoke(
+            $this->school->id, $this->permission->id, $this->user->id
+        );
+
+        $this->assertTrue((bool) DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->value('is_deleted'));
+    }
+
+    private function assertPermissionValidationRejected(
+        callable $operation,
+        string $field
+    ): void {
+        try {
+            $operation();
+            $this->fail('Expected mark-entry permission validation rejection.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey($field, $exception->errors());
+        }
+    }
+
+    public function test_permission_partial_update_validates_stored_closing_time(): void
+    {
+        $this->withoutMiddleware();
+        $user = User::withoutGlobalScopes()->findOrFail($this->user->id);
+        Auth::setUser($user);
+
+        $before = (array) DB::table('mark_entry_permissions')
+            ->where('id', $this->permission->id)->first();
+
+        $this->putJson(
+            '/api/mark-entry-permissions/'.$this->permission->id,
+            [
+                'school_id' => $this->school->id,
+                'opens_at' => now()->addHours(2)->toDateTimeString(),
+            ]
+        )->assertUnprocessable();
+
+        $this->assertSame(
+            $before,
+            (array) DB::table('mark_entry_permissions')
+                ->where('id', $this->permission->id)->first()
         );
     }
 

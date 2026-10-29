@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\AssessmentRegistration;
+use App\Models\Exam;
 use App\Models\Grade;
 use App\Models\Stream;
 use App\Models\User;
@@ -926,6 +927,135 @@ class ExamConcurrencyTest extends TestCase
         $this->assertContains($field, $outcome['second']['fields']);
         $this->assertSame(0, $outcome['first']['exit_code']);
         $this->assertSame(2, $outcome['second']['exit_code']);
+    }
+
+    public function test_permission_revocation_first_blocks_waiting_mark_write(): void
+    {
+        $permissionId = DB::table('mark_entry_permissions')
+            ->where('exam_id', $this->fixture['exam_id'])->value('id');
+        $before = (array) DB::table('exam_results')
+            ->where('id', $this->fixture['result_id'])->first();
+
+        $outcome = $this->race('permission_revoke', 'marks', [
+            'permission_id' => $permissionId,
+        ]);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertContains('permission', $outcome['second']['fields']);
+        $this->assertSame($before, (array) DB::table('exam_results')
+            ->where('id', $this->fixture['result_id'])->first());
+        $this->assertDatabaseHas('mark_entry_permissions', [
+            'id' => $permissionId,
+            'active' => false,
+            'is_deleted' => true,
+            'deleted_by' => $this->fixture['actor_id'],
+        ]);
+    }
+
+    public function test_permission_mark_write_first_finishes_before_waiting_revocation(): void
+    {
+        $permissionId = DB::table('mark_entry_permissions')
+            ->where('exam_id', $this->fixture['exam_id'])->value('id');
+
+        $outcome = $this->race('marks', 'permission_revoke', [
+            'permission_id' => $permissionId,
+        ]);
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('finished', $outcome['second']['event']);
+        $this->assertSame(0, $outcome['first']['exit_code']);
+        $this->assertSame(0, $outcome['second']['exit_code']);
+        $this->assertDatabaseHas('exam_results', [
+            'id' => $this->fixture['result_id'],
+            'marks' => 65,
+        ]);
+        $this->assertDatabaseHas('mark_entry_permissions', [
+            'id' => $permissionId,
+            'active' => false,
+            'is_deleted' => true,
+        ]);
+    }
+
+    public function test_permission_competing_partial_updates_validate_locked_dates(): void
+    {
+        $exam = Exam::withoutGlobalScopes()
+            ->where('school_id', $this->fixture['school_id'])
+            ->findOrFail($this->fixture['exam_id']);
+        app(ExamService::class)->transition($exam, 'published');
+
+        $permissionId = DB::table('mark_entry_permissions')
+            ->where('exam_id', $this->fixture['exam_id'])->value('id');
+        $opens = now()->addHour()->toDateTimeString();
+        $closes = now()->toDateTimeString();
+
+        DB::table('mark_entry_permissions')->where('id', $permissionId)->update([
+            'opens_at' => now()->subHours(2)->toDateTimeString(),
+            'closes_at' => now()->addHours(2)->toDateTimeString(),
+        ]);
+        $beforeClosing = DB::table('mark_entry_permissions')
+            ->where('id', $permissionId)->value('closes_at');
+
+        $base = ['permission_id' => $permissionId] + $this->fixture;
+        $outcome = (new ExamConcurrencyRunner)->run(
+            [
+                'operation' => 'permission_update',
+                'permission_values' => ['opens_at' => $opens],
+            ] + $base,
+            [
+                'operation' => 'permission_update',
+                'permission_values' => ['closes_at' => $closes],
+            ] + $base
+        );
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertContains('closes_at', $outcome['second']['fields']);
+        $this->assertDatabaseHas('mark_entry_permissions', [
+            'id' => $permissionId,
+            'opens_at' => $opens,
+            'closes_at' => $beforeClosing,
+        ]);
+    }
+
+    public function test_permission_duplicate_creation_serializes_normalized_roles(): void
+    {
+        $exam = Exam::withoutGlobalScopes()
+            ->where('school_id', $this->fixture['school_id'])
+            ->findOrFail($this->fixture['exam_id']);
+        app(ExamService::class)->transition($exam, 'published');
+
+        $values = [
+            'exam_id' => $this->fixture['exam_id'],
+            'role_name' => 'Permission Race',
+            'opens_at' => null,
+            'closes_at' => null,
+        ];
+
+        $outcome = (new ExamConcurrencyRunner)->run(
+            [
+                'operation' => 'permission_create',
+                'permission_values' => $values,
+            ] + $this->fixture,
+            [
+                'operation' => 'permission_create',
+                'permission_values' => array_replace(
+                    $values, ['role_name' => ' permission race ']
+                ),
+            ] + $this->fixture
+        );
+
+        $this->assertTrue($outcome['contention_verified']);
+        $this->assertSame('finished', $outcome['first']['event']);
+        $this->assertSame('rejected', $outcome['second']['event']);
+        $this->assertContains('role_name', $outcome['second']['fields']);
+        $this->assertSame(1, DB::table('mark_entry_permissions')
+            ->where('exam_id', $this->fixture['exam_id'])
+            ->where('is_deleted', false)
+            ->where('role_name', 'permission race')->count());
     }
 
     private function race(string $first, string $second, array $extra = []): array
