@@ -143,6 +143,9 @@ class ExamRosterService
                 }
             }
 
+            $paperExamIdentity = DB::connection()->getSchemaBuilder()
+                ->hasColumn('exam_roster_papers', 'exam_id');
+
             $now = now();
             $rosterId = $roster?->id ?? (string) Str::uuid();
             $version = $expectedVersion + 1;
@@ -198,6 +201,7 @@ class ExamRosterService
                             $requirements[] = [
                                 'id' => (string) Str::uuid(),
                                 'roster_learner_id' => $participantId,
+                                ...($paperExamIdentity ? ['exam_id' => $examId] : []),
                                 'exam_learning_area_id' => $area->id,
                                 'learning_area_id' => $area->learning_area_id,
                                 'paper_id' => $paper->id,

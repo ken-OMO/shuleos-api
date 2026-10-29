@@ -334,13 +334,15 @@ class LearningAreaResultTest extends TestCase
 
     public function test_cross_school_is_rejected(): void
     {
-        DB::table('learners')
-            ->where('id', $this->juniorLearner->id)
-            ->update(['school_id' => $this->otherSchool->id]);
+        $grade = GradeBuilder::create($this->otherSchool);
+        $stream = StreamBuilder::create($this->otherSchool, $grade);
+        $foreignLearner = LearnerBuilder::create(
+            $this->otherSchool, $grade, $stream
+        );
 
         $this->expectException(ValidationException::class);
 
-        $this->process($this->juniorLearner);
+        $this->process($foreignLearner);
     }
 
     public function test_inconsistent_total_marks_is_rejected(): void

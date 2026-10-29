@@ -4,18 +4,22 @@ namespace Tests\Feature;
 
 use App\Models\Learner;
 use App\Models\User;
+use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamGradingSnapshotService;
 use App\Services\Assessment\ExamLearningAreaAnalysisService;
 use App\Services\Assessment\ExamRosterService;
+use App\Services\Assessment\ExamService;
 use App\Services\Assessment\ResultProcessingService;
 use App\Services\LeadershipPortal\LeadershipPortalPhaseTwoService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearnerBuilder;
 use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\Database\StreamBuilder;
+use Tests\Support\Database\TermBuilder;
 
 class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
 {
@@ -639,9 +643,29 @@ class ExamLearningAreaAnalysisTest extends LearningAreaResultTest
     public function test_cross_school_exam_is_unavailable(): void
     {
         $this->initialiseAnalysis();
-        DB::table('exams')->where('id', $this->analysisExam)
-            ->update(['school_id' => DB::table('schools')
-                ->where('id', '!=', $this->analyst->school_id)->value('id')]);
+
+        $school = DB::table('schools')
+            ->where('id', '!=', $this->analyst->school_id)->first();
+        $this->assertNotNull($school);
+
+        $year = AcademicYearBuilder::create($school);
+        $term = TermBuilder::create($school, $year);
+        $type = app(AssessmentTypeService::class)->create(
+            ['assessment_type_name' => 'Foreign analysis '.Str::random(12)],
+            $school->id
+        );
+
+        $exam = app(ExamService::class)->create([
+            'exam_name' => 'Foreign analysis '.Str::random(12),
+            'assessment_type_id' => $type->id,
+            'academic_year_id' => $year->id,
+            'term_id' => $term->id,
+            'start_date' => '2026-07-20',
+            'end_date' => '2026-07-25',
+        ], $school->id, null);
+
+        $this->analysisExam = $exam->id;
+
         $this->withToken(JWTAuth::fromUser($this->analyst))
             ->getJson($this->endpoint())->assertNotFound();
     }

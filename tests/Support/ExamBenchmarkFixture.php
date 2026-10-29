@@ -110,6 +110,9 @@ final class ExamBenchmarkFixture
             'updated_at' => $now,
         ]);
 
+        $paperExamIdentity = DB::connection()->getSchemaBuilder()
+            ->hasColumn('exam_roster_papers', 'exam_id');
+
         $learnerIds = [];
         $award = null;
 
@@ -152,6 +155,7 @@ final class ExamBenchmarkFixture
                         $requirements[] = [
                             'id' => (string) Str::uuid(),
                             'roster_learner_id' => $participantId,
+                            ...($paperExamIdentity ? ['exam_id' => $exam->id] : []),
                             'exam_learning_area_id' => $entry['exam_area']->id,
                             'learning_area_id' => $entry['area']->id,
                             'paper_id' => $paper->id,
