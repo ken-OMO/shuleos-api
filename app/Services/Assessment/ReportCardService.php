@@ -129,12 +129,12 @@ class ReportCardService
             }
 
             $batchAttendance = collect();
-            $cohortSizes = [];
+            $totalLearners = $this->totalLearners($schoolId, $exam->id);
             $pendingDetails = [];
             $attendanceAvailable = DB::getSchemaBuilder()->hasTable('learner_attendance')
                 && DB::getSchemaBuilder()->hasTable('attendance_statuses');
 
-            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$detailsByCard, $cleanupRequiresQuery, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, &$cohortSizes, &$pendingDetails, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
+            $generated = $merits->map(function ($merit) use ($schoolId, $exam, &$results, &$existingDetails, &$detailsByCard, $cleanupRequiresQuery, &$batchMembers, $sourceLearners, $resultBatchIds, &$resultBatchIndex, $totalLearners, &$pendingDetails, &$batchAttendance, $attendanceAvailable, $userId, $comments, $existingCards) {
                 if ($results->isEmpty()) {
                     $batchIds = $resultBatchIds->get($resultBatchIndex++);
                     if ($batchIds === null) {
@@ -203,9 +203,6 @@ class ReportCardService
                 $attendance = $batchAttendance->get($learner->id)
                     ?? $this->nullAttendance();
                 $pathway = $this->pathway($learner, $exam->academic_year_id);
-                $cohortKey = $learner->grade_id.'|'.($learner->stream_id ?? '');
-                $totalLearners = $cohortSizes[$cohortKey]
-                    ??= $this->totalLearners($schoolId, $exam->id, $learner);
                 $card->fill(['academic_year_id' => $exam->academic_year_id, 'term_id' => $exam->term_id, 'merit_list_id' => $merit->id, 'has_absence' => $areas->contains(fn (LearningAreaResult $area) => (bool) $area->is_absent), 'grade_id' => $learner->grade_id, 'stream_id' => $learner->stream_id, 'overall_score' => $merit->total_score, 'maximum_marks' => $merit->maximum_marks, 'average_percentage' => $merit->average_percentage, 'grading_snapshot' => $merit->grading_snapshot, 'overall_grade' => $merit->grading_snapshot['grade_code'], 'overall_grading_system_id' => $merit->overall_grading_system_id, 'overall_grading_scale_id' => $merit->overall_grading_scale_id, 'total_points' => $merit->total_points, 'stream_position' => $merit->stream_position, 'grade_position' => $merit->grade_position, 'school_position' => $merit->school_position, 'total_learners' => $totalLearners, 'pathway_recommendation_id' => $pathway?->id, 'pathway_recommendation' => $pathway?->recommended_pathway, 'status' => 'generated', 'generated_by' => $userId, 'generated_at' => now(), 'published_by' => null, 'published_at' => null, 'is_deleted' => false, 'deleted_at' => null, 'deleted_by' => null] + $attendance);
                 if (array_key_exists('class_teacher_comment', $comments)) {
                     $card->class_teacher_comment = $comments['class_teacher_comment'];
@@ -421,15 +418,21 @@ class ReportCardService
         return $exam;
     }
 
-    private function totalLearners(string $schoolId, string $examId, Learner $learner): int
+    private function totalLearners(string $schoolId, string $examId): int
     {
-        // School positions use the exam-wide ranked population.
-        return DB::table('merit_lists')
+        // Merit generation ranks the whole processed exam before filtering
+        // which rows to persist. Any absent learning area excludes a learner
+        // from ranking; ties still count as separate ranked learners.
+        $rankedLearners = DB::table('learning_area_results')
             ->where('school_id', $schoolId)
             ->where('exam_id', $examId)
             ->where('is_deleted', false)
-            ->whereNotNull('school_position')
-            ->distinct()->count('learner_id');
+            ->where('processing_status', 'processed')
+            ->select('learner_id')
+            ->groupBy('learner_id')
+            ->havingRaw('BOOL_OR(COALESCE(is_absent, false)) = false');
+
+        return DB::query()->fromSub($rankedLearners, 'ranked_learners')->count();
     }
 
     private function attendanceForLearners(
