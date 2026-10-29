@@ -562,6 +562,36 @@ class LearningAreaResultTest extends TestCase
         ]);
     }
 
+    public function test_report_denominator_excludes_absent_learners_and_allows_zero(): void
+    {
+        $this->prepareFreshnessOutputs();
+
+        foreach ([
+            [$this->juniorLearner, 1],
+            [$this->primaryLearner, 0],
+        ] as [$learner, $expectedCount]) {
+            DB::table('exam_results')
+                ->where('id', $this->freshnessRawId($learner))
+                ->update(['is_absent' => true, 'marks' => null]);
+
+            $this->process($learner);
+            $this->generateFreshnessMerits();
+            $cards = $this->generateFreshnessCards();
+
+            $this->assertCount(2, $cards);
+
+            foreach ($cards as $card) {
+                $this->assertSame($expectedCount, $card->total_learners);
+
+                if ($card->has_absence) {
+                    $this->assertNull($card->school_position);
+                } else {
+                    $this->assertSame(1, $card->school_position);
+                }
+            }
+        }
+    }
+
     private function prepareFreshnessOutputs(): void
     {
         app(ExamService::class)->transition($this->exam, 'published');

@@ -882,6 +882,48 @@ class ReportCardTest extends TestCase
         $this->assertSame(2, $card->total_learners);
     }
 
+    public function test_filtered_merit_generation_keeps_full_ranked_report_denominator(): void
+    {
+        foreach ([
+            [$this->primaryGrade->id, null],
+            [null, $this->primaryStream->id],
+        ] as [$gradeId, $streamId]) {
+            $this->deleteGeneratedCards();
+
+            DB::table('merit_lists')
+                ->where('school_id', $this->school->id)
+                ->where('exam_id', $this->exam->id)->delete();
+
+            $merits = app(MeritListService::class)->generate(
+                $this->school->id,
+                $this->exam->id,
+                $gradeId,
+                $streamId,
+                $this->user->id
+            );
+
+            $this->assertCount(1, $merits);
+            $this->assertSame(
+                $this->primaryLearner->id,
+                $merits->first()->learner_id
+            );
+            $this->assertSame(2, $merits->first()->school_position);
+            $this->assertSame(
+                1,
+                DB::table('merit_lists')
+                    ->where('school_id', $this->school->id)
+                    ->where('exam_id', $this->exam->id)->count()
+            );
+
+            $card = $this->generate(
+                null, $gradeId, $streamId
+            )->sole();
+
+            $this->assertSame(2, $card->school_position);
+            $this->assertSame(2, $card->total_learners);
+        }
+    }
+
     private function publishJuniorCard(): void
     {
         app(ReportCardService::class)->publish(

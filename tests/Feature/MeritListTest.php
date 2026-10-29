@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\Assessment\AssessmentTypeService;
 use App\Services\Assessment\ExamService;
 use App\Services\Assessment\MeritListService;
+use App\Services\Assessment\ReportCardService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -883,6 +884,27 @@ class MeritListTest extends TestCase
                 'processed_at' => now(),
                 'is_deleted' => false,
             ]);
+        }
+    }
+
+    public function test_report_denominator_counts_tied_learners_individually(): void
+    {
+        $rows = $this->generate()->keyBy('learner_id');
+
+        foreach ([
+            [$this->learnerB->id, 2],
+            [$this->learnerC->id, 2],
+            [$this->learnerD->id, 4],
+        ] as [$learnerId, $position]) {
+            $this->assertSame($position, $rows[$learnerId]->school_position);
+
+            $card = app(ReportCardService::class)->generate(
+                $this->school->id, $this->exam->id,
+                $learnerId, null, null, $this->user->id
+            )->sole();
+
+            $this->assertSame($position, $card->school_position);
+            $this->assertSame(4, $card->total_learners);
         }
     }
 
