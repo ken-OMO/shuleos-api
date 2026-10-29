@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
+use App\Http\Requests\Assessment\StoreAssessmentRegistrationRequest;
+use App\Http\Requests\Assessment\UpdateAssessmentRegistrationRequest;
 use App\Http\Resources\AssessmentRegistrationResource;
 use App\Models\AssessmentRegistration;
 use App\Services\Assessment\AssessmentRegistrationService;
+use App\Services\Assessment\AssessmentTenantContext;
 use Illuminate\Http\Request;
 
 class AssessmentRegistrationController extends BaseCrudController
@@ -34,21 +37,21 @@ class AssessmentRegistrationController extends BaseCrudController
         return $x ? $this->success(new AssessmentRegistrationResource($x), 'Assessment registration retrieved successfully.') : $this->notFound('Assessment registration not found.');
     }
 
-    public function store(Request $r)
+    public function store(StoreAssessmentRegistrationRequest $r)
     {
-        $v = $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'learner_id' => 'required|uuid|exists:learners,id', 'assessment_type' => 'required|string|max:255', 'assessment_year' => 'required|integer|min:2000|max:2100', 'candidate_number' => 'required|string|max:100', 'registration_number' => 'required|string|max:100', 'status' => 'sometimes|in:pending', 'created_by' => 'sometimes|nullable|uuid|exists:users,id']);
+        $v = $r->validated();
         $x = $this->service->create($v, $this->school($r, $v), auth()->id());
         $this->audit($r, self::MODULE, 'Create', $x, null, $x->toArray(), 'Created assessment registration.');
 
         return $this->created(new AssessmentRegistrationResource($x->load(self::RELATIONS)), 'Assessment registration created successfully.');
     }
 
-    public function update(Request $r, string $id)
+    public function update(UpdateAssessmentRegistrationRequest $r, string $id)
     {
         $x = $this->q($r)->find($id);
         if (! $x) {
             return $this->notFound('Assessment registration not found.');
-        }$v = $r->validate(['candidate_number' => 'sometimes|string|max:100', 'registration_number' => 'sometimes|string|max:100', 'status' => 'sometimes|in:pending,registered,verified,rejected,cancelled']);
+        }$v = $r->validated();
         $x = $this->service->update($this->school($r), $id, $v);
 
         return $this->success(new AssessmentRegistrationResource($x->refresh()->load(self::RELATIONS)), 'Assessment registration updated successfully.');
@@ -72,9 +75,6 @@ class AssessmentRegistrationController extends BaseCrudController
 
     private function school(Request $r, array $v = []): string
     {
-        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
-        abort_if(! $id, 403, 'School context not found.');
-
-        return (string) $id;
+        return AssessmentTenantContext::schoolId($r);
     }
 }

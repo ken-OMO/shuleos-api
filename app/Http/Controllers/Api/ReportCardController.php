@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
+use App\Http\Requests\Assessment\ReportCardSelectionRequest;
 use App\Http\Resources\ReportCardResource;
 use App\Models\ReportCard;
 use App\Services\Assessment\ReportCardService;
@@ -32,7 +33,7 @@ class ReportCardController extends BaseCrudController
         return $x ? $this->success(new ReportCardResource($x), 'Report card retrieved successfully.') : $this->notFound('Report card not found.');
     }
 
-    public function generate(Request $r)
+    public function generate(ReportCardSelectionRequest $r)
     {
         $mode = $r->validate([
             'response_mode' => 'sometimes|in:details,summary',
@@ -62,7 +63,7 @@ class ReportCardController extends BaseCrudController
         return $this->success(new ReportCardResource($x), 'Report card comments updated successfully.');
     }
 
-    public function publish(Request $r)
+    public function publish(ReportCardSelectionRequest $r)
     {
         $v = $this->action($r);
         $rows = $this->service->publish($this->school($r, $v), $v['exam_id'], $v['learner_id'] ?? null, $v['grade_id'] ?? null, $v['stream_id'] ?? null, (string) auth()->id());
@@ -70,15 +71,22 @@ class ReportCardController extends BaseCrudController
         return $this->success(ReportCardResource::collection($rows), 'Report cards published successfully.');
     }
 
-    private function action(Request $r): array
+    private function action(ReportCardSelectionRequest $r): array
     {
-        return $r->validate(['school_id' => 'sometimes|uuid|exists:schools,id', 'exam_id' => 'required|uuid|exists:exams,id', 'learner_id' => 'sometimes|nullable|uuid|exists:learners,id', 'grade_id' => 'sometimes|nullable|uuid|exists:grades,id', 'stream_id' => 'sometimes|nullable|uuid|exists:streams,id', 'class_teacher_comment' => 'sometimes|nullable|string', 'principal_comment' => 'sometimes|nullable|string']);
+        return $r->validated();
     }
 
     private function school(Request $r, array $v = []): string
     {
-        $id = $r->attributes->get('tenant_school_id') ?? $v['school_id'] ?? $r->input('school_id');
+        $id = auth()->user()?->school_id;
         abort_if(! $id, 403, 'School context not found.');
+
+        $tenant = $r->attributes->get('tenant_school_id');
+        abort_if(
+            $tenant !== null && (string) $tenant !== (string) $id,
+            403,
+            'School context is invalid.'
+        );
 
         return (string) $id;
     }

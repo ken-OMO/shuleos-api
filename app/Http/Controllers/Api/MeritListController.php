@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\MeritListResource;
 use App\Models\MeritList;
+use App\Services\Assessment\AssessmentTenantContext;
 use App\Services\Assessment\MeritListService;
 use Illuminate\Http\Request;
 
@@ -60,9 +61,6 @@ class MeritListController extends BaseCrudController
 
     private function school(Request $request, array $data = []): string
     {
-        $id = $request->attributes->get('tenant_school_id') ?? $data['school_id'] ?? $request->input('school_id');
-        abort_if(! $id, 403, 'School context not found.');
-
-        return (string) $id;
+        return AssessmentTenantContext::schoolId($request);
     }
 }
