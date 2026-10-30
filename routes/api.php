@@ -277,6 +277,12 @@ Route::prefix('admin')->middleware($secure)->group(function () {
     Route::post('/users', [AdministratorPortalController::class, 'userCreate'])->middleware('permission:create_school_users');
     Route::get('/users/{user}', [AdministratorPortalController::class, 'userShow'])->middleware('permission:view_school_users');
     Route::put('/users/{user}', [AdministratorPortalController::class, 'userUpdate'])->middleware('permission:update_school_users');
+    Route::post('/users/{user}/roles/{role}', [AdministratorPortalController::class, 'assignUserRole'])
+        ->whereUuid('user')->whereUuid('role')
+        ->middleware(['permission:update_school_users', 'permission:assign_school_permissions']);
+    Route::delete('/users/{user}/roles/{role}', [AdministratorPortalController::class, 'revokeUserRole'])
+        ->whereUuid('user')->whereUuid('role')
+        ->middleware(['permission:update_school_users', 'permission:assign_school_permissions']);
     foreach (['activate', 'suspend', 'unlock', 'force-password-reset', 'revoke-sessions', 'revoke-devices'] as $action) {
         $permission = match ($action) {
             'activate' => 'activate_school_users', 'suspend' => 'suspend_school_users', 'unlock' => 'unlock_school_users', 'force-password-reset' => 'force_school_user_password_reset', 'revoke-sessions' => 'revoke_school_user_sessions', default => 'revoke_school_user_devices'

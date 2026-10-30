@@ -109,6 +109,20 @@ class AdministratorPortalController extends BaseApiController
         return $this->success($this->users->update($this->user(), $user, $request->validate($this->userRules(true))));
     }
 
+    public function assignUserRole(string $user, string $role)
+    {
+        return $this->success(
+            $this->users->assignSecondaryRole($this->user(), $user, $role)
+        );
+    }
+
+    public function revokeUserRole(string $user, string $role)
+    {
+        return $this->success(
+            $this->users->revokeSecondaryRole($this->user(), $user, $role)
+        );
+    }
+
     public function userAction(string $user, string $action)
     {
         return $this->success($this->users->action($this->user(), $user, $action));
