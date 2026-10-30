@@ -2,6 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+
 class Learner extends TenantModel
 {
     protected $table = 'learners';
@@ -71,8 +76,10 @@ class Learner extends TenantModel
 
     /**
      * School relationship
+     *
+     * @return BelongsTo<School, $this>
      */
-    public function school()
+    public function school(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -83,12 +90,18 @@ class Learner extends TenantModel
         );
     }
 
-    public function user()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    public function dashboardPreference()
+    /**
+     * @return HasOne<LearnerDashboardPreference, $this>
+     */
+    public function dashboardPreference(): HasOne
     {
         return $this->hasOne(LearnerDashboardPreference::class);
     }
@@ -100,8 +113,10 @@ class Learner extends TenantModel
 
     /**
      * Grade relationship
+     *
+     * @return BelongsTo<Grade, $this>
      */
-    public function grade()
+    public function grade(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -114,8 +129,10 @@ class Learner extends TenantModel
 
     /**
      * Stream relationship
+     *
+     * @return BelongsTo<Stream, $this>
      */
-    public function stream()
+    public function stream(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -128,8 +145,10 @@ class Learner extends TenantModel
 
     /**
      * Guardians relationship
+     *
+     * @return BelongsToMany<Guardian, $this>
      */
-    public function guardians()
+    public function guardians(): BelongsToMany
     {
         return $this->belongsToMany(
 
@@ -144,12 +163,18 @@ class Learner extends TenantModel
         );
     }
 
-    public function parentLinks()
+    /**
+     * @return HasMany<LearnerParent, $this>
+     */
+    public function parentLinks(): HasMany
     {
         return $this->hasMany(LearnerParent::class, 'learner_id');
     }
 
-    public function publishedReportCards()
+    /**
+     * @return HasMany<ReportCard, $this>
+     */
+    public function publishedReportCards(): HasMany
     {
         return $this->hasMany(ReportCard::class)->current()->where('status', 'published');
     }
@@ -160,8 +185,10 @@ class Learner extends TenantModel
 
     /**
      * Learner fee account
+     *
+     * @return HasOne<LearnerFeeAccount, $this>
      */
-    public function feeAccount()
+    public function feeAccount(): HasOne
     {
         return $this->hasOne(
 
@@ -174,8 +201,10 @@ class Learner extends TenantModel
 
     /**
      * Fee invoices
+     *
+     * @return HasMany<FeeInvoice, $this>
      */
-    public function invoices()
+    public function invoices(): HasMany
     {
         return $this->hasMany(
 
@@ -188,8 +217,10 @@ class Learner extends TenantModel
 
     /**
      * Payments
+     *
+     * @return HasMany<Payment, $this>
      */
-    public function payments()
+    public function payments(): HasMany
     {
         return $this->hasMany(
 
@@ -202,8 +233,10 @@ class Learner extends TenantModel
 
     /**
      * M-Pesa transactions
+     *
+     * @return HasMany<MpesaTransaction, $this>
      */
-    public function mpesaTransactions()
+    public function mpesaTransactions(): HasMany
     {
         return $this->hasMany(
 

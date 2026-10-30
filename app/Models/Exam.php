@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class Exam extends TenantModel
 {
     protected $table = 'exams';
@@ -55,7 +58,10 @@ class Exam extends TenantModel
 
     ];
 
-    public function school()
+    /**
+     * @return BelongsTo<School, $this>
+     */
+    public function school(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -66,7 +72,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function assessmentType()
+    /**
+     * @return BelongsTo<AssessmentType, $this>
+     */
+    public function assessmentType(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -77,7 +86,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function academicYear()
+    /**
+     * @return BelongsTo<AcademicYear, $this>
+     */
+    public function academicYear(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -88,7 +100,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function term()
+    /**
+     * @return BelongsTo<Term, $this>
+     */
+    public function term(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -99,7 +114,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function creator()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -110,7 +128,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function learningAreas()
+    /**
+     * @return HasMany<ExamLearningArea, $this>
+     */
+    public function learningAreas(): HasMany
     {
         return $this->hasMany(
 
@@ -121,7 +142,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function results()
+    /**
+     * @return HasMany<ExamResult, $this>
+     */
+    public function results(): HasMany
     {
         return $this->hasMany(
 
@@ -132,7 +156,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function permissions()
+    /**
+     * @return HasMany<MarkEntryPermission, $this>
+     */
+    public function permissions(): HasMany
     {
         return $this->hasMany(
 
@@ -143,7 +170,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function meritLists()
+    /**
+     * @return HasMany<MeritList, $this>
+     */
+    public function meritLists(): HasMany
     {
         return $this->hasMany(
 
@@ -154,7 +184,10 @@ class Exam extends TenantModel
         );
     }
 
-    public function reportCards()
+    /**
+     * @return HasMany<ReportCard, $this>
+     */
+    public function reportCards(): HasMany
     {
         return $this->hasMany(
 

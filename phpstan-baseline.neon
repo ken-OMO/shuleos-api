@@ -13,18 +13,6 @@ parameters:
 			path: app/Core/Security/File/FilePolicy.php
 
 		-
-			message: '#^Readonly property App\\Core\\Security\\File\\MagicNumber\:\:\$extension is already assigned\.$#'
-			identifier: assign.readOnlyProperty
-			count: 1
-			path: app/Core/Security/File/MagicNumber.php
-
-		-
-			message: '#^Readonly property App\\Core\\Security\\File\\MagicNumber\:\:\$signature is already assigned\.$#'
-			identifier: assign.readOnlyProperty
-			count: 1
-			path: app/Core/Security/File/MagicNumber.php
-
-		-
 			message: '#^Property App\\Core\\Security\\File\\Scanners\\NullVirusScanner\:\:\$threat \(string\|null\) is never assigned string so it can be removed from the property type\.$#'
 			identifier: property.unusedType
 			count: 1
@@ -103,12 +91,6 @@ parameters:
 			path: app/Http/Controllers/Api/AttendanceAlertController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AttendanceLeadershipController.php
-
-		-
 			message: '#^Relation ''attendanceRecords'' is not found in App\\Models\\AttendanceSession model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
@@ -127,12 +109,6 @@ parameters:
 			path: app/Http/Controllers/Api/AttendanceStatusController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AttendanceTeacherController.php
-
-		-
 			message: '#^Relation ''school'' is not found in App\\Models\\AuditLog model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -145,100 +121,10 @@ parameters:
 			path: app/Http/Controllers/Api/AuditLogController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$account_locked_until\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$failed_login_attempts\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$password_hash\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$suspended_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Parameter \#1 \$forceForever of static method PHPOpenSourceSaver\\JWTAuth\\JWT\:\:invalidate\(\) expects bool, PHPOpenSourceSaver\\JWTAuth\\Token\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Parameter \#1 \$forceForever of static method PHPOpenSourceSaver\\JWTAuth\\JWT\:\:refresh\(\) expects bool, PHPOpenSourceSaver\\JWTAuth\\Token\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Parameter \#2 \$user of method App\\Http\\Controllers\\Api\\AuthController\:\:safeUser\(\) expects App\\Models\\User, PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Parameter \#2 \$user of method App\\Http\\Controllers\\Api\\AuthController\:\:tokenResponse\(\) expects App\\Models\\User, PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Api/AuthController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Api/BehaviourLeadershipController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Api/BehaviourTeacherController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Http/Controllers/Api/CommunicationController.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
 			path: app/Http/Controllers/Api/CommunicationController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Http/Controllers/Api/CommunicationPhaseTwoController.php
 
 		-
 			message: '#^Relation ''recordOfWork'' is not found in App\\Models\\CurriculumCoverage model\.$#'
@@ -265,28 +151,10 @@ parameters:
 			path: app/Http/Controllers/Api/CurriculumCoverageController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/FinancePhaseTwoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Http/Controllers/Api/FinancePhaseTwoController.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/Api/FinancePhaseTwoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 16
-			path: app/Http/Controllers/Api/FinanceWorkflowController.php
 
 		-
 			message: '#^Relation ''items'' is not found in App\\Models\\FeeInvoice model\.$#'
@@ -295,124 +163,10 @@ parameters:
 			path: app/Http/Controllers/Api/FinanceWorkflowController.php
 
 		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:beginTransaction\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:commit\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:isDeleted\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:loadRelations\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
 			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:logError\(\)\.$#'
 			identifier: method.notFound
 			count: 3
 			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:modelNotFound\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GradeController\:\:rollback\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Relation ''educationLevel'' is not found in App\\Models\\Grade model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\Grade model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/GradeController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:beginTransaction\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:commit\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:isDeleted\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:loadRelations\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:logError\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:modelNotFound\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\GuardianController\:\:rollback\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Relation ''learners'' is not found in App\\Models\\Guardian model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\Guardian model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Relation ''user'' is not found in App\\Models\\Guardian model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/GuardianController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/HomeworkLeadershipController.php
 
 		-
 			message: '#^Relation ''mark'' is not found in App\\Models\\HomeworkSubmission model\.$#'
@@ -467,96 +221,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Http/Controllers/Api/LearnerAttendanceController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:beginTransaction\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:commit\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:isDeleted\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:loadRelations\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:logError\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:modelNotFound\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\LearnerController\:\:rollback\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Relation ''grade'' is not found in App\\Models\\Learner model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\Learner model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Relation ''stream'' is not found in App\\Models\\Learner model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/LearnerController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearnerPortalPhaseTwoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearnerPortalPhaseTwoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearnerPortalPhaseTwoController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearningAreaAllocation\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\LearningAreaAllocation\>\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearningAreaAllocationController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearningAreaAllocation\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\LearningAreaAllocation\>\:\:\$lessons_per_week\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearningAreaAllocationController.php
 
 		-
 			message: '#^Relation ''grade'' is not found in App\\Models\\LearningAreaAllocation model\.$#'
@@ -631,30 +295,6 @@ parameters:
 			path: app/Http/Controllers/Api/LearningAreaController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/LearningResourceCategoryController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 6
-			path: app/Http/Controllers/Api/LearningResourceLearnerController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 6
-			path: app/Http/Controllers/Api/LearningResourceLearnerController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 6
-			path: app/Http/Controllers/Api/LearningResourceLearnerController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\LearningResource\:\:\$currentVersion\.$#'
 			identifier: property.notFound
 			count: 1
@@ -703,24 +343,6 @@ parameters:
 			path: app/Http/Controllers/Api/LearningResourceLearnerController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Api/LearningResourceParentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Api/LearningResourceParentController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Api/LearningResourceParentController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$currentVersion\.$#'
 			identifier: property.notFound
 			count: 3
@@ -763,54 +385,6 @@ parameters:
 			path: app/Http/Controllers/Api/LearningResourceTeacherController.php
 
 		-
-			message: '#^Relation ''exam'' is not found in App\\Models\\MarkEntryPermission model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Api/MarkEntryPermissionController.php
-
-		-
-			message: '#^Relation ''exam'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''generatedBy'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''grade'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''learner'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''overallGradingScale'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''overallGradingSystem'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
-			message: '#^Relation ''stream'' is not found in App\\Models\\MeritList model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/MeritListController.php
-
-		-
 			message: '#^Call to function abort_unless\(\) with arguments true, 422 and ''Invalid callback\.'' will always evaluate to true\.$#'
 			identifier: function.alreadyNarrowedType
 			count: 1
@@ -821,18 +395,6 @@ parameters:
 			identifier: function.alreadyNarrowedType
 			count: 1
 			path: app/Http/Controllers/Api/ParentPaymentWebhookController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$receipt_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/ParentPortalPhaseTwoController.php
-
-		-
-			message: '#^Relation ''learningAreas'' is not found in App\\Models\\ReportCard model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/ReportCardController.php
 
 		-
 			message: '#^Relation ''academicYear'' is not found in App\\Models\\SchemeOfWork model\.$#'
@@ -895,88 +457,16 @@ parameters:
 			path: app/Http/Controllers/Api/SchoolController.php
 
 		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\SchoolController\:\:modelNotFound\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/SchoolController.php
-
-		-
 			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\SchoolController\:\:rollback\(\)\.$#'
 			identifier: method.notFound
 			count: 3
 			path: app/Http/Controllers/Api/SchoolController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Api/SmartTimetableAutomationController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Http/Controllers/Api/SmartTimetableController.php
-
-		-
 			message: '#^Relation ''entries'' is not found in App\\Models\\Timetable model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Api/SmartTimetableController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:beginTransaction\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:commit\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:isDeleted\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:loadRelations\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:logError\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:modelNotFound\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\StreamController\:\:rollback\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Relation ''grade'' is not found in App\\Models\\Stream model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/StreamController.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\Stream model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/StreamController.php
 
 		-
 			message: '#^Relation ''electionPositions'' is not found in App\\Models\\StudentElection model\.$#'
@@ -1039,18 +529,6 @@ parameters:
 			path: app/Http/Controllers/Api/TeacherAssignmentController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/TeacherPortalMobileController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/TeacherPortalMobileController.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -1073,12 +551,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Http/Controllers/Api/TermController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/UserController.php
 
 		-
 			message: '#^Call to an undefined method App\\Http\\Controllers\\Api\\UserController\:\:beginTransaction\(\)\.$#'
@@ -1123,55 +595,7 @@ parameters:
 			path: app/Http/Controllers/Api/UserController.php
 
 		-
-			message: '#^Relation ''role'' is not found in App\\Models\\User model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/UserController.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\User model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/UserController.php
-
-		-
-			message: '#^Access to an undefined property PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject\:\:\$auth_generation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/JwtMiddleware.php
-
-		-
-			message: '#^Parameter \#1 \$user of method App\\Services\\Auth\\AuthContextService\:\:assertAccessible\(\) expects App\\Models\\User\|null, PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Middleware/JwtMiddleware.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/ModulePermissionMiddleware.php
-
-		-
-			message: '#^Parameter \#1 \$user of method App\\Services\\Auth\\AuthContextService\:\:hasPermission\(\) expects App\\Models\\User, PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Middleware/PermissionMiddleware.php
-
-		-
-			message: '#^Parameter \#1 \$user of method App\\Services\\Auth\\AuthContextService\:\:hasRole\(\) expects App\\Models\\User, PHPOpenSourceSaver\\JWTAuth\\Contracts\\JWTSubject given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Middleware/RoleMiddleware.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\LessonNote\:\:\$lessonPlan\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LessonPlan\:\:\$teacher_assignment_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Middleware/TeacherAcademicScope.php
@@ -1180,36 +604,6 @@ parameters:
 			message: '#^Access to an undefined property App\\Models\\RecordOfWork\:\:\$lessonPlan\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 6
 			path: app/Http/Middleware/TeacherAcademicScope.php
 
 		-
@@ -1223,12 +617,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Middleware/TeacherAcademicScope.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/TenantMiddleware.php
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\AcademicWeekResource\:\:\$academic_year_id\.$#'
@@ -1403,90 +791,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Resources/AppliedDiscountResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$assessment_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$assessment_year\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$candidate_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$registration_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentRegistrationResource\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentRegistrationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentTypeResource\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentTypeResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentTypeResource\:\:\$assessment_type_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentTypeResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentTypeResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentTypeResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentTypeResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentTypeResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\AssessmentTypeResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/AssessmentTypeResource.php
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\AttendanceAlertResource\:\:\$created_at\.$#'
@@ -2449,12 +1753,6 @@ parameters:
 			path: app/Http/Resources/DisciplineCaseResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/DisciplineCaseResource.php
-
-		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\DisciplineCategoryResource\:\:\$active\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2489,186 +1787,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Resources/DisciplineCategoryResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$number_of_papers\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamLearningAreaResource\:\:\$total_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$exam_learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$max_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$paper_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamPaperResource\:\:\$paper_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamPaperResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$assessment_type_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$end_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$exam_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$start_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResource\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ExamResultResource\:\:\$paper_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ExamResultResource.php
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\FeeArrearResource\:\:\$academic_year_id\.$#'
@@ -3637,12 +2755,6 @@ parameters:
 			path: app/Http/Resources/HomeworkMarkResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/HomeworkMarkResource.php
-
-		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\HomeworkRubricResource\:\:\$description\.$#'
 			identifier: property.notFound
 			count: 1
@@ -4129,78 +3241,6 @@ parameters:
 			path: app/Http/Resources/LearningAreaResource.php
 
 		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$gradingScale\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$marks_obtained\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$maximum_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$percentage\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$processed_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$processed_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$processing_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\LearningAreaResultResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningAreaResultResource.php
-
-		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\LearningResourceCategoryResource\:\:\$active\.$#'
 			identifier: property.notFound
 			count: 1
@@ -4322,12 +3362,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\LearningResourceResource\:\:\$visibility\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/LearningResourceResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Resources/LearningResourceResource.php
@@ -4523,168 +3557,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Resources/LessonPlanResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$closes_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$created_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$opens_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MarkEntryPermissionResource\:\:\$role_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Call to an undefined method App\\Http\\Resources\\MarkEntryPermissionResource\:\:isOpen\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: app/Http/Resources/MarkEntryPermissionResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$average_percentage\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$generated_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$generated_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$grade_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$maximum_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$overallGradingScale\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$published_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$ranking_method\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$school_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$stream_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$total_points\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\MeritListResource\:\:\$total_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/MeritListResource.php
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\NotificationResource\:\:\$created_at\.$#'
@@ -5429,246 +4301,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Resources/RecurringCommunicationResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$grade_code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$gradingScale\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$marks_obtained\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$maximum_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$percentage\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$points\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardLearningAreaResource\:\:\$teacher_comment\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardLearningAreaResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$attendance_absent\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$attendance_late\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$attendance_percentage\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$attendance_present\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$attendance_total_sessions\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$average_percentage\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$class_teacher_comment\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$generated_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$generated_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$grade_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$maximum_marks\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$overallGradingScale\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$overall_score\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$pathway_recommendation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$pathway_recommendation_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$principal_comment\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$published_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$published_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$school_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$stream_position\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$total_learners\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
-
-		-
-			message: '#^Access to an undefined property App\\Http\\Resources\\ReportCardResource\:\:\$total_points\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Resources/ReportCardResource.php
 
 		-
 			message: '#^Access to an undefined property App\\Http\\Resources\\RoleResource\:\:\$id\.$#'
@@ -7093,142 +5725,10 @@ parameters:
 			path: app/Jobs/DeliverLearnerPush.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\MarkEntryPermission\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/MarkEntryPermission.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\MarkEntryPermission\:\:\$closes_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/MarkEntryPermission.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\MarkEntryPermission\:\:\$opens_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/MarkEntryPermission.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/TenantModel.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$auth_generation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$password_hash\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$username\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Administrator/AdministratorOperationsService.php
-
-		-
 			message: '#^Property App\\Services\\Administrator\\AdministratorOperationsService\:\:\$users is never read, only written\.$#'
 			identifier: property.onlyWritten
 			count: 1
 			path: app/Services/Administrator/AdministratorOperationsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$lifecycle_state\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$account_locked_until\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Relation ''role'' is not found in App\\Models\\User model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$lifecycle_state\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Administrator/AdministratorPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorPortalService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, array\<string, bool\|list\<string\>\|string\>\|null given\.$#'
@@ -7255,66 +5755,6 @@ parameters:
 			path: app/Services/Administrator/AdministratorPortalService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Role\:\:\$role_name\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Administrator/AdministratorRolePermissionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Role\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Administrator/AdministratorRolePermissionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Role\:\:\$system_role\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Administrator/AdministratorRolePermissionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorRolePermissionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Role\:\:\$role_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$auth_generation\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
-			message: '#^Relation ''role'' is not found in App\\Models\\User model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Services/Administrator/AdministratorUserService.php
-
-		-
 			message: '#^Negated boolean expression is always false\.$#'
 			identifier: booleanNot.alwaysFalse
 			count: 1
@@ -7327,76 +5767,16 @@ parameters:
 			path: app/Services/Administrator/Operations/AdministratorDiagnosticsService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Administrator/Operations/AdministratorFeatureFlagService.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>enabled" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/Administrator/Operations/AdministratorFeatureFlagService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$last_login\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/Operations/AdministratorOperationsAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Administrator/SchoolBrandingAdministrationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/SchoolLifecycleAdministrationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$lifecycle_state\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/SchoolLifecycleAdministrationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\School\:\:\$lifecycle_version\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Administrator/SchoolLifecycleAdministrationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AttendanceAlert\:\:\$parent_notified\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceAlertService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Attendance/AttendanceAnalyticsService.php
-
-		-
 			message: '#^Relation ''teacherAssignment'' is not found in App\\Models\\AttendanceRegister model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/Attendance/AttendanceAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceIntelligenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Attendance/AttendanceReadService.php
 
 		-
 			message: '#^Relation ''attendanceStatus'' is not found in App\\Models\\LearnerAttendance model\.$#'
@@ -7417,189 +5797,9 @@ parameters:
 			path: app/Services/Attendance/AttendanceReadService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\AttendanceStatus\:\:\$status_code\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$is_class_teacher\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Services/Attendance/AttendanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\AttendanceStatus\:\:\$status_code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Attendance/AttendanceStatusService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/AuditLogger.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$account_locked_until\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$suspended_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$first_login\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$force_password_reset_at\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$middle_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$school\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\User\>\:\:\$username\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\User model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/Auth/AuthContextService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Auth/AuthenticationAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/Behaviour/BehaviourAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DisciplineAction\:\:\$action_type\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Behaviour/BehaviourService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\DisciplineCategory\:\:\$requires_parent_notification\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Services/Behaviour/BehaviourService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DisciplineCategory\:\:\$severity_level\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Behaviour/BehaviourService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
 			path: app/Services/Behaviour/BehaviourService.php
 
 		-
@@ -7607,30 +5807,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/Behaviour/BehaviourService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Communication/AdvancedCommunicationAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Communication/CommunicationAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Communication/CommunicationAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Communication/CommunicationBrandingService.php
 
 		-
 			message: '#^Call to function abort_unless\(\) with true and 422 will always evaluate to true\.$#'
@@ -7651,46 +5827,10 @@ parameters:
 			path: app/Services/Communication/CommunicationImpactService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Communication/CommunicationNotificationService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Communication/CommunicationNotificationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Communication/CommunicationPolicyService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Communication/CommunicationPolicyService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Communication/CommunicationPreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Communication/CommunicationRecipientResolverService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 18
-			path: app/Services/Communication/CommunicationRecipientResolverService.php
 
 		-
 			message: '#^Match expression does not handle remaining value\: string$#'
@@ -7705,22 +5845,10 @@ parameters:
 			path: app/Services/Communication/CommunicationRecipientResolverService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 19
-			path: app/Services/Communication/CommunicationService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 9
 			path: app/Services/Communication/CommunicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Communication/CommunicationTemplateService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -7729,28 +5857,10 @@ parameters:
 			path: app/Services/Communication/CommunicationTemplateService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Communication/ContactHealthService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Communication/ContactHealthService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Communication/EmergencyCommunicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Communication/EmergencyCommunicationService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -7765,64 +5875,16 @@ parameters:
 			path: app/Services/Communication/PhaseTwoCommunicationPreviewService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Communication/RecurringCommunicationService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 2
 			path: app/Services/Communication/RecurringCommunicationService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Communication/SmsWalletService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$current_balance\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Services/Finance/FinanceAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceAdjustmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Finance/FinanceAdjustmentService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 2
 			path: app/Services/Finance/FinanceAdjustmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/Finance/FinanceAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: app/Services/Finance/FinanceArrearsService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -7841,24 +5903,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/Finance/FinanceArrearsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$current_balance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceClearanceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/Finance/FinanceClearanceService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -7885,64 +5929,10 @@ parameters:
 			path: app/Services/Finance/FinanceClearanceService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$amount_paid\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$invoice_number\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$learner_fee_account_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Finance/FinanceDiscountApplicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/Finance/FinanceDiscountService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -7951,70 +5941,10 @@ parameters:
 			path: app/Services/Finance/FinanceDiscountService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Finance/FinanceInstallmentService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/Finance/FinanceInstallmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$invoice_number\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$learner_fee_account_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$total_amount\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 13
-			path: app/Services/Finance/FinanceInvoiceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: app/Services/Finance/FinanceLearnerDiscountService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
@@ -8023,166 +5953,10 @@ parameters:
 			path: app/Services/Finance/FinanceLearnerDiscountService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$current_balance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceLedgerService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceLedgerService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceLedgerService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeCategory\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceMasterDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeCategory\:\:\$category_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceMasterDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeCategory\:\:\$is_system\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceMasterDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeStructure\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceMasterDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 13
-			path: app/Services/Finance/FinanceMasterDataService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceNotificationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinancePaymentPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 12
-			path: app/Services/Finance/FinancePaymentPlanService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 4
 			path: app/Services/Finance/FinancePaymentPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$balance\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$invoice_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$total_amount\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$allocated_amount\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$amount\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payment_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payment_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$receipt_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$reversed\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\PaymentAllocation\:\:\$allocated_amount\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinancePaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 22
-			path: app/Services/Finance/FinancePaymentService.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>allow_overpayments" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -8191,33 +5965,9 @@ parameters:
 			path: app/Services/Finance/FinancePaymentService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/Finance/FinancePhaseTwoAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: app/Services/Finance/FinancePortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$allocated_amount\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$allocations\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$amount\.$#'
-			identifier: property.notFound
-			count: 2
 			path: app/Services/Finance/FinanceReceiptService.php
 
 		-
@@ -8227,57 +5977,9 @@ parameters:
 			path: app/Services/Finance/FinanceReceiptService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payer_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payer_phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$paymentMethod\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payment_date\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payment_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$receipt_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$received_by\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$reversed\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceReceiptService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
 			path: app/Services/Finance/FinanceReceiptService.php
 
 		-
@@ -8293,36 +5995,6 @@ parameters:
 			path: app/Services/Finance/FinanceReceiptService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$total_amount\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceRefundService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$allocated_amount\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceRefundService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$learner_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceRefundService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$receipt_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceRefundService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 14
-			path: app/Services/Finance/FinanceRefundService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, int given\.$#'
 			identifier: argument.type
 			count: 1
@@ -8335,81 +6007,9 @@ parameters:
 			path: app/Services/Finance/FinanceRefundService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\FinanceSetting\:\:\$currency\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceSettingsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Finance/FinanceSettingsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$account_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Finance/FinanceStatementService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Finance/FinanceStatementService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Homework/HomeworkAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Homework/HomeworkAssignmentService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\HomeworkAssignmentLearner\:\:\$assignment\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Services/Homework/HomeworkLearnerService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
 			path: app/Services/Homework/HomeworkLearnerService.php
 
 		-
@@ -8425,40 +6025,16 @@ parameters:
 			path: app/Services/Homework/HomeworkLearnerService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/Homework/HomeworkMarkingService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Homework/HomeworkParentService.php
-
-		-
 			message: '#^Relation ''assignment'' is not found in App\\Models\\HomeworkAssignmentLearner model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Services/Homework/HomeworkParentService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Homework/HomeworkRubricService.php
-
-		-
 			message: '#^Relation ''criteria'' is not found in App\\Models\\HomeworkRubric model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/Homework/HomeworkRubricService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/Homework/HomeworkSubmissionFileService.php
 
 		-
 			message: '#^Relation ''school'' is not found in App\\Models\\Teacher model\.$#'
@@ -8485,54 +6061,6 @@ parameters:
 			path: app/Services/LeadershipPortal/LeadershipApprovalCentreService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/LeadershipPortal/LeadershipDeviceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 16
-			path: app/Services/LeadershipPortal/LeadershipPortalPhaseTwoService.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -8557,94 +6085,10 @@ parameters:
 			path: app/Services/LeadershipPortal/LeadershipPortalService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LeadershipPortal/LeadershipPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/LeadershipPortal/LeadershipPortalService.php
-
-		-
 			message: '#^Constant App\\Services\\LeadershipPortal\\LeadershipPortalService\:\:PREF is unused\.$#'
 			identifier: classConstant.unused
 			count: 1
 			path: app/Services/LeadershipPortal/LeadershipPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/LearnerPortal/LearnerAcademicProgressService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$admission_no\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$middle_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$portal_activated_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$user_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$username\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Parameter \#1 \$callback of static method Illuminate\\Database\\Connection\:\:transaction\(\) contains unresolvable type\.$#'
-			identifier: argument.unresolvableType
-			count: 1
-			path: app/Services/LearnerPortal/LearnerAccountService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/LearnerPortal/LearnerAttachmentService.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
@@ -8663,36 +6107,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/LearnerPortal/LearnerAttachmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/LearnerPortal/LearnerDeviceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerOfflineResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerOfflineResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerOfflineResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/LearnerPortal/LearnerOfflineResourceService.php
 
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
@@ -8719,100 +6133,10 @@ parameters:
 			path: app/Services/LearnerPortal/LearnerOfflineResourceService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$learner_portal_enabled\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$learner_portal_show_report_cards\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/LearnerPortal/LearnerPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/LearnerPortal/LearnerPortalAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 16
-			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: app/Services/LearnerPortal/LearnerPortalPhaseTwoService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalService.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\LearnerDashboardPreference\:\:\$show_attendance\.$#'
@@ -8839,66 +6163,6 @@ parameters:
 			path: app/Services/LearnerPortal/LearnerPortalService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: app/Services/LearnerPortal/LearnerPortalService.php
-
-		-
-			message: '#^Relation ''exam'' is not found in App\\Models\\ReportCard model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/LearnerPortal/LearnerPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/LearnerPortal/LearnerPushService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_allow_admin_override\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_balance_threshold\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_fee_policy\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>report_card_allow_admin_override" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -8917,12 +6181,6 @@ parameters:
 			path: app/Services/LearnerPortal/LearnerReportCardAccessService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: app/Services/LearnerPortal/LearnerSyncService.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
 			identifier: method.notFound
 			count: 8
@@ -8935,75 +6193,9 @@ parameters:
 			path: app/Services/LearnerPortal/LearnerSyncService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerTaskService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearnerPortal/LearnerTaskService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/LearnerPortal/LearnerTaskService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearningResource/LearningResourceDeliveryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearningResource/LearningResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearningResource/LearningResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/LearningResource/LearningResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$learner\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/LearningResource/LearningResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/LearningResource/LearningResourceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/LearningResource/LearningResourceUploadService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\ParentPortalDevice\:\:\$version\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Services/ParentPortal/ParentDeviceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
 			path: app/Services/ParentPortal/ParentDeviceService.php
 
 		-
@@ -9013,93 +6205,15 @@ parameters:
 			path: app/Services/ParentPortal/ParentDeviceService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentLearnerProgressService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentLearnerProgressService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentLearnerProgressService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Payment\:\:\$payment_status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPaymentProcessingService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\FeeInvoice\:\:\$balance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\LearnerFeeAccount\:\:\$current_balance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 6
-			path: app/Services/ParentPortal/ParentPaymentService.php
-
-		-
 			message: '#^Relation ''learner'' is not found in App\\Models\\ParentPaymentAttempt model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/ParentPortal/ParentPaymentService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentPhaseTwoWorkflowService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentPhaseTwoWorkflowService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\ParentConsent\:\:\$audiences\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Services/ParentPortal/ParentPhaseTwoWorkflowService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 17
 			path: app/Services/ParentPortal/ParentPhaseTwoWorkflowService.php
 
 		-
@@ -9139,142 +6253,10 @@ parameters:
 			path: app/Services/ParentPortal/ParentPhaseTwoWorkflowService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$parent_portal_enabled\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
 			message: '#^Relation ''learner'' is not found in App\\Models\\LearnerParent model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Services/ParentPortal/ParentPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Services/ParentPortal/ParentPortalAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/ParentPortal/ParentPortalAttachmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$admission_no\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$middle_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 16
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
 
 		-
 			message: '#^Property App\\Services\\ParentPortal\\ParentPortalMobileService\:\:\$homework is never read, only written\.$#'
@@ -9283,160 +6265,10 @@ parameters:
 			path: app/Services/ParentPortal/ParentPortalMobileService.php
 
 		-
-			message: '#^Relation ''exam'' is not found in App\\Models\\ReportCard model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>exam_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/ParentPortal/ParentPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Learner\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$parent_portal_show_announcements\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$parent_portal_show_attendance\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$parent_portal_show_fees\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/ParentPortal/ParentPortalService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Guardian\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/ParentPortal/ParentProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/ParentPortal/ParentPushService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$exam_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_allow_admin_override\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_balance_threshold\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_fee_policy\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchoolSettings\:\:\$report_card_restriction_message\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/ParentPortal/ParentReportCardAccessService.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>report_card_allow_admin_override" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -9457,12 +6289,6 @@ parameters:
 			path: app/Services/ParentPortal/ParentReportCardAccessService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 12
-			path: app/Services/ParentPortal/ParentSyncService.php
-
-		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Query\\Builder\:\:whereKey\(\)\.$#'
 			identifier: method.notFound
 			count: 5
@@ -9475,70 +6301,10 @@ parameters:
 			path: app/Services/ParentPortal/ParentSyncService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/ParentPortal/ParentTaskService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$exam\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Pdf/ReportCardPdfService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$learner\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Pdf/ReportCardPdfService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$school\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Pdf/ReportCardPdfService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\ReportCard\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Pdf/ReportCardPdfService.php
-
-		-
-			message: '#^Relation ''school'' is not found in App\\Models\\ReportCard model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/Pdf/ReportCardPdfService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/StudentElection/StudentElectionVotingService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Services/TeacherPortal/MarkEntryBatchService.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, stdClass\|null given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Services/TeacherPortal/MarkEntryBatchService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/TeacherPortal/MarkModerationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Services/TeacherPortal/TeacherDeviceService.php
 
 		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\TeacherPortalDevice\|null given\.$#'
@@ -9553,39 +6319,9 @@ parameters:
 			path: app/Services/TeacherPortal/TeacherHodScopeService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$active\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$is_deleted\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$role\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
-
-		-
 			message: '#^Relation ''academicYear'' is not found in App\\Models\\TeacherAssignment model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
-
-		-
-			message: '#^Relation ''grade'' is not found in App\\Models\\Learner model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
 
 		-
@@ -9613,12 +6349,6 @@ parameters:
 			path: app/Services/TeacherPortal/TeacherPortalAccessService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/TeacherPortal/TeacherPortalAttachmentService.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
@@ -9643,18 +6373,6 @@ parameters:
 			path: app/Services/TeacherPortal/TeacherPortalAttachmentService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherPortalAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 16
-			path: app/Services/TeacherPortal/TeacherPortalMobileService.php
-
-		-
 			message: '#^Relation ''lessonPlan'' is not found in App\\Models\\LessonNote model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -9665,12 +6383,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/TeacherPortal/TeacherPortalMobileService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 13
-			path: app/Services/TeacherPortal/TeacherPortalService.php
 
 		-
 			message: '#^Relation ''assignment'' is not found in App\\Models\\LessonPlan model\.$#'
@@ -9691,66 +6403,6 @@ parameters:
 			path: app/Services/TeacherPortal/TeacherPortalService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Teacher\:\:\$designation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Teacher\:\:\$professional_summary\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Teacher\:\:\$staff_no\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$email\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/TeacherPortal/TeacherProfilePreferenceService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/TeacherPortal/TeacherPushService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/TeacherPortal/TeacherSyncService.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
@@ -9767,12 +6419,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Services/TeacherPortal/TeacherSyncService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/TeacherPortal/TeacherWorkflowService.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$academic_year_id\.$#'
@@ -9823,19 +6469,7 @@ parameters:
 			path: app/Services/TeacherPortal/TeacherWorkflowService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\RecordOfWork\:\:\$date_taught\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/CurriculumCoverageService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\RecordOfWork\:\:\$lessonPlan\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/CurriculumCoverageService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\RecordOfWork\:\:\$status\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/Teaching/CurriculumCoverageService.php
@@ -9847,37 +6481,7 @@ parameters:
 			path: app/Services/Teaching/CurriculumCoverageService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\LessonPlan\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Teaching/LessonPlanService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\SchemeLesson\|Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\SchemeLesson\>\:\:\$scheme\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/LessonPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/LessonPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/LessonPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/LessonPlanService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$term_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/Teaching/LessonPlanService.php
@@ -9889,178 +6493,16 @@ parameters:
 			path: app/Services/Teaching/LessonPlanService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/SchemeLessonService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\SchemeOfWork\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/SchemeLessonService.php
-
-		-
 			message: '#^Using nullsafe property access on non\-nullable type App\\Models\\SchemeOfWork\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 2
 			path: app/Services/Teaching/SchemeLessonService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$is_class_teacher\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/TeacherAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Teaching/TeacherAssignmentService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TenantService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/CurrentPeriodService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Timetable/TimetableAnalyticsService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableAuditService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableConflictDetectionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/Timetable/TimetableConflictDetectionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableConflictDetectionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$grade_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$stream_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TeacherAssignment\:\:\$teacher_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$profile\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$timetable_profile_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$is_locked\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$lesson_group_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: app/Services/Timetable/TimetableEntryService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableGenerationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/Timetable/TimetableGenerationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableGenerationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$timetable_profile_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableGenerationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: app/Services/Timetable/TimetableGenerationService.php
 
 		-
 			message: '#^Parameter \#2 \$timetable of method App\\Services\\Timetable\\TimetableWorkloadService\:\:score\(\) expects string, int given\.$#'
@@ -10075,93 +6517,9 @@ parameters:
 			path: app/Services/Timetable/TimetableGenerationService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableManagementService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: app/Services/Timetable/TimetableManagementService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetablePublicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetablePublicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$timetable_profile_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetablePublicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: app/Services/Timetable/TimetablePublicationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableRepairService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableRepairService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$learning_area_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$period_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$teacher_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$timetable\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableEntry\:\:\$timetable_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TimetableSubstitution\:\:\$timetable_entry_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 9
 			path: app/Services/Timetable/TimetableSubstitutionService.php
 
 		-
@@ -10169,60 +6527,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Services/Timetable/TimetableSubstitutionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableValidationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableValidationService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$academic_year_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$parent_timetable_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$term_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$timetable_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$timetable_profile_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Timetable\:\:\$version\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Services/Timetable/TimetableVersionService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\User\:\:\$school_id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Services/Timetable/TimetableVersionService.php
 
 		-
 			message: '#^Parameter \#2 \$timetable of method App\\Services\\Timetable\\TimetableAuditService\:\:record\(\) expects string, int given\.$#'

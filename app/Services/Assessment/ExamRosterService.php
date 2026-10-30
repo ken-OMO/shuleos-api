@@ -147,7 +147,7 @@ class ExamRosterService
                 ->hasColumn('exam_roster_papers', 'exam_id');
 
             $now = now();
-            $rosterId = $roster?->id ?? (string) Str::uuid();
+            $rosterId = $roster->id ?? (string) Str::uuid();
             $version = $expectedVersion + 1;
 
             if ($roster) {
@@ -172,16 +172,16 @@ class ExamRosterService
                 foreach ($batch as $selection) {
                     $learner = $learners[$selection['learner_id']];
                     $old = $previous->get($learner->id);
-                    $participantId = $old?->id ?? (string) Str::uuid();
+                    $participantId = $old->id ?? (string) Str::uuid();
                     $participantIds[$learner->id] = $participantId;
 
                     $participants[] = [
                         'id' => $participantId, 'roster_id' => $rosterId,
                         'school_id' => $schoolId, 'exam_id' => $examId,
                         'learner_id' => $learner->id,
-                        'grade_id' => $old?->grade_id ?? $learner->grade_id,
+                        'grade_id' => $old->grade_id ?? $learner->grade_id,
                         'stream_id' => $old ? $old->stream_id : $learner->stream_id,
-                        'created_at' => $old?->created_at ?? $now,
+                        'created_at' => $old->created_at ?? $now,
                         'updated_at' => $now,
                     ];
                 }

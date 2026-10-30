@@ -2,8 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @property array<string, mixed>|null $grading_snapshot
+ */
 class ReportCard extends TenantModel
 {
     protected $table = 'report_cards';
@@ -62,77 +67,122 @@ class ReportCard extends TenantModel
 
     protected $casts = ['presentation_snapshot' => 'array', 'grading_snapshot' => 'array', 'has_absence' => 'boolean', 'overall_score' => 'decimal:2', 'maximum_marks' => 'decimal:2', 'average_percentage' => 'decimal:2', 'total_points' => 'integer', 'stream_position' => 'integer', 'grade_position' => 'integer', 'school_position' => 'integer', 'total_learners' => 'integer', 'attendance_present' => 'integer', 'attendance_absent' => 'integer', 'attendance_late' => 'integer', 'attendance_total_sessions' => 'integer', 'attendance_percentage' => 'decimal:2', 'generated_at' => 'datetime', 'published_at' => 'datetime', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime'];
 
-    public function school()
+    /**
+     * @return BelongsTo<School, $this>
+     */
+    public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
     }
 
-    public function learner()
+    /**
+     * @return BelongsTo<Learner, $this>
+     */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(Learner::class);
     }
 
-    public function exam()
+    /**
+     * @return BelongsTo<Exam, $this>
+     */
+    public function exam(): BelongsTo
     {
         return $this->belongsTo(Exam::class);
     }
 
-    public function academicYear()
+    /**
+     * @return BelongsTo<AcademicYear, $this>
+     */
+    public function academicYear(): BelongsTo
     {
         return $this->belongsTo(AcademicYear::class);
     }
 
-    public function term()
+    /**
+     * @return BelongsTo<Term, $this>
+     */
+    public function term(): BelongsTo
     {
         return $this->belongsTo(Term::class);
     }
 
-    public function meritList()
+    /**
+     * @return BelongsTo<MeritList, $this>
+     */
+    public function meritList(): BelongsTo
     {
         return $this->belongsTo(MeritList::class);
     }
 
-    public function grade()
+    /**
+     * @return BelongsTo<Grade, $this>
+     */
+    public function grade(): BelongsTo
     {
         return $this->belongsTo(Grade::class);
     }
 
-    public function stream()
+    /**
+     * @return BelongsTo<Stream, $this>
+     */
+    public function stream(): BelongsTo
     {
         return $this->belongsTo(Stream::class);
     }
 
-    public function overallGradingSystem()
+    /**
+     * @return BelongsTo<GradingSystem, $this>
+     */
+    public function overallGradingSystem(): BelongsTo
     {
         return $this->belongsTo(GradingSystem::class, 'overall_grading_system_id');
     }
 
-    public function overallGradingScale()
+    /**
+     * @return BelongsTo<GradingScale, $this>
+     */
+    public function overallGradingScale(): BelongsTo
     {
         return $this->belongsTo(GradingScale::class, 'overall_grading_scale_id');
     }
 
-    public function pathwayRecommendation()
+    /**
+     * @return BelongsTo<PathwayRecommendation, $this>
+     */
+    public function pathwayRecommendation(): BelongsTo
     {
         return $this->belongsTo(PathwayRecommendation::class);
     }
 
-    public function generatedBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function generatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
     }
 
-    public function publishedBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function publishedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'published_by');
     }
 
-    public function deletedBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function deletedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public function learningAreas()
+    /**
+     * @return HasMany<ReportCardLearningArea, $this>
+     */
+    public function learningAreas(): HasMany
     {
         return $this->hasMany(ReportCardLearningArea::class)->current();
     }
@@ -142,7 +192,10 @@ class ReportCard extends TenantModel
         return $q->where('is_deleted', false);
     }
 
-    public function accessOverrides()
+    /**
+     * @return HasMany<ReportCardAccessOverride, $this>
+     */
+    public function accessOverrides(): HasMany
     {
         return $this->hasMany(ReportCardAccessOverride::class);
     }

@@ -1,4 +1,4 @@
-﻿name: ShuleOS API CI
+name: ShuleOS API CI
 
 # Implements the pipeline described in docs/11-devops/CI-CD-Pipeline.md:
 # Formatting -> Static Analysis / Security Scan -> Backend Tests -> Build Verification.
@@ -66,12 +66,51 @@ jobs:
       - name: Audit dependencies
         run: composer audit
 
+  assessment-static-analysis:
+    name: Assessment Static Analysis
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: pgsql
+      DB_DATABASE: shuleos_testing
+      DB_URL: ""
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pgsql, pdo_pgsql
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Verify assessment analysis coverage
+        run: php tools/phpstan/check-assessment-coverage.php
+
+      - name: Verify generated analysis schema
+        run: |
+          php tools/phpstan/generate-schema.php
+          git diff --exit-code -- tools/phpstan/schema/analysis.sql
+
+      - name: Analyze assessment code without a baseline
+        run: vendor/bin/phpstan analyse --configuration=phpstan-assessment.neon --memory-limit=1G --no-progress
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
     needs:
       - formatting
       - dependency-security-scan
+      - assessment-static-analysis
 
     services:
       postgres:

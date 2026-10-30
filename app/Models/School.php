@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class School extends Model
 {
@@ -103,8 +105,10 @@ class School extends Model
 
     /**
      * School settings.
+     *
+     * @return HasOne<SchoolSettings, $this>
      */
-    public function settings()
+    public function settings(): HasOne
     {
         return $this->hasOne(
             SchoolSettings::class,
@@ -114,8 +118,10 @@ class School extends Model
 
     /**
      * Grades belonging to the school.
+     *
+     * @return HasMany<Grade, $this>
      */
-    public function grades()
+    public function grades(): HasMany
     {
         return $this->hasMany(
             Grade::class,
@@ -125,8 +131,10 @@ class School extends Model
 
     /**
      * Streams belonging to the school.
+     *
+     * @return HasMany<Stream, $this>
      */
-    public function streams()
+    public function streams(): HasMany
     {
         return $this->hasMany(
             Stream::class,
@@ -136,8 +144,10 @@ class School extends Model
 
     /**
      * Teachers belonging to the school.
+     *
+     * @return HasMany<Teacher, $this>
      */
-    public function teachers()
+    public function teachers(): HasMany
     {
         return $this->hasMany(
             Teacher::class,
@@ -147,8 +157,10 @@ class School extends Model
 
     /**
      * Learners belonging to the school.
+     *
+     * @return HasMany<Learner, $this>
      */
-    public function learners()
+    public function learners(): HasMany
     {
         return $this->hasMany(
             Learner::class,
@@ -158,8 +170,10 @@ class School extends Model
 
     /**
      * Guardians belonging to the school.
+     *
+     * @return HasMany<Guardian, $this>
      */
-    public function guardians()
+    public function guardians(): HasMany
     {
         return $this->hasMany(
             Guardian::class,
@@ -172,8 +186,10 @@ class School extends Model
      *
      * This will be useful during onboarding, administration,
      * security auditing and tenant lifecycle operations.
+     *
+     * @return HasMany<User, $this>
      */
-    public function users()
+    public function users(): HasMany
     {
         return $this->hasMany(
             User::class,
@@ -183,8 +199,10 @@ class School extends Model
 
     /**
      * Roles created specifically for this school.
+     *
+     * @return HasMany<Role, $this>
      */
-    public function roles()
+    public function roles(): HasMany
     {
         return $this->hasMany(
             Role::class,

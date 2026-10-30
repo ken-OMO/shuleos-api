@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Models\MeritList;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin MeritList
+ */
 class MeritListResource extends JsonResource
 {
     public function toArray(Request $request): array

@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Models\AssessmentType;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin AssessmentType
+ */
 class AssessmentTypeResource extends JsonResource
 {
     public function toArray(

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ExamPaper extends Model
 {
@@ -44,7 +46,10 @@ class ExamPaper extends Model
 
     ];
 
-    public function examLearningArea()
+    /**
+     * @return BelongsTo<ExamLearningArea, $this>
+     */
+    public function examLearningArea(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -55,7 +60,10 @@ class ExamPaper extends Model
         );
     }
 
-    public function results()
+    /**
+     * @return HasMany<ExamResult, $this>
+     */
+    public function results(): HasMany
     {
         return $this->hasMany(
 

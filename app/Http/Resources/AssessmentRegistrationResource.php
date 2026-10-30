@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Models\AssessmentRegistration;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin AssessmentRegistration
+ */
 class AssessmentRegistrationResource extends JsonResource
 {
     public function toArray(

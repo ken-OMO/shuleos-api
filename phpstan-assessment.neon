@@ -1,0 +1,50 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+
+    squashedMigrationsPath:
+        - tools/phpstan/schema
+
+    paths:
+        - app/Http/Controllers/Api/AssessmentRegistrationController.php
+        - app/Http/Controllers/Api/AssessmentReissueController.php
+        - app/Http/Controllers/Api/AssessmentTypeController.php
+        - app/Http/Controllers/Api/ExamController.php
+        - app/Http/Controllers/Api/ExamLearningAreaAnalysisController.php
+        - app/Http/Controllers/Api/ExamLearningAreaController.php
+        - app/Http/Controllers/Api/ExamPaperController.php
+        - app/Http/Controllers/Api/ExamResultController.php
+        - app/Http/Controllers/Api/ExamRosterController.php
+        - app/Http/Controllers/Api/LearningAreaResultController.php
+        - app/Http/Controllers/Api/MarkEntryPermissionController.php
+        - app/Http/Controllers/Api/MeritListController.php
+        - app/Http/Controllers/Api/ReportCardController.php
+        - app/Http/Controllers/Api/ReportCardPdfController.php
+        - app/Http/Requests/Assessment
+        - app/Http/Resources/AssessmentRegistrationResource.php
+        - app/Http/Resources/AssessmentTypeResource.php
+        - app/Http/Resources/ExamLearningAreaResource.php
+        - app/Http/Resources/ExamPaperResource.php
+        - app/Http/Resources/ExamResource.php
+        - app/Http/Resources/ExamResultResource.php
+        - app/Http/Resources/LearningAreaResultResource.php
+        - app/Http/Resources/MarkEntryPermissionResource.php
+        - app/Http/Resources/MeritListResource.php
+        - app/Http/Resources/ReportCardLearningAreaResource.php
+        - app/Http/Resources/ReportCardResource.php
+        - app/Models/AssessmentRegistration.php
+        - app/Models/AssessmentType.php
+        - app/Models/Exam.php
+        - app/Models/ExamLearningArea.php
+        - app/Models/ExamPaper.php
+        - app/Models/ExamResult.php
+        - app/Models/LearningAreaResult.php
+        - app/Models/MarkEntryPermission.php
+        - app/Models/MeritList.php
+        - app/Models/ReportCard.php
+        - app/Models/ReportCardAccessOverride.php
+        - app/Models/ReportCardLearningArea.php
+        - app/Services/Assessment
+        - app/Services/Pdf/ReportCardPdfService.php

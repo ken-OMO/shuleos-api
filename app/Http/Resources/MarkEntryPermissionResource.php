@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Models\MarkEntryPermission;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin MarkEntryPermission
+ */
 class MarkEntryPermissionResource extends JsonResource
 {
     public function toArray(

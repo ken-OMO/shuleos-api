@@ -49,7 +49,7 @@ class ExamLearningAreaAnalysisService
         if ($streamId) {
             $stream = DB::table('streams')->where('school_id', $schoolId)
                 ->where('id', $streamId)->first();
-            abort_unless($stream, 404);
+            abort_unless($stream !== null, 404);
             abort_unless(
                 DB::table('grades')->where('school_id', $schoolId)
                     ->where('id', $stream->grade_id)->exists(),

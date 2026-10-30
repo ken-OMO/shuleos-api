@@ -2,6 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
@@ -101,8 +105,10 @@ class User extends Authenticatable implements JWTSubject
      * School relationship.
      *
      * Platform-level users may have school_id = null.
+     *
+     * @return BelongsTo<School, $this>
      */
-    public function school()
+    public function school(): BelongsTo
     {
         return $this->belongsTo(
             School::class,
@@ -112,8 +118,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Primary role relationship.
+     *
+     * @return BelongsTo<Role, $this>
      */
-    public function role()
+    public function role(): BelongsTo
     {
         return $this->belongsTo(
             Role::class,
@@ -123,8 +131,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Additional roles.
+     *
+     * @return BelongsToMany<Role, $this>
      */
-    public function roles()
+    public function roles(): BelongsToMany
     {
         return $this->belongsToMany(
             Role::class,
@@ -136,8 +146,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Teacher profile.
+     *
+     * @return HasOne<Teacher, $this>
      */
-    public function teacher()
+    public function teacher(): HasOne
     {
         return $this->hasOne(
             Teacher::class,
@@ -147,8 +159,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Learner profile.
+     *
+     * @return HasOne<Learner, $this>
      */
-    public function learner()
+    public function learner(): HasOne
     {
         return $this->hasOne(
             Learner::class,
@@ -158,8 +172,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Guardian profile.
+     *
+     * @return HasOne<Guardian, $this>
      */
-    public function guardian()
+    public function guardian(): HasOne
     {
         return $this->hasOne(
             Guardian::class,
@@ -169,8 +185,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Authentication challenges for OTP/MFA.
+     *
+     * @return HasMany<AuthenticationChallenge, $this>
      */
-    public function authenticationChallenges()
+    public function authenticationChallenges(): HasMany
     {
         return $this->hasMany(
             AuthenticationChallenge::class,
@@ -180,8 +198,10 @@ class User extends Authenticatable implements JWTSubject
 
     /**
      * Authentication sessions/devices.
+     *
+     * @return HasMany<AuthenticationSession, $this>
      */
-    public function authenticationSessions()
+    public function authenticationSessions(): HasMany
     {
         return $this->hasMany(
             AuthenticationSession::class,

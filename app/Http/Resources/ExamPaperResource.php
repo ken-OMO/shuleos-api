@@ -2,9 +2,13 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ExamPaper;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin ExamPaper
+ */
 class ExamPaperResource extends JsonResource
 {
     public function toArray(Request $request): array

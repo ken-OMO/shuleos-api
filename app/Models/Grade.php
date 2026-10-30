@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class Grade extends TenantModel
 {
     protected $table = 'grades';
@@ -82,7 +85,10 @@ class Grade extends TenantModel
             && $this->grade_number <= 9;
     }
 
-    public function school()
+    /**
+     * @return BelongsTo<School, $this>
+     */
+    public function school(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -95,8 +101,10 @@ class Grade extends TenantModel
 
     /**
      * Education Level relationship
+     *
+     * @return BelongsTo<EducationLevel, $this>
      */
-    public function educationLevel()
+    public function educationLevel(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -109,8 +117,10 @@ class Grade extends TenantModel
 
     /**
      * Streams relationship
+     *
+     * @return HasMany<Stream, $this>
      */
-    public function streams()
+    public function streams(): HasMany
     {
         return $this->hasMany(
 
@@ -123,8 +133,10 @@ class Grade extends TenantModel
 
     /**
      * Learners relationship
+     *
+     * @return HasMany<Learner, $this>
      */
-    public function learners()
+    public function learners(): HasMany
     {
         return $this->hasMany(
 
