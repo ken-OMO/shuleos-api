@@ -15,7 +15,7 @@ use Illuminate\Validation\ValidationException;
 class MeritListService
 {
     public function __construct(
-        private readonly GradeCalculationService $gradeCalculation,
+
         private readonly ExamResultLifecycleService $lifecycle
     ) {}
 

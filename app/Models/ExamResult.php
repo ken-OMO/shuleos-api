@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ExamResult extends Model
 {
@@ -48,7 +49,10 @@ class ExamResult extends Model
 
     ];
 
-    public function exam()
+    /**
+     * @return BelongsTo<Exam, $this>
+     */
+    public function exam(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -59,7 +63,10 @@ class ExamResult extends Model
         );
     }
 
-    public function learner()
+    /**
+     * @return BelongsTo<Learner, $this>
+     */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -70,7 +77,10 @@ class ExamResult extends Model
         );
     }
 
-    public function learningArea()
+    /**
+     * @return BelongsTo<LearningArea, $this>
+     */
+    public function learningArea(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -81,7 +91,10 @@ class ExamResult extends Model
         );
     }
 
-    public function paper()
+    /**
+     * @return BelongsTo<ExamPaper, $this>
+     */
+    public function paper(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -92,7 +105,10 @@ class ExamResult extends Model
         );
     }
 
-    public function enteredBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function enteredBy(): BelongsTo
     {
         return $this->belongsTo(
 

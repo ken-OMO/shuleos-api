@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class AssessmentRegistration extends TenantModel
 {
     protected $table = 'assessment_registrations';
@@ -48,7 +50,10 @@ class AssessmentRegistration extends TenantModel
 
     ];
 
-    public function school()
+    /**
+     * @return BelongsTo<School, $this>
+     */
+    public function school(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -59,7 +64,10 @@ class AssessmentRegistration extends TenantModel
         );
     }
 
-    public function learner()
+    /**
+     * @return BelongsTo<Learner, $this>
+     */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -70,7 +78,10 @@ class AssessmentRegistration extends TenantModel
         );
     }
 
-    public function creator()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
     {
         return $this->belongsTo(
 

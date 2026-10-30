@@ -2,6 +2,11 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * @property array<string, mixed>|null $grading_snapshot
+ */
 class MeritList extends TenantModel
 {
     protected $table = 'merit_lists';
@@ -32,47 +37,74 @@ class MeritList extends TenantModel
         'published_at' => 'datetime', 'is_deleted' => 'boolean', 'deleted_at' => 'datetime',
     ];
 
-    public function school()
+    /**
+     * @return BelongsTo<School, $this>
+     */
+    public function school(): BelongsTo
     {
         return $this->belongsTo(School::class);
     }
 
-    public function exam()
+    /**
+     * @return BelongsTo<Exam, $this>
+     */
+    public function exam(): BelongsTo
     {
         return $this->belongsTo(Exam::class);
     }
 
-    public function learner()
+    /**
+     * @return BelongsTo<Learner, $this>
+     */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(Learner::class);
     }
 
-    public function grade()
+    /**
+     * @return BelongsTo<Grade, $this>
+     */
+    public function grade(): BelongsTo
     {
         return $this->belongsTo(Grade::class);
     }
 
-    public function stream()
+    /**
+     * @return BelongsTo<Stream, $this>
+     */
+    public function stream(): BelongsTo
     {
         return $this->belongsTo(Stream::class);
     }
 
-    public function overallGradingSystem()
+    /**
+     * @return BelongsTo<GradingSystem, $this>
+     */
+    public function overallGradingSystem(): BelongsTo
     {
         return $this->belongsTo(GradingSystem::class, 'overall_grading_system_id');
     }
 
-    public function overallGradingScale()
+    /**
+     * @return BelongsTo<GradingScale, $this>
+     */
+    public function overallGradingScale(): BelongsTo
     {
         return $this->belongsTo(GradingScale::class, 'overall_grading_scale_id');
     }
 
-    public function generatedBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function generatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by');
     }
 
-    public function deletedBy()
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function deletedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }

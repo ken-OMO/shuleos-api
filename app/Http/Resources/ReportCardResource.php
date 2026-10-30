@@ -2,10 +2,14 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ReportCard;
 use App\Services\Assessment\ReportCardPresentationSnapshotService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin ReportCard
+ */
 class ReportCardResource extends JsonResource
 {
     public function toArray(Request $request): array

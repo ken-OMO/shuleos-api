@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
 class ResultProcessingService
 {
     public function __construct(
-        private readonly GradeCalculationService $gradeCalculation,
+
         private readonly ExamResultLifecycleService $lifecycle
     ) {}
 

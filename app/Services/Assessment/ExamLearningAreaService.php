@@ -82,7 +82,7 @@ class ExamLearningAreaService
             ]);
         }
         $area = LearningArea::whereKey($d['learning_area_id'])->where('active', true)->first();
-        if (! $exam || ! $area) {
+        if (! $area) {
             throw ValidationException::withMessages(['exam_learning_area' => 'The exam must be an active tenant draft and the learning area must be active.']);
         }if (ExamLearningArea::current()->where('exam_id', $exam->id)->where('learning_area_id', $area->id)->exists()) {
             throw ValidationException::withMessages(['learning_area_id' => 'This learning area is already attached to the exam.']);

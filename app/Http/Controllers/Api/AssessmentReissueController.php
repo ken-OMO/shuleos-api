@@ -56,7 +56,7 @@ class AssessmentReissueController extends BaseCrudController
         $actor = $this->actor($request);
         $row = DB::table('assessment_reissue_requests')
             ->where('school_id', $actor->school_id)->where('id', $reissue)->first();
-        abort_unless($row, 404);
+        abort_unless($row !== null, 404);
 
         $data = (array) $row;
         unset($data['school_id']);

@@ -11,8 +11,6 @@ use Illuminate\Http\Request;
 
 class ExamPaperController extends BaseCrudController
 {
-    private const MODULE = 'Exam Papers';
-
     private const RELATIONS = ['examLearningArea'];
 
     public function __construct(private readonly ExamPaperService $service) {}

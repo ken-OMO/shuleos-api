@@ -2,7 +2,9 @@
 
 namespace App\Services\Assessment;
 
+use App\Models\LearningArea;
 use App\Models\ReportCard;
+use App\Models\ReportCardLearningArea;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -50,11 +52,10 @@ class ReportCardPresentationSnapshotService
                 'id', 'recommended_pathway', 'confidence_score',
                 'strengths', 'improvement_areas',
             ]),
-            'learning_areas' => $card->learningAreas->map(fn ($detail) => [
+            'learning_areas' => $card->learningAreas->map(fn (ReportCardLearningArea $detail) => [
                 'detail_id' => $detail->id,
                 'learning_area_id' => $detail->learning_area_id,
-                'name' => $detail->learningArea?->learning_area_name
-                    ?? $detail->learningArea?->name,
+                'name' => $this->learningAreaName($detail->learningArea),
             ])->values()->all(),
             'assets' => [
                 'logo' => app(ReportBrandingAssetService::class)
@@ -129,18 +130,22 @@ class ReportCardPresentationSnapshotService
         return $this->alphabetical($display);
     }
 
+    private function learningAreaName(?LearningArea $area): ?string
+    {
+        return $area?->getAttribute('learning_area_name')
+            ?? $area?->getAttribute('name');
+    }
+
     private function alphabetical(ReportCard $card): ReportCard
     {
         $display = clone $card;
         $display->setRelation('learningAreas', $card->learningAreas->sort(
             function ($left, $right): int {
                 $leftName = trim((string) (
-                    $left->learningArea?->learning_area_name
-                    ?? $left->learningArea?->name ?? ''
+                    $this->learningAreaName($left->learningArea) ?? ''
                 ));
                 $rightName = trim((string) (
-                    $right->learningArea?->learning_area_name
-                    ?? $right->learningArea?->name ?? ''
+                    $this->learningAreaName($right->learningArea) ?? ''
                 ));
 
                 return strnatcasecmp($leftName, $rightName)
