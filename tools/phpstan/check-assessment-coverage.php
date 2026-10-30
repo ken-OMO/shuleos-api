@@ -8,6 +8,8 @@ if ($config === false) {
     throw new RuntimeException('Cannot read assessment configuration.');
 }
 
+$config = str_replace("\r\n", "\n", $config);
+
 if (preg_match('/baseline|^\s*(?:ignoreErrors|excludePaths)\s*:/mi', $config)) {
     throw new RuntimeException('Assessment analysis must not suppress or exclude errors.');
 }

@@ -23,14 +23,18 @@ class AdministratorRolePermissionService
     {
         $scope = $this->access->require($user, 'view_roles_and_permissions');
 
-        return Role::where('active', true)->where(fn ($q) => $q->whereNull('school_id')->orWhere('school_id', $scope['school_id']))->withCount('users')->orderBy('role_name')->get();
+        return Role::where('active', true)->where(fn ($q) => $q->whereNull('school_id')->orWhere('school_id', $scope['school_id']))->withCount(['users' => fn ($query) => $query
+            ->where('school_id', $scope['school_id'])
+            ->where('is_deleted', false)])->orderBy('role_name')->get();
     }
 
     public function role(User $user, string $id): Role
     {
         $scope = $this->access->require($user, 'view_roles_and_permissions');
 
-        return Role::whereKey($id)->where('active', true)->where(fn ($q) => $q->whereNull('school_id')->orWhere('school_id', $scope['school_id']))->withCount('users')->firstOrFail();
+        return Role::whereKey($id)->where('active', true)->where(fn ($q) => $q->whereNull('school_id')->orWhere('school_id', $scope['school_id']))->withCount(['users' => fn ($query) => $query
+            ->where('school_id', $scope['school_id'])
+            ->where('is_deleted', false)])->firstOrFail();
     }
 
     public function create(User $user, string $name): Role
@@ -57,27 +61,69 @@ class AdministratorRolePermissionService
 
     public function assign(User $user, string $id, array $permissionNames): Role
     {
-        $scope = $this->access->require($user, 'assign_school_permissions');
-        $role = $this->role($user, $id);
-        abort_if($role->system_role || ! $role->school_id, 409, 'System role permissions cannot be changed here.');
-        $permissions = DB::table('permissions')->whereIn('permission_name', $permissionNames)->get();
-        abort_if($permissions->count() !== count(array_unique($permissionNames)), 422, 'Unknown permission supplied.');
-        if (! $scope['platform'] && $permissions->pluck('permission_name')->intersect(self::PLATFORM)->isNotEmpty()) {
-            throw new AuthorizationException('School roles cannot receive platform permissions.');
-        }
-        $actorNames = $this->authContext->permissionNames($user);
-        if (! $scope['platform'] && $permissions->pluck('permission_name')->diff($actorNames)->isNotEmpty()) {
-            throw new AuthorizationException('Administrators cannot grant permissions they do not possess.');
-        }
-        DB::transaction(function () use ($role, $permissions) {
-            DB::table('role_permissions')->where('role_id', $role->id)->delete();
-            foreach ($permissions as $permission) {
-                DB::table('role_permissions')->insert(['id' => (string) Str::uuid(), 'role_id' => $role->id, 'permission_id' => $permission->id, 'created_at' => now()]);
-            }
-        });
-        $this->audit->record($user, 'administrator_role_permissions_updated', 'roles', $role->id, [], ['permission_names' => $permissionNames]);
+        return DB::transaction(function () use ($user, $id, $permissionNames) {
+            $scope = $this->access->require($user, 'assign_school_permissions');
 
-        return $role;
+            // Share the role lock used by secondary-role assignment.
+            Role::query()
+                ->whereKey($id)
+                ->where('active', true)
+                ->where(fn ($query) => $query
+                    ->whereNull('school_id')
+                    ->orWhere('school_id', $scope['school_id']))
+                ->lockForUpdate()->firstOrFail();
+
+            $role = $this->role($user, $id);
+            abort_if(
+                $role->system_role || ! $role->school_id,
+                409,
+                'System role permissions cannot be changed here.'
+            );
+
+            $permissions = DB::table('permissions')
+                ->whereIn('permission_name', $permissionNames)->get();
+
+            abort_if(
+                $permissions->count() !== count(array_unique($permissionNames)),
+                422,
+                'Unknown permission supplied.'
+            );
+
+            if (! $scope['platform']
+                && $permissions->pluck('permission_name')
+                    ->intersect(self::PLATFORM)->isNotEmpty()) {
+                throw new AuthorizationException('School roles cannot receive platform permissions.');
+            }
+
+            $actorNames = $this->authContext->permissionNames($user);
+            if (! $scope['platform']
+                && $permissions->pluck('permission_name')
+                    ->diff($actorNames)->isNotEmpty()) {
+                throw new AuthorizationException('Administrators cannot grant permissions they do not possess.');
+            }
+
+            DB::table('role_permissions')->where('role_id', $role->id)->delete();
+
+            foreach ($permissions as $permission) {
+                DB::table('role_permissions')->insert([
+                    'id' => (string) Str::uuid(),
+                    'role_id' => $role->id,
+                    'permission_id' => $permission->id,
+                    'created_at' => now(),
+                ]);
+            }
+
+            $this->audit->record(
+                $user,
+                'administrator_role_permissions_updated',
+                'roles',
+                $role->id,
+                [],
+                ['permission_names' => $permissionNames]
+            );
+
+            return $role;
+        });
     }
 
     public function permissions(User $user)

@@ -4,10 +4,12 @@ namespace Tests\Feature;
 
 use App\Http\Resources\AdministratorSafeResource;
 use App\Models\User;
+use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
 use App\Services\Administrator\AdministratorRolePermissionService;
 use App\Services\Administrator\AdministratorUserService;
 use App\Services\Administrator\SchoolLifecycleAdministrationService;
+use App\Services\Auth\AuthContextService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -16,6 +18,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\TestCase;
 
 class AdministratorPortalPhaseOneTest extends TestCase
@@ -27,6 +30,8 @@ class AdministratorPortalPhaseOneTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        config(['jwt.secret' => str_repeat('school-delegation-test-', 3)]);
         foreach (['school', 'other_school', 'school_role', 'platform_role', 'teacher_role', 'admin', 'other_admin', 'platform', 'teacher'] as $key) {
             $this->ids[$key] = (string) Str::uuid();
         }
@@ -327,6 +332,247 @@ class AdministratorPortalPhaseOneTest extends TestCase
                 $this->user('teacher')->role_id
             );
         }
+    }
+
+    public function test_school_delegation_role_counts_exclude_other_schools(): void
+    {
+        $service = app(AdministratorRolePermissionService::class);
+        $admin = $this->user('admin');
+
+        $role = $service->roles($admin)
+            ->firstWhere('id', $this->ids['school_role']);
+
+        $this->assertNotNull($role);
+        $this->assertSame(1, (int) $role->users_count);
+        $this->assertSame(
+            1,
+            (int) $service->role($admin, $this->ids['school_role'])->users_count
+        );
+    }
+
+    public function test_school_delegation_adds_exam_officer_without_replacing_teacher_role(): void
+    {
+        $roleId = $this->createSchoolRole('Exam Officer');
+        $permission = 'generate_report_cards';
+
+        $this->grantPermissionToRoleId($this->ids['school_role'], $permission);
+        $this->grantPermissionToRoleId($roleId, $permission);
+
+        $before = $this->user('teacher')->role_id;
+
+        app(AdministratorUserService::class)->assignSecondaryRole(
+            $this->user('admin'),
+            $this->ids['teacher'],
+            $roleId
+        );
+
+        $teacher = $this->user('teacher');
+
+        $this->assertSame($before, $teacher->role_id);
+        $this->assertDatabaseHas('user_roles', [
+            'user_id' => $teacher->id,
+            'role_id' => $roleId,
+        ]);
+        $this->assertTrue(
+            app(AuthContextService::class)
+                ->hasPermission($teacher, $permission)
+        );
+    }
+
+    public function test_school_delegation_rejects_cross_school_users_and_roles_without_changes(): void
+    {
+        $localRole = $this->createSchoolRole('Local Exam Officer');
+        $foreignRole = $this->createSchoolRole('Foreign Exam Officer');
+        DB::table('roles')->where('id', $foreignRole)
+            ->update(['school_id' => $this->ids['other_school']]);
+
+        DB::table('user_roles')->insert([
+            'user_id' => $this->ids['other_admin'],
+            'role_id' => $foreignRole,
+        ]);
+
+        $service = app(AdministratorUserService::class);
+
+        foreach ([
+            [$this->ids['other_admin'], $localRole],
+            [$this->ids['teacher'], $foreignRole],
+            [$this->ids['other_admin'], $foreignRole],
+        ] as [$userId, $roleId]) {
+            foreach (['assignSecondaryRole', 'revokeSecondaryRole'] as $method) {
+                $before = DB::table('user_roles')
+                    ->orderBy('user_id')->orderBy('role_id')->get()->toJson();
+                $userBefore = User::findOrFail($userId)->getRawOriginal();
+
+                try {
+                    $service->$method($this->user('admin'), $userId, $roleId);
+                    $this->fail('Cross-school delegation was accepted.');
+                } catch (ModelNotFoundException) {
+                    $this->assertSame(
+                        $before,
+                        DB::table('user_roles')->orderBy('user_id')
+                            ->orderBy('role_id')->get()->toJson()
+                    );
+                    $this->assertSame(
+                        $userBefore,
+                        User::findOrFail($userId)->getRawOriginal()
+                    );
+                }
+            }
+        }
+    }
+
+    public function test_school_delegation_rejects_permissions_the_administrator_does_not_hold(): void
+    {
+        $roleId = $this->createSchoolRole('Restricted Exam Officer');
+        $permission = 'delegation_unheld_'.Str::random(12);
+        $this->grantPermissionToRoleId($roleId, $permission);
+
+        try {
+            app(AdministratorUserService::class)->assignSecondaryRole(
+                $this->user('admin'), $this->ids['teacher'], $roleId
+            );
+            $this->fail('An excessive role was assigned.');
+        } catch (AuthorizationException) {
+            $this->assertDatabaseMissing('user_roles', [
+                'user_id' => $this->ids['teacher'],
+                'role_id' => $roleId,
+            ]);
+            $this->assertSame(
+                $this->ids['teacher_role'], $this->user('teacher')->role_id
+            );
+        }
+    }
+
+    public function test_school_delegation_revocation_is_idempotent_and_preserves_primary_role(): void
+    {
+        $roleId = $this->createSchoolRole('Revocable Exam Officer');
+        $permission = 'delegation_revocable_'.Str::random(12);
+        $this->grantPermissionToRoleId($this->ids['school_role'], $permission);
+        $this->grantPermissionToRoleId($roleId, $permission);
+        $service = app(AdministratorUserService::class);
+        $generation = (int) $this->user('teacher')->auth_generation;
+
+        $service->assignSecondaryRole(
+            $this->user('admin'), $this->ids['teacher'], $roleId
+        );
+        $service->assignSecondaryRole(
+            $this->user('admin'), $this->ids['teacher'], $roleId
+        );
+
+        $this->assertSame(1, DB::table('user_roles')
+            ->where('user_id', $this->ids['teacher'])
+            ->where('role_id', $roleId)->count());
+
+        $service->revokeSecondaryRole(
+            $this->user('admin'), $this->ids['teacher'], $roleId
+        );
+        $service->revokeSecondaryRole(
+            $this->user('admin'), $this->ids['teacher'], $roleId
+        );
+
+        $teacher = $this->user('teacher');
+        $this->assertSame($this->ids['teacher_role'], $teacher->role_id);
+        $this->assertSame($generation + 1, (int) $teacher->auth_generation);
+        $this->assertDatabaseMissing('user_roles', [
+            'user_id' => $teacher->id,
+            'role_id' => $roleId,
+        ]);
+        $this->assertFalse(
+            app(AuthContextService::class)
+                ->hasPermission($teacher, $permission)
+        );
+    }
+
+    public function test_school_delegation_rolls_back_when_audit_recording_fails(): void
+    {
+        $roleId = $this->createSchoolRole('Audited Exam Officer');
+
+        $this->mock(AdministratorAuditService::class)
+            ->shouldReceive('record')->once()
+            ->andThrow(new \RuntimeException('Simulated audit failure.'));
+
+        try {
+            app(AdministratorUserService::class)->assignSecondaryRole(
+                $this->user('admin'), $this->ids['teacher'], $roleId
+            );
+            $this->fail('Assignment succeeded without its audit record.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('Simulated audit failure.', $exception->getMessage());
+            $this->assertDatabaseMissing('user_roles', [
+                'user_id' => $this->ids['teacher'],
+                'role_id' => $roleId,
+            ]);
+        }
+    }
+
+    public function test_school_delegation_http_assignment_and_revocation_preserve_teacher_role(): void
+    {
+        $roleId = $this->createSchoolRole('HTTP Exam Officer');
+        $permission = 'generate_report_cards';
+        $this->grantPermissionToRoleId($this->ids['school_role'], $permission);
+        $this->grantPermissionToRoleId($roleId, $permission);
+        $url = '/api/admin/users/'.$this->ids['teacher'].'/roles/'.$roleId;
+        $token = JWTAuth::fromUser($this->user('admin'));
+
+        $this->withToken($token)->postJson($url)->assertOk();
+        $this->assertDatabaseHas('user_roles', [
+            'user_id' => $this->ids['teacher'], 'role_id' => $roleId,
+        ]);
+        $this->assertSame(
+            $this->ids['teacher_role'], $this->user('teacher')->role_id
+        );
+        $this->assertTrue(
+            app(AuthContextService::class)
+                ->hasPermission($this->user('teacher'), $permission)
+        );
+
+        $this->withToken($token)->deleteJson($url)->assertOk();
+        $this->assertDatabaseMissing('user_roles', [
+            'user_id' => $this->ids['teacher'], 'role_id' => $roleId,
+        ]);
+        $this->assertSame(
+            $this->ids['teacher_role'], $this->user('teacher')->role_id
+        );
+        $this->assertDatabaseHas('audit_logs', [
+            'school_id' => $this->ids['school'],
+            'user_id' => $this->ids['admin'],
+            'record_id' => $this->ids['teacher'],
+            'action' => 'administrator_secondary_role_revoked',
+        ]);
+    }
+
+    public function test_school_delegation_http_rejects_foreign_school_targets(): void
+    {
+        $roleId = $this->createSchoolRole('HTTP Local Officer');
+        $token = JWTAuth::fromUser($this->user('admin'));
+        $url = '/api/admin/users/'.$this->ids['other_admin'].'/roles/'.$roleId;
+        $before = $this->user('other_admin')->getRawOriginal();
+
+        $this->withToken($token)->postJson($url)->assertNotFound();
+        $this->withToken($token)->deleteJson($url)->assertNotFound();
+
+        $this->assertSame($before, $this->user('other_admin')->getRawOriginal());
+        $this->assertDatabaseMissing('user_roles', [
+            'user_id' => $this->ids['other_admin'], 'role_id' => $roleId,
+        ]);
+    }
+
+    public function test_school_delegation_http_requires_both_action_permissions(): void
+    {
+        $roleId = $this->createSchoolRole('HTTP Permission Guard');
+        $permissionId = $this->ensurePermission('assign_school_permissions');
+        DB::table('role_permissions')
+            ->where('role_id', $this->ids['school_role'])
+            ->where('permission_id', $permissionId)->delete();
+
+        $token = JWTAuth::fromUser($this->user('admin'));
+        $url = '/api/admin/users/'.$this->ids['teacher'].'/roles/'.$roleId;
+
+        $this->withToken($token)->postJson($url)->assertForbidden();
+        $this->withToken($token)->deleteJson($url)->assertForbidden();
+        $this->assertDatabaseMissing('user_roles', [
+            'user_id' => $this->ids['teacher'], 'role_id' => $roleId,
+        ]);
     }
 
     private function createSchoolRole(string $name): string

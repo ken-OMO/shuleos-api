@@ -106,6 +106,90 @@ class AdministratorUserService
         return $target->fresh()->load('role:id,role_name');
     }
 
+    public function assignSecondaryRole(User $actor, string $userId, string $roleId): User
+    {
+        return $this->changeSecondaryRole($actor, $userId, $roleId, true);
+    }
+
+    public function revokeSecondaryRole(User $actor, string $userId, string $roleId): User
+    {
+        return $this->changeSecondaryRole($actor, $userId, $roleId, false);
+    }
+
+    private function changeSecondaryRole(
+        User $actor,
+        string $userId,
+        string $roleId,
+        bool $assign
+    ): User {
+        return DB::transaction(function () use ($actor, $userId, $roleId, $assign) {
+            $scope = $this->access->require($actor, 'update_school_users');
+            $this->access->require($actor, 'assign_school_permissions');
+
+            if ($scope['platform'] || ! $scope['school_id']) {
+                throw new AuthorizationException('A school administrator is required for school role delegation.');
+            }
+
+            $target = User::query()
+                ->whereKey($userId)
+                ->where('school_id', $scope['school_id'])
+                ->where('is_deleted', false)
+                ->lockForUpdate()->firstOrFail();
+
+            // Apply the existing target-account restrictions as well.
+            $this->access->user($actor, $userId);
+
+            $role = Role::query()
+                ->whereKey($roleId)
+                ->where('school_id', $scope['school_id'])
+                ->where('system_role', false)
+                ->lockForUpdate()->firstOrFail();
+
+            if ($assign) {
+                abort_unless($role->active, 422, 'Inactive roles cannot be assigned.');
+                $this->role($actor, $roleId);
+            }
+
+            abort_if(
+                $target->role_id === $role->id,
+                422,
+                'Primary roles cannot be changed through secondary role delegation.'
+            );
+
+            $query = DB::table('user_roles')
+                ->where('user_id', $target->id)
+                ->where('role_id', $role->id);
+            $exists = $query->exists();
+
+            if ($exists === $assign) {
+                return $target->load('role:id,role_name');
+            }
+
+            if ($assign) {
+                DB::table('user_roles')->insert([
+                    'user_id' => $target->id,
+                    'role_id' => $role->id,
+                ]);
+            } else {
+                $query->delete();
+                $target->update([
+                    'auth_generation' => (int) $target->auth_generation + 1,
+                ]);
+            }
+
+            $this->audit->record(
+                $actor,
+                $assign ? 'administrator_secondary_role_assigned' : 'administrator_secondary_role_revoked',
+                'users',
+                $target->id,
+                ['role_id' => $role->id, 'assigned' => $exists],
+                ['role_id' => $role->id, 'assigned' => $assign]
+            );
+
+            return $target->fresh()->load('role:id,role_name');
+        });
+    }
+
     private function role(User $actor, string $roleId): Role
     {
         $scope = $this->access->scope($actor);
