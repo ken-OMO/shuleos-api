@@ -8,6 +8,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\EducationLevelBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\RoleBuilder;
+use Tests\Support\Database\TeacherBuilder;
+use Tests\Support\Database\UserBuilder;
 use Tests\TestCase;
 
 class SchoolAdminAcademicYearSetupTest extends TestCase
@@ -185,6 +190,99 @@ class SchoolAdminAcademicYearSetupTest extends TestCase
             $user,
             $this->tokenFor($user),
         ];
+    }
+
+    public function test_academic_acceptance_connected_setup_reaches_teacher_assignment(): void
+    {
+        [$school, $role, , $token] = $this->schoolAdminContext();
+
+        $this->grantPermission($role, 'manage_learning_areas');
+
+        $headers = ['Authorization' => 'Bearer '.$token];
+
+        $year = $this->withHeaders($headers)->postJson('/api/academic-years', [
+            'year_name' => '2027',
+            'start_date' => '2027-01-01',
+            'end_date' => '2027-12-31',
+            'active' => true,
+        ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($year);
+
+        $term = $this->withHeaders($headers)->postJson('/api/terms', [
+            'academic_year_id' => $year,
+            'term_name' => 'Term 1',
+            'start_date' => '2027-01-05',
+            'end_date' => '2027-04-05',
+            'active' => true,
+        ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($term);
+
+        // Shared reference data is provisioned separately from school choices.
+        $level = EducationLevelBuilder::create();
+        $area = LearningAreaBuilder::create();
+
+        $grade = $this->withHeaders($headers)->postJson('/api/grades', [
+            'education_level_id' => $level->id,
+            'grade_name' => 'Grade 7',
+            'grade_order' => 7,
+            'grade_number' => 7,
+        ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($grade);
+
+        $stream = $this->withHeaders($headers)->postJson('/api/streams', [
+            'grade_id' => $grade,
+            'stream_name' => 'East',
+        ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($stream);
+
+        $allocation = $this->withHeaders($headers)
+            ->postJson('/api/learning-area-allocations', [
+                'grade_id' => $grade,
+                'learning_area_id' => $area->id,
+                'lessons_per_week' => 5,
+            ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($allocation);
+
+        // Staff identity is a prerequisite fixture for this academic workflow.
+        $teacherRole = RoleBuilder::create();
+        $teacherUser = UserBuilder::create(
+            $school, $teacherRole
+        );
+        $teacher = TeacherBuilder::create(
+            $school, $teacherUser
+        );
+
+        $assignment = $this->withHeaders($headers)
+            ->postJson('/api/teacher-assignments', [
+                'teacher_id' => $teacher->id,
+                'learning_area_id' => $area->id,
+                'grade_id' => $grade,
+                'stream_id' => $stream,
+                'academic_year_id' => $year,
+                'term_id' => $term,
+                'lessons_per_week' => 5,
+                'is_class_teacher' => true,
+            ])->assertCreated()->json('data.id');
+        $this->assertNotEmpty($assignment);
+
+        $this->assertDatabaseHas('teacher_assignments', [
+            'id' => $assignment,
+            'school_id' => $school->id,
+            'teacher_id' => $teacher->id,
+            'grade_id' => $grade,
+            'stream_id' => $stream,
+            'academic_year_id' => $year,
+            'term_id' => $term,
+            'learning_area_id' => $area->id,
+            'is_class_teacher' => true,
+        ]);
+
+        $this->assertDatabaseHas('learning_area_allocations', [
+            'id' => $allocation,
+            'school_id' => $school->id,
+            'grade_id' => $grade,
+            'learning_area_id' => $area->id,
+        ]);
     }
 
     public function test_school_admin_can_create_academic_year_without_supplying_school_id(): void

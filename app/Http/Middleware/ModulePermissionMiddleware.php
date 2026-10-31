@@ -26,6 +26,16 @@ class ModulePermissionMiddleware
 
         $prefix = $request->segment(2);
 
+        // The learning-area catalogue is shared across schools.
+        if ($prefix === 'learning-areas'
+            && ! $request->isMethodSafe()
+            && $user->school_id !== null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'School users cannot modify the shared learning-area catalogue.',
+            ], 403);
+        }
+
         $assessmentRequest = in_array($prefix, [
             'assessment-reissues',
             'assessment-registrations',
