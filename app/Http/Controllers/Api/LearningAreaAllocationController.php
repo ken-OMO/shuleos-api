@@ -7,6 +7,7 @@ use App\Http\Resources\LearningAreaAllocationResource;
 use App\Models\LearningAreaAllocation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 class LearningAreaAllocationController extends Controller
 {
@@ -92,16 +93,30 @@ class LearningAreaAllocationController extends Controller
     public function store(
         Request $request
     ) {
-        $request->validate([
+        $schoolId = auth()->user()?->school_id;
+        $tenantId = $request->attributes->get('tenant_school_id');
 
-            'school_id' => 'required|exists:schools,id',
+        abort_unless(
+            $schoolId && $tenantId && (string) $schoolId === (string) $tenantId,
+            403,
+            'Authenticated school context is required.'
+        );
 
-            'grade_id' => 'required|exists:grades,id',
-
-            'learning_area_id' => 'required|exists:learning_areas,id',
-
+        $validated = $request->validate([
+            'grade_id' => [
+                'required',
+                'uuid',
+                Rule::exists('grades', 'id')
+                    ->where('school_id', $schoolId)
+                    ->where('active', true),
+            ],
+            'learning_area_id' => [
+                'required',
+                'uuid',
+                Rule::exists('learning_areas', 'id')
+                    ->where('active', true),
+            ],
             'lessons_per_week' => 'required|integer|min:1|max:20',
-
         ]);
 
         $exists =
@@ -139,7 +154,7 @@ class LearningAreaAllocationController extends Controller
 
                 'id' => (string) Str::uuid(),
 
-                'school_id' => $request->school_id,
+                'school_id' => $schoolId,
 
                 'grade_id' => $request->grade_id,
 
@@ -203,15 +218,20 @@ class LearningAreaAllocationController extends Controller
             ], 404);
         }
 
+        $validated = $request->validate([
+            'lessons_per_week' => 'sometimes|required|integer|min:1|max:20',
+            'active' => 'sometimes|required|boolean',
+        ]);
+
         $allocation->update([
 
-            'lessons_per_week' => $request->lessons_per_week
+            'lessons_per_week' => $validated['lessons_per_week']
 
                 ??
 
                 $allocation->lessons_per_week,
 
-            'active' => $request->active
+            'active' => $validated['active']
 
                 ??
 

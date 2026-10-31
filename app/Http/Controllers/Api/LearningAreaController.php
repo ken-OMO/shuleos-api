@@ -31,67 +31,45 @@ class LearningAreaController extends BaseCrudController
      */
     public function index()
     {
-        $areas = LearningArea::with(
+        $schoolId = auth()->user()?->school_id;
+        abort_unless($schoolId, 403, 'Authenticated school context is required.');
 
-            self::RELATIONS
-
-        )
-            ->where('is_deleted', false)
+        $areas = LearningArea::query()
+            ->with([
+                'educationLevels',
+                'allocations' => fn ($query) => $query->where('school_id', $schoolId),
+            ])
             ->orderBy('learning_area_name')
             ->get();
 
         return $this->success(
-
-            LearningAreaResource::collection(
-
-                $areas
-
-            ),
-
+            LearningAreaResource::collection($areas),
             'Learning areas retrieved successfully.'
-
         );
     }
 
-    /**
-     * Display the specified learning area.
-     */
     public function show(string $id)
     {
-        $area = LearningArea::with(
+        $schoolId = auth()->user()?->school_id;
+        abort_unless($schoolId, 403, 'Authenticated school context is required.');
 
-            self::RELATIONS
-
-        )
-            ->where('is_deleted', false)
+        $area = LearningArea::query()
+            ->with([
+                'educationLevels',
+                'allocations' => fn ($query) => $query->where('school_id', $schoolId),
+            ])
             ->find($id);
 
-        if ($this->modelNotFound($area)) {
-
-            return $this->notFound(
-
-                'Learning area not found.'
-
-            );
-
+        if (! $area) {
+            return $this->notFound('Learning area not found.');
         }
 
         return $this->success(
-
-            new LearningAreaResource(
-
-                $area
-
-            ),
-
+            new LearningAreaResource($area),
             'Learning area retrieved successfully.'
-
         );
     }
 
-    /**
-     * Store a newly created learning area.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
