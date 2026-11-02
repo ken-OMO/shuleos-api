@@ -17,6 +17,7 @@ use App\Models\LearnerFeeAccount;
 use App\Models\Payment;
 use App\Services\Finance\FinanceAccountService;
 use App\Services\Finance\FinanceAnalyticsService;
+use App\Services\Finance\FinanceChargeEligibilityService;
 use App\Services\Finance\FinanceInvoiceService;
 use App\Services\Finance\FinanceMasterDataService;
 use App\Services\Finance\FinancePaymentService;
@@ -61,7 +62,7 @@ class FinanceWorkflowController extends BaseApiController
 
     public function saveStructure(Request $request, ?string $structure = null)
     {
-        return $this->success(new FeeStructureResource($this->master->structure(auth()->user(), $request->validate(['academic_year_id' => 'required|uuid', 'term_id' => 'required|uuid', 'grade_id' => 'required|uuid', 'stream_id' => 'nullable|uuid', 'fee_category_id' => 'required|uuid', 'amount' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'due_date' => 'nullable|date', 'notes' => 'nullable|string|max:4000']), $structure)));
+        return $this->success(new FeeStructureResource($this->master->structure(auth()->user(), $request->validate(['academic_year_id' => 'required|uuid', 'term_id' => 'required|uuid', 'grade_id' => 'required|uuid', 'stream_id' => 'nullable|uuid', 'fee_category_id' => 'required|uuid', 'charge_target' => 'sometimes|required|in:all,day_scholar,boarder', 'requires_participation' => 'sometimes|required|boolean', 'amount' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'due_date' => 'nullable|date', 'notes' => 'nullable|string|max:4000']), $structure)));
     }
 
     public function structureTransition(string $structure, string $status)
@@ -117,9 +118,42 @@ class FinanceWorkflowController extends BaseApiController
         return $this->created(FeeInvoiceResource::collection($this->invoices->generateBulk(auth()->user(), $data['academic_year_id'], $data['term_id'], $data['grade_id'] ?? null, $data['stream_id'] ?? null)));
     }
 
+    public function chargeParticipations()
+    {
+        return $this->success(
+            DB::table('fee_charge_participations')
+                ->where('school_id', auth()->user()->school_id)
+                ->select('id', 'learner_id', 'fee_category_id', 'academic_year_id', 'term_id', 'active')
+                ->orderBy('id')->paginate(30)
+        );
+    }
+
+    public function saveChargeParticipation(Request $request)
+    {
+        $data = $request->validate([
+            'learner_id' => 'required|uuid',
+            'fee_category_id' => 'required|uuid',
+            'academic_year_id' => 'required|uuid',
+            'term_id' => 'required|uuid',
+            'active' => 'required|boolean',
+        ]);
+
+        $row = app(FinanceChargeEligibilityService::class)
+            ->saveParticipation(auth()->user(), $data);
+
+        return $this->success(collect((array) $row)->only([
+            'id', 'learner_id', 'fee_category_id', 'academic_year_id', 'term_id', 'active',
+        ])->all());
+    }
+
     public function paymentMethods()
     {
-        return $this->success(DB::table('payment_methods')->where('school_id', auth()->user()->school_id)->where('active', true)->where('is_online', false)->select('id', 'method_name', 'is_online', 'active')->orderBy('method_name')->get());
+        return $this->success(DB::table('payment_methods')->where('school_id', auth()->user()->school_id)->where('active', true)->where('is_online', false)
+            ->whereRaw('LOWER(BTRIM(method_name)) IN (?, ?, ?, ?, ?, ?, ?, ?)', [
+                'mpesa', 'm-pesa', 'm_pesa', 'bank',
+                'bank deposit', 'bank transfer', 'bank_transfer', 'bank_deposit',
+            ])
+            ->select('id', 'method_name', 'is_online', 'active')->orderBy('method_name')->get());
     }
 
     public function invoices()
@@ -144,7 +178,7 @@ class FinanceWorkflowController extends BaseApiController
 
     public function recordPayment(Request $request)
     {
-        return $this->created(new PaymentResource($this->payments->create(auth()->user(), $request->validate(['learner_fee_account_id' => 'required|uuid', 'payment_method_id' => 'required|uuid', 'amount' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'transaction_reference' => 'nullable|string|max:255', 'payment_date' => 'required|date|before_or_equal:today', 'payer_phone' => 'nullable|string|max:30', 'payer_name' => 'nullable|string|max:255', 'remarks' => 'nullable|string|max:4000']))));
+        return $this->created(new PaymentResource($this->payments->create(auth()->user(), $request->validate(['learner_fee_account_id' => 'required|uuid', 'payment_method_id' => 'required|uuid', 'amount' => ['required', 'regex:/^\d+(?:\.\d{1,2})?$/'], 'transaction_reference' => 'required|string|max:255', 'payment_date' => 'required|date|before_or_equal:today', 'payer_phone' => 'nullable|string|max:30', 'payer_name' => 'nullable|string|max:255', 'remarks' => 'nullable|string|max:4000']))));
     }
 
     public function payments()

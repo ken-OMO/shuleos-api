@@ -12,6 +12,7 @@ use App\Models\HostelRoom;
 use App\Models\Learner;
 use App\Models\School;
 use App\Models\User;
+use App\Services\School\SchoolOperatingModePolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Collection;
@@ -37,6 +38,9 @@ class BedAllocationService
                 $school = $this->school(
                     $schoolId
                 );
+
+                app(SchoolOperatingModePolicy::class)
+                    ->assertBoardingAllowed($schoolId);
 
                 $actor = $this->lockEligibleActor(
                     $schoolId,
@@ -144,6 +148,9 @@ class BedAllocationService
                 $reason
             ): BedAllocation {
                 $school = $this->school($schoolId);
+
+                app(SchoolOperatingModePolicy::class)
+                    ->assertBoardingAllowed($schoolId);
 
                 $actor = $this->lockEligibleActor(
                     $schoolId,
@@ -496,7 +503,7 @@ class BedAllocationService
             ->where('id', $schoolId)
             ->where('active', true)
             ->where('is_deleted', false)
-            ->firstOrFail();
+            ->lockForUpdate()->firstOrFail();
     }
 
     private function lockEligibleActor(

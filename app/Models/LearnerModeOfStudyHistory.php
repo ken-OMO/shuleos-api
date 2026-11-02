@@ -24,6 +24,7 @@ class LearnerModeOfStudyHistory extends Model
         'learner_id',
         'from_mode',
         'to_mode',
+        'effective_date',
         'reason',
         'changed_by',
         'changed_at',

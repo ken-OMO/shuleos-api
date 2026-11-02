@@ -22,6 +22,8 @@ class FeeStructureResource extends JsonResource
             'stream_id' => $this->stream_id,
 
             'fee_category_id' => $this->fee_category_id,
+            'charge_target' => $this->charge_target,
+            'requires_participation' => (bool) $this->requires_participation,
 
             'payment_plan_id' => $this->payment_plan_id,
 

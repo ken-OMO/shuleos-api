@@ -305,6 +305,15 @@ class ReportCardTest extends TestCase
 
     public function test_archive_restore_preserves_published_academic_history(): void
     {
+        DB::table('schools')
+            ->where('id', $this->school->id)
+            ->update(['operating_mode' => 'day_and_boarding']);
+
+        DB::table('learners')
+            ->where('school_id', $this->school->id)
+            ->where('id', $this->juniorLearner->id)
+            ->update(['mode_of_study' => 'day_scholar']);
+
         $card = $this->generate($this->juniorLearner->id)->first();
         $this->publishJuniorCard();
 

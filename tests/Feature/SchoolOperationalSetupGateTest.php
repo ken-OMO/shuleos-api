@@ -322,6 +322,7 @@ class SchoolOperationalSetupGateTest extends TestCase
             'short_name' => 'OPS',
             'registration_number' => 'REG-'.Str::upper(Str::random(8)),
             'school_type' => 'Junior School',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(10000000, 99999999),
             'email' => Str::lower(Str::random(8)).'@example.test',

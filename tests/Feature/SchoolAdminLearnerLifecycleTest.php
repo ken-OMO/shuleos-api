@@ -167,7 +167,7 @@ class SchoolAdminLearnerLifecycleTest extends TestCase
     {
         [$school, $user] = $this->schoolAdminWithPermission();
         [$grade, $stream] = $this->gradeAndStream($school);
-        $learner = $this->learner($school, $grade, $stream);
+        $learner = $this->learner($school, $grade, $stream, 'day_scholar');
 
         $this->setLifecycle(
             $learner,
@@ -509,7 +509,7 @@ class SchoolAdminLearnerLifecycleTest extends TestCase
     {
         [$school, $user] = $this->schoolAdminWithPermission();
         [$grade, $stream] = $this->gradeAndStream($school);
-        $learner = $this->learner($school, $grade, $stream);
+        $learner = $this->learner($school, $grade, $stream, 'day_scholar');
 
         $this->setLifecycle($learner, 'active', true);
 
@@ -637,7 +637,7 @@ class SchoolAdminLearnerLifecycleTest extends TestCase
     {
         [$school, $user] = $this->schoolAdminWithPermission();
         [$grade, $stream] = $this->gradeAndStream($school);
-        $learner = $this->learner($school, $grade, $stream);
+        $learner = $this->learner($school, $grade, $stream, 'day_scholar');
 
         $this->setLifecycle(
             $learner,
@@ -1152,6 +1152,7 @@ class SchoolAdminLearnerLifecycleTest extends TestCase
             'short_name' => 'LRN',
             'registration_number' => 'REG-'.Str::upper(Str::random(10)),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(
                 10000000,

@@ -26,6 +26,7 @@ class SchoolResource extends JsonResource
             'sub_county' => $this->sub_county,
 
             'school_type' => $this->school_type,
+            'operating_mode' => $this->operating_mode,
             'ownership' => $this->ownership,
 
             'registration_number' => $this->registration_number,

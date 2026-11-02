@@ -318,6 +318,7 @@ class AdministratorPortalController extends BaseApiController
     ) {
         $validated = $request->validate([
             'school_name' => 'required|string|max:255',
+            'operating_mode' => 'required|in:day,boarding,day_and_boarding',
 
             'email' => 'nullable|email|max:255',
             'phone' => 'nullable|string|max:30',
@@ -373,6 +374,7 @@ class AdministratorPortalController extends BaseApiController
             'short_name' => 'required|string|max:100',
             'registration_number' => 'required|string|max:100',
             'school_type' => 'required|string|max:100',
+            'operating_mode' => 'required|in:day,boarding,day_and_boarding',
             'county' => 'required|string|max:100',
             'phone' => 'required|string|max:30',
             'email' => 'required|email|max:255',
@@ -385,7 +387,7 @@ class AdministratorPortalController extends BaseApiController
 
     private function schoolRules(): array
     {
-        return ['school_name' => 'sometimes|string|max:255', 'short_name' => 'sometimes|nullable|string|max:100', 'registration_number' => 'sometimes|nullable|string|max:100', 'school_type' => 'sometimes|nullable|string|max:100', 'postal_address' => 'sometimes|nullable|string|max:500', 'physical_address' => 'sometimes|nullable|string|max:500', 'county' => 'sometimes|nullable|string|max:100', 'sub_county' => 'sometimes|nullable|string|max:100', 'phone' => 'sometimes|nullable|string|max:30', 'email' => 'sometimes|nullable|email|max:255', 'website' => 'sometimes|nullable|url|max:255', 'motto' => 'sometimes|nullable|string|max:255', 'timezone' => 'sometimes|timezone', 'locale' => 'sometimes|string|max:10', 'academic_contact' => 'sometimes|nullable|string|max:255', 'finance_contact' => 'sometimes|nullable|string|max:255', 'communication_contact' => 'sometimes|nullable|string|max:255'];
+        return ['operating_mode' => 'sometimes|required|in:day,boarding,day_and_boarding', 'school_name' => 'sometimes|string|max:255', 'short_name' => 'sometimes|nullable|string|max:100', 'registration_number' => 'sometimes|nullable|string|max:100', 'school_type' => 'sometimes|nullable|string|max:100', 'postal_address' => 'sometimes|nullable|string|max:500', 'physical_address' => 'sometimes|nullable|string|max:500', 'county' => 'sometimes|nullable|string|max:100', 'sub_county' => 'sometimes|nullable|string|max:100', 'phone' => 'sometimes|nullable|string|max:30', 'email' => 'sometimes|nullable|email|max:255', 'website' => 'sometimes|nullable|url|max:255', 'motto' => 'sometimes|nullable|string|max:255', 'timezone' => 'sometimes|timezone', 'locale' => 'sometimes|string|max:10', 'academic_contact' => 'sometimes|nullable|string|max:255', 'finance_contact' => 'sometimes|nullable|string|max:255', 'communication_contact' => 'sometimes|nullable|string|max:255'];
     }
 
     private function userRules(bool $update = false): array

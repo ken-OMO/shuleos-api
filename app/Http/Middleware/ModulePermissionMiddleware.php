@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Auth\AuthContextService;
+use App\Services\School\SchoolOperatingModePolicy;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -25,6 +26,11 @@ class ModulePermissionMiddleware
         }
 
         $prefix = $request->segment(2);
+
+        if ($prefix === 'boarding') {
+            app(SchoolOperatingModePolicy::class)
+                ->assertBoardingAllowed((string) $user->school_id);
+        }
 
         // The learning-area catalogue is shared across schools.
         if ($prefix === 'learning-areas'

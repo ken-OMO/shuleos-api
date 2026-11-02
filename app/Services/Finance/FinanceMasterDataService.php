@@ -57,12 +57,32 @@ class FinanceMasterDataService
         if (! empty($data['stream_id']) && ! DB::table('streams')->where('id', $data['stream_id'])->where('school_id', $user->school_id)->where('grade_id', $grade->id)->exists()) {
             throw ValidationException::withMessages(['stream_id' => 'Stream must belong to the selected grade.']);
         }
+        validator($data, [
+            'charge_target' => 'sometimes|required|in:all,day_scholar,boarder',
+            'requires_participation' => 'sometimes|required|boolean',
+        ])->validate();
+
+        $existingStructure = $id
+            ? FeeStructure::whereKey($id)
+                ->where('school_id', $user->school_id)
+                ->where('status', 'draft')->firstOrFail()
+            : null;
+
+        $data['charge_target'] = $data['charge_target']
+            ?? $existingStructure?->charge_target
+            ?? 'all';
+        $data['requires_participation'] = (bool) (
+            $data['requires_participation']
+            ?? $existingStructure?->requires_participation
+            ?? false
+        );
+
         $amount = $this->money->positive($data['amount']);
-        $query = FeeStructure::where('school_id', $user->school_id)->where('academic_year_id', $year->id)->where('term_id', $term->id)->where('grade_id', $grade->id)->where('fee_category_id', $category->id)->whereIn('status', ['draft', 'approved', 'active'])->where('is_deleted', false)->when($data['stream_id'] ?? null, fn ($q, $stream) => $q->where('stream_id', $stream), fn ($q) => $q->whereNull('stream_id'))->when($id, fn ($q) => $q->whereKeyNot($id));
+        $query = FeeStructure::where('school_id', $user->school_id)->where('academic_year_id', $year->id)->where('term_id', $term->id)->where('grade_id', $grade->id)->where('fee_category_id', $category->id)->where('charge_target', $data['charge_target'])->whereIn('status', ['draft', 'approved', 'active'])->where('is_deleted', false)->when($data['stream_id'] ?? null, fn ($q, $stream) => $q->where('stream_id', $stream), fn ($q) => $q->whereNull('stream_id'))->when($id, fn ($q) => $q->whereKeyNot($id));
         if ($query->exists()) {
             throw ValidationException::withMessages(['structure' => 'An active structure already exists for this scope.']);
         }
-        $values = collect($data)->only(['academic_year_id', 'term_id', 'grade_id', 'stream_id', 'fee_category_id', 'due_date', 'notes'])->all() + ['amount' => $amount];
+        $values = collect($data)->only(['academic_year_id', 'term_id', 'grade_id', 'stream_id', 'fee_category_id', 'charge_target', 'requires_participation', 'due_date', 'notes'])->all() + ['amount' => $amount];
         if ($id) {
             $structure = FeeStructure::whereKey($id)->where('school_id', $user->school_id)->where('status', 'draft')->firstOrFail();
             $structure->update($values + ['updated_at' => now()]);

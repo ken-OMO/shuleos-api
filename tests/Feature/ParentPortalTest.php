@@ -220,7 +220,7 @@ class ParentPortalTest extends TestCase
             'total_amount' => $balance,
             'amount_paid' => 0,
             'balance' => $balance,
-            'status' => 'UNPAID',
+            'status' => 'posted',
             'invoice_date' => now()->toDateString(),
         ]);
     }

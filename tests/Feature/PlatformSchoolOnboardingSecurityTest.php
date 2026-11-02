@@ -14,6 +14,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use RuntimeException;
+use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\StreamBuilder;
 use Tests\TestCase;
 
 class PlatformSchoolOnboardingSecurityTest extends TestCase
@@ -53,6 +56,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $response = $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools',
             [
+                'operating_mode' => 'day_and_boarding',
                 'school_name' => 'Contact Capture School',
                 'email' => 'school-office@example.test',
                 'phone' => '+254700123456',
@@ -89,6 +93,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools',
             [
+                'operating_mode' => 'day_and_boarding',
                 'school_name' => $name,
                 'email' => 'invalid-email',
                 'phone' => str_repeat('1', 31),
@@ -128,6 +133,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => 'Onboarding Test School',
                     'timezone' => 'Africa/Nairobi',
                     'locale' => 'en',
@@ -339,6 +345,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => 'Authority Injection School',
 
                     'school_code' => 'CLIENT-CONTROLLED',
@@ -397,6 +404,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => 'Credential Security School',
 
                     'timezone' => 'Africa/Nairobi',
@@ -507,6 +515,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => $schoolName,
                     'timezone' => 'Africa/Nairobi',
                     'locale' => 'en',
@@ -526,6 +535,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->assertDatabaseMissing(
             'schools',
             [
+                'operating_mode' => 'day_and_boarding',
                 'school_name' => $schoolName,
             ]
         );
@@ -573,6 +583,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => $schoolName,
 
                     'timezone' => 'Africa/Nairobi',
@@ -596,6 +607,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->assertDatabaseMissing(
             'schools',
             [
+                'operating_mode' => 'day_and_boarding',
                 'school_name' => $schoolName,
             ]
         );
@@ -643,6 +655,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => $schoolName,
 
                     'timezone' => 'Africa/Nairobi',
@@ -666,6 +679,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->assertDatabaseMissing(
             'schools',
             [
+                'operating_mode' => 'day_and_boarding',
                 'school_name' => $schoolName,
             ]
         );
@@ -750,6 +764,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             ->postJson(
                 '/api/admin/platform/schools',
                 [
+                    'operating_mode' => 'day_and_boarding',
                     'school_name' => 'Lifecycle Only School',
 
                     'timezone' => 'Africa/Nairobi',
@@ -847,9 +862,181 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         );
     }
 
+    public function test_operating_mode_onboarding_requires_an_explicit_valid_choice(): void
+    {
+        $owner = $this->platformOwner();
+        $this->withToken(JWTAuth::fromUser($owner));
+        $schoolsBefore = DB::table('schools')->count();
+        $usersBefore = DB::table('users')->count();
+
+        $payload = $this->validPayload();
+        unset($payload['operating_mode']);
+
+        $this->postJson('/api/admin/platform/schools', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('operating_mode');
+
+        foreach (['', 'unknown', 'DAY', null] as $mode) {
+            $payload['operating_mode'] = $mode;
+
+            $this->postJson('/api/admin/platform/schools', $payload)
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('operating_mode');
+        }
+
+        $this->assertSame($schoolsBefore, DB::table('schools')->count());
+        $this->assertSame($usersBefore, DB::table('users')->count());
+    }
+
+    public function test_operating_mode_onboarding_persists_each_supported_choice(): void
+    {
+        $owner = $this->platformOwner();
+        $this->withToken(JWTAuth::fromUser($owner));
+
+        foreach (['day', 'boarding', 'day_and_boarding'] as $mode) {
+            $payload = $this->validPayload();
+            $payload['operating_mode'] = $mode;
+
+            $response = $this->postJson('/api/admin/platform/schools', $payload)
+                ->assertCreated()
+                ->assertJsonPath('data.school.operating_mode', $mode);
+
+            $this->assertDatabaseHas('schools', [
+                'id' => $response->json('data.school.id'),
+                'operating_mode' => $mode,
+            ]);
+        }
+    }
+
+    private function operatingModeAdmin(string $schoolId): User
+    {
+        $this->grantPermission($this->schoolAdminRoleId, 'access_administrator_portal');
+        $this->grantPermission($this->schoolAdminRoleId, 'manage_school_profile');
+
+        return $this->schoolAdmin($schoolId);
+    }
+
+    public function test_existing_school_mode_update_is_audited_and_tenant_scoped(): void
+    {
+        foreach (['day', 'boarding', 'day_and_boarding'] as $mode) {
+            $schoolId = $this->school();
+            $foreignId = $this->school();
+            DB::table('schools')->where('id', $schoolId)
+                ->update(['operating_mode' => null]);
+
+            $foreignBefore = (array) DB::table('schools')->where('id', $foreignId)->first();
+            $admin = $this->operatingModeAdmin($schoolId);
+            $token = JWTAuth::fromUser($admin);
+            JWTAuth::setToken($token);
+
+            $this->withToken($token)->putJson('/api/admin/school', [
+                'operating_mode' => $mode,
+                'school_id' => $foreignId,
+            ])->assertOk()->assertJsonPath('data.operating_mode', $mode);
+
+            $this->assertDatabaseHas('schools', [
+                'id' => $schoolId, 'operating_mode' => $mode,
+            ]);
+            $this->assertDatabaseHas('audit_logs', [
+                'school_id' => $schoolId,
+                'user_id' => $admin->id,
+                'record_id' => $schoolId,
+                'action' => 'school_profile_updated',
+            ]);
+            $this->assertSame(
+                $foreignBefore,
+                (array) DB::table('schools')->where('id', $foreignId)->first()
+            );
+        }
+    }
+
+    public function test_existing_school_mode_update_rejects_active_incompatible_learners(): void
+    {
+        foreach ([
+            ['boarder', 'day'],
+            ['day_scholar', 'boarding'],
+        ] as [$learnerMode, $schoolMode]) {
+            $schoolId = $this->school();
+            $school = (object) ['id' => $schoolId];
+            $grade = GradeBuilder::create($school);
+            $stream = StreamBuilder::create($school, $grade);
+            LearnerBuilder::create($school, $grade, $stream, [
+                'mode_of_study' => $learnerMode,
+            ]);
+            $admin = $this->operatingModeAdmin($schoolId);
+            $token = JWTAuth::fromUser($admin);
+            JWTAuth::setToken($token);
+            $before = (array) DB::table('schools')->where('id', $schoolId)->first();
+            $auditBefore = DB::table('audit_logs')->where('school_id', $schoolId)->count();
+
+            $this->withToken($token)->putJson('/api/admin/school', [
+                'operating_mode' => $schoolMode,
+                'motto' => 'Must roll back with rejected mode',
+            ])->assertUnprocessable()->assertJsonValidationErrors('operating_mode');
+
+            $this->assertSame(
+                $before,
+                (array) DB::table('schools')->where('id', $schoolId)->first()
+            );
+            $this->assertSame(
+                $auditBefore,
+                DB::table('audit_logs')->where('school_id', $schoolId)->count()
+            );
+
+            $this->putJson('/api/admin/school', [
+                'operating_mode' => 'day_and_boarding',
+            ])->assertOk();
+        }
+    }
+
+    public function test_existing_school_mode_update_rolls_back_when_audit_fails(): void
+    {
+        $schoolId = $this->school();
+        $admin = $this->operatingModeAdmin($schoolId);
+        $before = (array) DB::table('schools')->where('id', $schoolId)->first();
+
+        $this->mock(AdministratorAuditService::class, function ($mock) {
+            $mock->shouldReceive('record')->once()->andThrow(
+                new RuntimeException('Operating-mode audit failure')
+            );
+        });
+
+        $this->withToken(JWTAuth::fromUser($admin))
+            ->putJson('/api/admin/school', ['operating_mode' => 'day'])
+            ->assertStatus(500);
+
+        $this->assertSame(
+            $before,
+            (array) DB::table('schools')->where('id', $schoolId)->first()
+        );
+    }
+
+    public function test_existing_school_mode_update_requires_profile_permission(): void
+    {
+        $schoolId = $this->school();
+        $admin = $this->operatingModeAdmin($schoolId);
+        $permissionId = DB::table('permissions')
+            ->where('permission_name', 'manage_school_profile')->value('id');
+
+        DB::table('role_permissions')->where('role_id', $this->schoolAdminRoleId)
+            ->where('permission_id', $permissionId)->delete();
+
+        $before = (array) DB::table('schools')->where('id', $schoolId)->first();
+
+        $this->withToken(JWTAuth::fromUser($admin))
+            ->putJson('/api/admin/school', ['operating_mode' => 'day'])
+            ->assertForbidden();
+
+        $this->assertSame(
+            $before,
+            (array) DB::table('schools')->where('id', $schoolId)->first()
+        );
+    }
+
     private function validPayload(): array
     {
         return [
+            'operating_mode' => 'day_and_boarding',
             'school_name' => 'Unauthorized Onboarding School',
 
             'timezone' => 'Africa/Nairobi',
@@ -965,6 +1152,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         DB::table('schools')->insert([
             'id' => $schoolId,
 
+            'operating_mode' => 'day_and_boarding',
             'school_name' => 'Existing Onboarding Test School',
 
             'school_code' => 'EXIST-'

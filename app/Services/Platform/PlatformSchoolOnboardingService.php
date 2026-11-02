@@ -35,6 +35,10 @@ class PlatformSchoolOnboardingService
             'onboard_schools'
         );
 
+        validator($data, [
+            'operating_mode' => 'required|in:day,boarding,day_and_boarding',
+        ])->validate();
+
         $schoolAdminRoleId = DB::table('roles')
             ->where(
                 'role_name',
@@ -88,6 +92,7 @@ class PlatformSchoolOnboardingService
                     ),
 
                     'school_code' => $schoolCode,
+                    'operating_mode' => $data['operating_mode'],
 
                     'login_prefix' => $loginPrefix,
 
@@ -202,6 +207,7 @@ class PlatformSchoolOnboardingService
                         'login_prefix' => $school->login_prefix,
 
                         'lifecycle_state' => $school->lifecycle_state,
+                        'operating_mode' => $school->operating_mode,
                     ],
 
                     'initial_admin' => [

@@ -10,6 +10,8 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\StreamBuilder;
 use Tests\TestCase;
 
 class LeadershipPortalTest extends TestCase
@@ -168,6 +170,23 @@ class LeadershipPortalTest extends TestCase
 
     public function test_finance_excludes_cancelled_and_reversed(): void
     {
+        $school = (object) ['id' => $this->id['school']];
+        $grade = (object) ['id' => $this->id['grade']];
+        $stream = StreamBuilder::create($school, $grade);
+
+        LearnerBuilder::create(
+            $school, $grade, $stream, ['id' => $this->id['learner']]
+        );
+
+        $methodId = (string) Str::uuid();
+        DB::table('payment_methods')->insert([
+            'id' => $methodId,
+            'school_id' => $school->id,
+            'method_name' => 'Cash',
+            'active' => true,
+            'is_online' => false,
+        ]);
+
         DB::table('fee_invoices')->insert([
             [
                 'id' => (string) Str::uuid(),
@@ -179,7 +198,7 @@ class LeadershipPortalTest extends TestCase
                 'total_amount' => 100,
                 'amount_paid' => 20,
                 'balance' => 80,
-                'status' => 'POSTED',
+                'status' => 'partially_paid',
                 'invoice_date' => '2026-01-15',
                 'cancelled_at' => null,
             ],
@@ -193,7 +212,7 @@ class LeadershipPortalTest extends TestCase
                 'total_amount' => 999,
                 'amount_paid' => 0,
                 'balance' => 999,
-                'status' => 'CANCELLED',
+                'status' => 'cancelled',
                 'invoice_date' => '2026-01-15',
                 'cancelled_at' => now(),
             ],
@@ -203,21 +222,23 @@ class LeadershipPortalTest extends TestCase
                 'id' => (string) Str::uuid(),
                 'school_id' => $this->id['school'],
                 'learner_id' => $this->id['learner'],
-                'payment_method_id' => (string) Str::uuid(),
+                'payment_method_id' => $methodId,
                 'receipt_number' => 'LEAD-PAY-001',
                 'amount' => 20,
                 'payment_date' => now(),
                 'reversed' => false,
+                'payment_status' => 'confirmed',
             ],
             [
                 'id' => (string) Str::uuid(),
                 'school_id' => $this->id['school'],
                 'learner_id' => $this->id['learner'],
-                'payment_method_id' => (string) Str::uuid(),
+                'payment_method_id' => $methodId,
                 'receipt_number' => 'LEAD-PAY-002',
                 'amount' => 999,
                 'payment_date' => now(),
                 'reversed' => true,
+                'payment_status' => 'reversed',
             ],
         ]);
         $f = app(LeadershipPortalService::class)->finance($this->u('principal'));
