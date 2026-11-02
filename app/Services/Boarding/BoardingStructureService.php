@@ -124,6 +124,11 @@ class BoardingStructureService
             $hostelId,
             $attributes
         ): Hostel {
+            DB::table('schools')
+                ->where('id', $schoolId)
+                ->lockForUpdate()
+                ->firstOrFail();
+
             $hostel = $this->hostel(
                 $schoolId,
                 $hostelId,
@@ -134,6 +139,21 @@ class BoardingStructureService
                 $this->assertHostelType(
                     (string) $attributes['hostel_type']
                 );
+
+                if ($attributes['hostel_type'] !== $hostel->hostel_type
+                    && DB::table('bed_allocations')
+                        ->join('hostel_beds', 'hostel_beds.id', '=', 'bed_allocations.bed_id')
+                        ->join('hostel_rooms', 'hostel_rooms.id', '=', 'hostel_beds.room_id')
+                        ->where('bed_allocations.school_id', $schoolId)
+                        ->where('hostel_beds.school_id', $schoolId)
+                        ->where('hostel_rooms.school_id', $schoolId)
+                        ->where('hostel_rooms.hostel_id', $hostel->id)
+                        ->where('bed_allocations.active', true)
+                        ->exists()) {
+                    throw ValidationException::withMessages([
+                        'hostel_type' => 'Release or transfer all active occupants before changing hostel type.',
+                    ]);
+                }
             }
 
             if (array_key_exists('capacity', $attributes)) {

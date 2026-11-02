@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Boarding;
 
+use App\Models\AuditLog;
 use App\Models\Hostel;
 use App\Models\HostelBed;
 use App\Models\HostelRoom;
@@ -3812,6 +3813,221 @@ class BedAllocationManagementTest extends TestCase
                 ->where('event_id', $sourceEvent['event_id'])
                 ->count()
         );
+    }
+
+    public function test_boarding_integrity_occupied_hostel_type_cannot_change(): void
+    {
+        [$school, $user] = $this->authorizedSchoolUser();
+        $this->withToken($this->tokenFor($user));
+
+        foreach ([
+            ['Male', 'BOYS', 'GIRLS'],
+            ['Female', 'GIRLS', 'BOYS'],
+        ] as [$gender, $original, $destination]) {
+            $learner = $this->learner($school, $gender, 'boarder', 'active', true);
+            $bed = $this->boardingBed($school, $original);
+            $room = DB::table('hostel_rooms')->where('id', $bed->room_id)->first();
+            $hostelId = (string) $room->hostel_id;
+
+            $allocation = app(BedAllocationService::class)->allocate(
+                (string) $school->id,
+                (string) $learner->id,
+                (string) $bed->id,
+                (string) $user->id
+            );
+
+            // Occupancy remains authoritative even after learner withdrawal.
+            $learner->lifecycle_status = 'withdrawn';
+            $learner->active = false;
+            $learner->save();
+
+            $before = $this->boardingIntegritySnapshot();
+
+            $this->patchJson('/api/boarding/hostels/'.$hostelId, [
+                'hostel_type' => $destination,
+            ])->assertUnprocessable()->assertJsonValidationErrors('hostel_type');
+
+            $this->assertSame($before, $this->boardingIntegritySnapshot());
+
+            // Other edits remain possible while occupied.
+            $this->patchJson('/api/boarding/hostels/'.$hostelId, [
+                'hostel_name' => 'Occupied hostel '.Str::random(10),
+            ])->assertOk();
+
+            app(BedAllocationService::class)->release(
+                (string) $school->id,
+                (string) $allocation->id,
+                (string) $user->id,
+                'Release before hostel reclassification'
+            );
+
+            $this->patchJson('/api/boarding/hostels/'.$hostelId, [
+                'hostel_type' => $destination,
+            ])->assertOk()->assertJsonPath('data.hostel_type', $destination);
+
+            $this->assertDatabaseHas('bed_allocations', [
+                'id' => $allocation->id,
+                'active' => false,
+                'status' => 'released',
+            ]);
+        }
+    }
+
+    public function test_boarding_integrity_failed_allocation_audit_rolls_back(): void
+    {
+        [$school, $user] = $this->authorizedSchoolUser();
+        $learner = $this->learner($school, 'Male', 'boarder', 'active', true);
+        $bed = $this->boardingBed($school, 'BOYS');
+
+        $this->withToken($this->tokenFor($user));
+        $before = $this->boardingIntegritySnapshot();
+
+        $this->withFailingBoardingAudit(function () use ($learner, $bed): void {
+            $this->postJson(self::ENDPOINT, [
+                'learner_id' => $learner->id,
+                'bed_id' => $bed->id,
+            ])->assertStatus(500);
+        });
+
+        $this->assertSame($before, $this->boardingIntegritySnapshot());
+    }
+
+    public function test_boarding_integrity_failed_lifecycle_audits_preserve_source_and_history(): void
+    {
+        [$school, $user] = $this->authorizedSchoolUser();
+        $learner = $this->learner($school, 'Male', 'boarder', 'active', true);
+        $sourceBed = $this->boardingBed($school, 'BOYS');
+        $destinationBed = $this->boardingBed($school, 'BOYS');
+
+        $allocation = app(BedAllocationService::class)->allocate(
+            (string) $school->id,
+            (string) $learner->id,
+            (string) $sourceBed->id,
+            (string) $user->id
+        );
+
+        $this->withToken($this->tokenFor($user));
+
+        foreach (['release', 'transfer'] as $action) {
+            $before = $this->boardingIntegritySnapshot();
+
+            $this->withFailingBoardingAudit(function () use (
+                $action, $allocation, $destinationBed
+            ): void {
+                $url = self::ENDPOINT.'/'.$allocation->id.'/'.$action;
+
+                if ($action === 'release') {
+                    $this->patchJson($url, ['reason' => 'Audit rollback test'])
+                        ->assertStatus(500);
+                } else {
+                    $this->postJson($url, [
+                        'destination_bed_id' => $destinationBed->id,
+                        'reason' => 'Audit rollback test',
+                    ])->assertStatus(500);
+                }
+            });
+
+            $this->assertSame($before, $this->boardingIntegritySnapshot());
+        }
+    }
+
+    public function test_boarding_integrity_structure_and_responsibility_audits_are_atomic(): void
+    {
+        [$school, $user] = $this->authorizedSchoolUser();
+        $bed = $this->boardingBed($school, 'BOYS');
+        $room = DB::table('hostel_rooms')->where('id', $bed->room_id)->first();
+        $hostelId = (string) $room->hostel_id;
+        $this->withToken($this->tokenFor($user));
+
+        $operations = [
+            fn () => $this->postJson('/api/boarding/hostels', [
+                'hostel_name' => 'Must roll back',
+                'hostel_type' => 'BOYS',
+                'capacity' => 20,
+            ]),
+            fn () => $this->patchJson('/api/boarding/hostels/'.$hostelId, [
+                'hostel_name' => 'Must roll back',
+            ]),
+            fn () => $this->postJson('/api/boarding/hostels/'.$hostelId.'/rooms', [
+                'room_name' => 'Must roll back',
+                'capacity' => 5,
+            ]),
+            fn () => $this->patchJson('/api/boarding/rooms/'.$room->id, [
+                'room_name' => 'Must roll back',
+            ]),
+            fn () => $this->postJson('/api/boarding/rooms/'.$room->id.'/beds', [
+                'bed_number' => 'ROLLBACK',
+            ]),
+            fn () => $this->patchJson('/api/boarding/beds/'.$bed->id, [
+                'bed_number' => 'ROLLBACK',
+            ]),
+            fn () => $this->deleteJson('/api/boarding/beds/'.$bed->id),
+            fn () => $this->postJson(
+                '/api/boarding/hostels/'.$hostelId.'/staff-assignments',
+                [
+                    'user_id' => $user->id,
+                    'responsibility_role' => 'Warden',
+                ]
+            ),
+        ];
+
+        foreach ($operations as $operation) {
+            $before = $this->boardingIntegritySnapshot();
+
+            $this->withFailingBoardingAudit(function () use ($operation): void {
+                $operation()->assertStatus(500);
+            });
+
+            $this->assertSame($before, $this->boardingIntegritySnapshot());
+        }
+
+        $assignment = $this->postJson(
+            '/api/boarding/hostels/'.$hostelId.'/staff-assignments',
+            [
+                'user_id' => $user->id,
+                'responsibility_role' => 'Warden',
+            ]
+        )->assertCreated()->json('data.id');
+
+        $before = $this->boardingIntegritySnapshot();
+
+        $this->withFailingBoardingAudit(function () use ($assignment): void {
+            $this->patchJson('/api/boarding/staff-assignments/'.$assignment.'/end', [
+                'reason' => 'Must roll back',
+            ])->assertStatus(500);
+        });
+
+        $this->assertSame($before, $this->boardingIntegritySnapshot());
+    }
+
+    private function boardingIntegritySnapshot(): array
+    {
+        $snapshot = [];
+
+        foreach ([
+            'hostels', 'hostel_rooms', 'hostel_beds', 'bed_allocations',
+            'bed_allocation_history', 'hostel_staff_assignments', 'audit_logs',
+        ] as $table) {
+            $snapshot[$table] = DB::table($table)->orderBy('id')->get()->toJson();
+        }
+
+        return $snapshot;
+    }
+
+    private function withFailingBoardingAudit(callable $operation): void
+    {
+        $dispatcher = AuditLog::getEventDispatcher();
+        AuditLog::setEventDispatcher(clone $dispatcher);
+
+        try {
+            AuditLog::creating(static function (): void {
+                throw new \RuntimeException('Simulated boarding audit failure.');
+            });
+
+            $operation();
+        } finally {
+            AuditLog::setEventDispatcher($dispatcher);
+        }
     }
 
     private function grantManageBoarding(

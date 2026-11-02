@@ -10,6 +10,7 @@ use App\Models\Hostel;
 use App\Services\Boarding\BoardingStructureService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HostelController extends BoardingController
 {
@@ -55,96 +56,102 @@ class HostelController extends BoardingController
     public function store(
         StoreHostelRequest $request
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
+        return DB::transaction(function () use ($request): JsonResponse {
+            $schoolId = $this->schoolId($request);
 
-        $hostel = $this->boarding->createHostel(
-            $schoolId,
-            $request->validated()
-        );
+            $hostel = $this->boarding->createHostel(
+                $schoolId,
+                $request->validated()
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Create',
-            $hostel,
-            null,
-            $this->auditValues($hostel),
-            'Created boarding hostel.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Create',
+                $hostel,
+                null,
+                $this->auditValues($hostel),
+                'Created boarding hostel.'
+            );
 
-        return response()->json([
-            'message' => 'Hostel created successfully.',
-            'data' => $this->resource($hostel),
-        ], 201);
+            return response()->json([
+                'message' => 'Hostel created successfully.',
+                'data' => $this->resource($hostel),
+            ], 201);
+        });
     }
 
     public function update(
         UpdateHostelRequest $request,
         string $hostel
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
+        return DB::transaction(function () use ($request, $hostel): JsonResponse {
+            $schoolId = $this->schoolId($request);
 
-        $current = $this->boarding->hostel(
-            $schoolId,
-            $hostel
-        );
+            $current = $this->boarding->hostel(
+                $schoolId,
+                $hostel
+            );
 
-        $oldValues = $this->auditValues($current);
+            $oldValues = $this->auditValues($current);
 
-        $updated = $this->boarding->updateHostel(
-            $schoolId,
-            $hostel,
-            $request->validated()
-        );
+            $updated = $this->boarding->updateHostel(
+                $schoolId,
+                $hostel,
+                $request->validated()
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Update',
-            $updated,
-            $oldValues,
-            $this->auditValues($updated),
-            'Updated boarding hostel.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Update',
+                $updated,
+                $oldValues,
+                $this->auditValues($updated),
+                'Updated boarding hostel.'
+            );
 
-        return response()->json([
-            'message' => 'Hostel updated successfully.',
-            'data' => $this->resource($updated),
-        ]);
+            return response()->json([
+                'message' => 'Hostel updated successfully.',
+                'data' => $this->resource($updated),
+            ]);
+        });
     }
 
     public function destroy(
         Request $request,
         string $hostel
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
+        return DB::transaction(function () use ($request, $hostel): JsonResponse {
+            $schoolId = $this->schoolId($request);
 
-        $current = $this->boarding->hostel(
-            $schoolId,
-            $hostel
-        );
+            $current = $this->boarding->hostel(
+                $schoolId,
+                $hostel
+            );
 
-        $oldValues = $this->auditValues($current);
+            $oldValues = $this->auditValues($current);
 
-        $archived = $this->boarding->archiveHostel(
-            $schoolId,
-            $hostel,
-            $this->userId($request)
-        );
+            $archived = $this->boarding->archiveHostel(
+                $schoolId,
+                $hostel,
+                $this->userId($request)
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Archive',
-            $archived,
-            $oldValues,
-            $this->auditValues($archived),
-            'Archived boarding hostel.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Archive',
+                $archived,
+                $oldValues,
+                $this->auditValues($archived),
+                'Archived boarding hostel.'
+            );
 
-        return response()->json([
-            'message' => 'Hostel archived successfully.',
-        ]);
+            return response()->json([
+                'message' => 'Hostel archived successfully.',
+            ]);
+        });
     }
 
     private function resource(Hostel $hostel): array
