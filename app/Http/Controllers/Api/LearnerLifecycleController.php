@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Models\Learner;
 use App\Models\LearnerLifecycleHistory;
+use App\Services\School\LearnerActivationModeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -56,6 +57,7 @@ class LearnerLifecycleController extends BaseCrudController
         );
 
         $validated = $request->validate([
+            'mode_of_study' => 'sometimes|required|in:day_scholar,boarder',
             'status' => [
                 'required',
                 'string',
@@ -74,6 +76,12 @@ class LearnerLifecycleController extends BaseCrudController
 
         $toStatus = (string) $validated['status'];
 
+        if ($toStatus !== 'active' && array_key_exists('mode_of_study', $validated)) {
+            throw ValidationException::withMessages([
+                'mode_of_study' => 'Classification correction is only available when reactivating.',
+            ]);
+        }
+
         $result = DB::transaction(function () use (
             $request,
             $schoolId,
@@ -86,6 +94,9 @@ class LearnerLifecycleController extends BaseCrudController
              * Lock before deriving from_status so concurrent lifecycle
              * mutations cannot record the same starting state.
              */
+            app(LearnerActivationModeService::class)
+                ->lockSchool($schoolId);
+
             $lockedLearner = Learner::query()
                 ->withoutGlobalScopes()
                 ->where('id', $learner)
@@ -124,11 +135,25 @@ class LearnerLifecycleController extends BaseCrudController
                 ]);
             }
 
+            $oldMode = $lockedLearner->mode_of_study;
+
+            if ($toStatus === 'active') {
+                app(LearnerActivationModeService::class)
+                    ->apply(
+                        $lockedLearner,
+                        $validated['mode_of_study'] ?? null,
+                        $userId,
+                        $validated['reason'],
+                        $validated['effective_date']
+                    );
+            }
+
             $newActive = $toStatus === 'active';
 
             $oldValues = [
                 'active' => (bool) $lockedLearner->active,
                 'lifecycle_status' => $fromStatus,
+                'mode_of_study' => $oldMode,
             ];
 
             $now = now();
@@ -163,6 +188,7 @@ class LearnerLifecycleController extends BaseCrudController
             $newValues = [
                 'active' => (bool) $lockedLearner->active,
                 'lifecycle_status' => $lockedLearner->lifecycle_status,
+                'mode_of_study' => $lockedLearner->mode_of_study,
             ];
 
             $this->audit(

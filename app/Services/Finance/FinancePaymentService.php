@@ -23,10 +23,30 @@ class FinancePaymentService
             if (! $method) {
                 throw ValidationException::withMessages(['payment_method_id' => 'An active manual payment method is required.']);
             }
-            $channel = strtolower(str_replace([' ', '-'], '_', $method->method_name));
-            if (! in_array($channel, ['cash', 'cheque', 'bank_deposit', 'bank_transfer', 'other_manual'], true)) {
-                throw ValidationException::withMessages(['payment_method_id' => 'This payment channel is not supported in Finance Phase 1.']);
+            $channel = match (strtolower(str_replace([' ', '-'], '_', trim($method->method_name)))) {
+                'mpesa', 'm_pesa' => 'mpesa',
+                'bank', 'bank_deposit', 'bank_transfer' => 'bank',
+                default => null,
+            };
+            if ($channel === null) {
+                throw ValidationException::withMessages([
+                    'payment_method_id' => 'Select an active manual M-Pesa or Bank payment method.',
+                ]);
             }
+
+            $reference = $data['transaction_reference'] ?? null;
+            if (! is_string($reference)
+                || trim($reference) === ''
+                || strlen(trim($reference)) > 255) {
+                throw ValidationException::withMessages([
+                    'transaction_reference' => 'A transaction reference of at most 255 characters is required.',
+                ]);
+            }
+            $reference = strtoupper(trim($reference));
+
+            // Serialize manual reference checks within this school.
+            DB::table('schools')->where('id', $user->school_id)
+                ->lockForUpdate()->firstOrFail();
             $amount = $this->money->positive($data['amount']);
             $settings = DB::table('finance_settings')->where('school_id', $user->school_id)->where('active', true)->first();
             if (! ($settings?->allow_overpayments ?? false)) {
@@ -35,10 +55,10 @@ class FinancePaymentService
                     throw ValidationException::withMessages(['amount' => 'Payment exceeds the learner outstanding balance and overpayments are disabled.']);
                 }
             }
-            if (! empty($data['transaction_reference']) && Payment::where('school_id', $user->school_id)->where('transaction_reference', $data['transaction_reference'])->exists()) {
+            if (Payment::where('school_id', $user->school_id)->whereRaw('UPPER(BTRIM(transaction_reference)) = ?', [$reference])->exists()) {
                 throw ValidationException::withMessages(['transaction_reference' => 'Transaction reference already exists.']);
             }
-            $payment = Payment::create(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'learner_id' => $account->learner_id, 'payment_method_id' => $method->id, 'receipt_number' => 'RCT-'.now()->format('Ymd').'-'.strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 10)), 'amount' => $amount, 'allocated_amount' => '0.00', 'payment_channel' => $channel, 'transaction_reference' => $data['transaction_reference'] ?? null, 'payment_date' => $data['payment_date'], 'received_by' => $user->id, 'payment_status' => 'pending', 'reversed' => false, 'payer_phone' => $data['payer_phone'] ?? null, 'payer_name' => $data['payer_name'] ?? null, 'remarks' => $data['remarks'] ?? null]);
+            $payment = Payment::create(['id' => (string) Str::uuid(), 'school_id' => $user->school_id, 'learner_id' => $account->learner_id, 'payment_method_id' => $method->id, 'receipt_number' => 'RCT-'.now()->format('Ymd').'-'.strtoupper(substr(str_replace('-', '', (string) Str::uuid()), 0, 10)), 'amount' => $amount, 'allocated_amount' => '0.00', 'payment_channel' => $channel, 'transaction_reference' => $reference, 'payment_date' => $data['payment_date'], 'received_by' => $user->id, 'payment_status' => 'pending', 'reversed' => false, 'payer_phone' => $data['payer_phone'] ?? null, 'payer_name' => $data['payer_name'] ?? null, 'remarks' => $data['remarks'] ?? null]);
             $this->audit->record($user, 'payment_recorded', 'payments', $payment->id, [], ['amount' => $amount]);
 
             return $payment;

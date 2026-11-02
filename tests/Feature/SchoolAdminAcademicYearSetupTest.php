@@ -41,6 +41,7 @@ class SchoolAdminAcademicYearSetupTest extends TestCase
                 'school_code' => 'SCH-'.substr($id, 0, 8),
                 'registration_number' => 'REG-'.$id,
                 'school_type' => 'Primary',
+                'operating_mode' => 'day_and_boarding',
                 'county' => 'Nairobi',
                 'phone' => '0700000000',
                 'email' => $id.'@school.test',

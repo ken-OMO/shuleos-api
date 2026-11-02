@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Models\Learner;
 use App\Models\LearnerModeOfStudyHistory;
+use App\Services\School\SchoolOperatingModePolicy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -59,15 +60,17 @@ class LearnerModeOfStudyController extends BaseCrudController
         }
 
         $validated = $request->validate([
+            'effective_date' => 'required|date_format:Y-m-d|before_or_equal:today',
             'mode_of_study' => [
                 'required',
                 'string',
                 Rule::in(self::MODES),
             ],
             'reason' => [
-                'nullable',
+                'required',
                 'string',
                 'max:500',
+                'regex:/\S/',
             ],
         ]);
 
@@ -93,6 +96,9 @@ class LearnerModeOfStudyController extends BaseCrudController
              * Lock the learner before deriving from_mode so concurrent
              * requests cannot record the same source state.
              */
+            app(SchoolOperatingModePolicy::class)
+                ->assertLearnerModeAllowed($schoolId, $toMode);
+
             $lockedLearner = Learner::query()
                 ->withoutGlobalScopes()
                 ->where('id', $learnerModel->id)
@@ -117,6 +123,15 @@ class LearnerModeOfStudyController extends BaseCrudController
                 ]);
             }
 
+            if ($toMode === 'day_scholar' && DB::table('bed_allocations')
+                ->where('school_id', $schoolId)
+                ->where('learner_id', $lockedLearner->id)
+                ->where('active', true)->exists()) {
+                throw ValidationException::withMessages([
+                    'mode_of_study' => 'Release the active bed allocation before selecting Day Scholar.',
+                ]);
+            }
+
             $fromMode = $lockedLearner->mode_of_study;
 
             $oldValues = [
@@ -132,6 +147,7 @@ class LearnerModeOfStudyController extends BaseCrudController
                     'learner_id' => $lockedLearner->id,
                     'from_mode' => $fromMode,
                     'to_mode' => $toMode,
+                    'effective_date' => $validated['effective_date'],
                     'reason' => $validated['reason'] ?? null,
                     'changed_by' => $userId,
                     'changed_at' => $now,
@@ -209,6 +225,7 @@ class LearnerModeOfStudyController extends BaseCrudController
             'learner_id' => $change->learner_id,
             'from_mode' => $change->from_mode,
             'to_mode' => $change->to_mode,
+            'effective_date' => $change->effective_date,
             'reason' => $change->reason,
             'changed_at' => $change->changed_at,
         ];

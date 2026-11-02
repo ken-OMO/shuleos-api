@@ -12,6 +12,7 @@ class SchoolSetupReadinessService
         'short_name',
         'registration_number',
         'school_type',
+        'operating_mode',
         'county',
         'phone',
         'email',

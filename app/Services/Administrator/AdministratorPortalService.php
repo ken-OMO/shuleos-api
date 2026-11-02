@@ -70,24 +70,91 @@ class AdministratorPortalService
 
     public function updateSchool(User $user, array $data): School
     {
-        $school = $this->access->school($user);
-        $allowed = ['school_name', 'short_name', 'registration_number', 'school_type', 'postal_address', 'physical_address', 'county', 'sub_county', 'phone', 'email', 'website', 'motto', 'timezone', 'locale', 'academic_contact', 'finance_contact', 'communication_contact'];
-        foreach (['email', 'phone'] as $verifiedContact) {
-            if (array_key_exists($verifiedContact, $data) && filled($school->{$verifiedContact}) && $data[$verifiedContact] !== $school->{$verifiedContact}) {
-                throw ValidationException::withMessages([$verifiedContact => 'Use the verified contact-change workflow to replace this contact.']);
-            }
-        }
-        $old = collect($school->toArray())->only($allowed)->all();
-        $school->update(collect($data)->only($allowed)->map(fn ($value) => is_string($value) ? strip_tags($value) : $value)->all());
-        $this->audit->record($user, 'school_profile_updated', 'schools', $school->id, $old, collect($school->fresh()->toArray())->only($allowed)->all());
+        $scope = $this->access->require($user, 'manage_school_profile');
+        abort_if($scope['platform'] || ! $scope['school_id'], 403);
 
-        return $school->fresh();
+        return DB::transaction(function () use ($user, $data, $scope) {
+            $school = School::query()
+                ->whereKey($scope['school_id'])
+                ->where('is_deleted', false)
+                ->lockForUpdate()->firstOrFail();
+
+            $allowed = [
+                'school_name', 'short_name', 'registration_number', 'school_type',
+                'operating_mode', 'postal_address', 'physical_address', 'county',
+                'sub_county', 'phone', 'email', 'website', 'motto', 'timezone',
+                'locale', 'academic_contact', 'finance_contact', 'communication_contact',
+            ];
+
+            if (array_key_exists('operating_mode', $data)) {
+                validator($data, [
+                    'operating_mode' => 'required|in:day,boarding,day_and_boarding',
+                ])->validate();
+
+                $mode = $data['operating_mode'];
+
+                if ($mode !== $school->operating_mode) {
+                    // Check occupancy independently, including inactive learners.
+                    if ($mode === 'day' && DB::table('bed_allocations')
+                        ->where('school_id', $school->id)
+                        ->where('active', true)->exists()) {
+                        throw ValidationException::withMessages([
+                            'operating_mode' => 'Release active bed allocations before selecting Day.',
+                        ]);
+                    }
+
+                    $incompatible = match ($mode) {
+                        'day' => 'boarder',
+                        'boarding' => 'day_scholar',
+                        default => null,
+                    };
+
+                    if ($incompatible !== null && DB::table('learners')
+                        ->where('school_id', $school->id)
+                        ->where('active', true)
+                        ->where('is_deleted', false)
+                        ->where('mode_of_study', $incompatible)->exists()) {
+                        throw ValidationException::withMessages([
+                            'operating_mode' => 'Active learners conflict with the requested school operating mode.',
+                        ]);
+                    }
+                }
+            }
+
+            foreach (['email', 'phone'] as $verifiedContact) {
+                if (array_key_exists($verifiedContact, $data)
+                    && filled($school->{$verifiedContact})
+                    && $data[$verifiedContact] !== $school->{$verifiedContact}) {
+                    throw ValidationException::withMessages([
+                        $verifiedContact => 'Use the verified contact-change workflow to replace this contact.',
+                    ]);
+                }
+            }
+
+            $old = collect($school->toArray())->only($allowed)->all();
+            $school->update(
+                collect($data)->only($allowed)
+                    ->map(fn ($value) => is_string($value) ? strip_tags($value) : $value)
+                    ->all()
+            );
+
+            $this->audit->record(
+                $user,
+                'school_profile_updated',
+                'schools',
+                $school->id,
+                $old,
+                collect($school->fresh()->toArray())->only($allowed)->all()
+            );
+
+            return $school->fresh();
+        });
     }
 
     public function completeness(User $user): array
     {
         $school = $this->access->school($user);
-        $fields = ['school_name', 'short_name', 'registration_number', 'school_type', 'county', 'phone', 'email', 'timezone', 'locale'];
+        $fields = ['school_name', 'short_name', 'registration_number', 'school_type', 'operating_mode', 'county', 'phone', 'email', 'timezone', 'locale'];
         $missing = collect($fields)->filter(fn ($field) => blank($school->{$field}))->values();
         $setup = $this->academicSetup($user);
         $missing = $missing->merge(collect($setup['missing'])->map(fn ($item) => 'academic:'.$item));
@@ -193,7 +260,7 @@ class AdministratorPortalService
 
     public function safeSchool(School $school): array
     {
-        return collect($school->toArray())->only(['id', 'school_name', 'short_name', 'school_code', 'email', 'phone', 'county', 'sub_county', 'postal_address', 'physical_address', 'school_type', 'ownership', 'registration_number', 'website', 'motto', 'timezone', 'locale', 'academic_contact', 'finance_contact', 'communication_contact', 'lifecycle_state', 'active', 'created_at', 'updated_at'])->all();
+        return collect($school->toArray())->only(['id', 'school_name', 'short_name', 'school_code', 'email', 'phone', 'county', 'sub_county', 'postal_address', 'physical_address', 'school_type', 'operating_mode', 'ownership', 'registration_number', 'website', 'motto', 'timezone', 'locale', 'academic_contact', 'finance_contact', 'communication_contact', 'lifecycle_state', 'active', 'created_at', 'updated_at'])->all();
     }
 
     private function usersByRole(string $schoolId): mixed

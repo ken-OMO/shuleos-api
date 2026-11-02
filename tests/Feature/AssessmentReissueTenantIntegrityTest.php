@@ -31,6 +31,21 @@ class AssessmentReissueTenantIntegrityTest extends ReportCardTest
             throw new \RuntimeException('An isolated transactional test database is required.');
         }
 
+        // Undo later dependent finance constraints before testing older migrations.
+        // The enclosing test transaction restores the complete current schema.
+        if (Schema::hasColumn('fee_invoice_items', 'school_id')) {
+            $financeMigration = require database_path(
+                'migrations/2026_11_01_130000_harden_school_finance_integrity.php'
+            );
+            if (DB::getSchemaBuilder()->hasColumn('fee_structures', 'charge_target')) {
+                $eligibilityMigration = require database_path(
+                    'migrations/2026_11_02_090000_add_finance_charge_eligibility.php'
+                );
+                $eligibilityMigration->down();
+            }
+            $financeMigration->down();
+        }
+
         // Restore the pre-hardening schema only within this test transaction.
         if (Schema::hasColumn('exam_roster_papers', 'exam_id')) {
             $migration = require database_path(

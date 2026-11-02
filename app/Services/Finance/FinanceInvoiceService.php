@@ -6,6 +6,8 @@ use App\Models\FeeInvoice;
 use App\Models\FeeInvoiceItem;
 use App\Models\LearnerFeeAccount;
 use App\Models\User;
+use App\Services\School\LearnerActivationModeService;
+use App\Services\School\SchoolOperatingModePolicy;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,13 +20,19 @@ class FinanceInvoiceService
     public function generate(User $user, string $learnerId, string $yearId, string $termId): FeeInvoice
     {
         return DB::transaction(function () use ($user, $learnerId, $yearId, $termId) {
+            app(LearnerActivationModeService::class)
+                ->lockSchool((string) $user->school_id);
             $learner = DB::table('learners')->where('id', $learnerId)->where('school_id', $user->school_id)->where('active', true)->where('is_deleted', false)->lockForUpdate()->firstOrFail();
             abort_unless(DB::table('terms')->where('id', $termId)->where('school_id', $user->school_id)->where('academic_year_id', $yearId)->exists(), 422, 'Invalid year and term scope.');
             $existing = FeeInvoice::where('school_id', $user->school_id)->where('learner_id', $learnerId)->where('academic_year_id', $yearId)->where('term_id', $termId)->where('status', '!=', 'cancelled')->lockForUpdate()->first();
             if ($existing) {
                 return $existing;
             }
-            $structures = DB::table('fee_structures')->where('school_id', $user->school_id)->where('academic_year_id', $yearId)->where('term_id', $termId)->where('grade_id', $learner->grade_id)->where('status', 'active')->where('active', true)->where('is_deleted', false)->where(fn ($query) => $query->whereNull('stream_id')->orWhere('stream_id', $learner->stream_id))->orderByRaw('CASE WHEN stream_id IS NULL THEN 1 ELSE 0 END')->get()->unique('fee_category_id');
+            $structures = DB::table('fee_structures')->where('school_id', $user->school_id)->where('academic_year_id', $yearId)->where('term_id', $termId)->where('grade_id', $learner->grade_id)->where('status', 'active')->where('active', true)->where('is_deleted', false)->where(fn ($query) => $query->whereNull('stream_id')->orWhere('stream_id', $learner->stream_id))->orderByRaw("CASE WHEN charge_target = 'all' THEN 1 ELSE 0 END")->orderByRaw('CASE WHEN stream_id IS NULL THEN 1 ELSE 0 END')->orderBy('id')->get();
+            app(SchoolOperatingModePolicy::class)
+                ->assertLearnerModeAllowed((string) $user->school_id, (string) $learner->mode_of_study);
+            $structures = app(FinanceChargeEligibilityService::class)
+                ->select($learner, $structures, $yearId, $termId);
             if ($structures->isEmpty()) {
                 throw ValidationException::withMessages(['structures' => 'No active applicable fee structures found.']);
             }

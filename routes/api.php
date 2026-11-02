@@ -2502,6 +2502,10 @@ Route::prefix('finance')->middleware($secure)->group(function () {
     Route::get('/invoices/{invoice}', [FinanceWorkflowController::class, 'invoice'])->middleware('permission:generate_fee_invoices');
     Route::get('/payments', [FinanceWorkflowController::class, 'payments'])->middleware('permission:record_fee_payments');
     Route::get('/payment-methods', [FinanceWorkflowController::class, 'paymentMethods'])->middleware('permission:record_fee_payments');
+    Route::get('/charge-participations', [FinanceWorkflowController::class, 'chargeParticipations'])
+        ->middleware('permission:manage_fee_structures');
+    Route::put('/charge-participations', [FinanceWorkflowController::class, 'saveChargeParticipation'])
+        ->middleware('permission:manage_fee_structures');
     Route::post('/payments', [FinanceWorkflowController::class, 'recordPayment'])->middleware('permission:record_fee_payments');
     Route::post('/payments/{payment}/confirm', [FinanceWorkflowController::class, 'confirmPayment'])->middleware('permission:confirm_fee_payments');
     Route::post('/payments/{payment}/reverse', [FinanceWorkflowController::class, 'reversePayment'])->middleware('permission:reverse_fee_payments');

@@ -361,6 +361,7 @@ final class TeacherDutySettingsApiTest extends TestCase
                 Str::random(10)
             ),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(10000000, 99999999),
             'email' => Str::lower(Str::random(10)).'@example.test',

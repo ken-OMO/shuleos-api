@@ -8,6 +8,8 @@ use App\Models\AuditLog;
 use App\Models\Grade;
 use App\Models\Learner;
 use App\Models\Stream;
+use App\Services\School\LearnerActivationModeService;
+use App\Services\School\SchoolOperatingModePolicy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +44,7 @@ class LearnerController extends BaseCrudController
     public function restore(Request $request, string $id)
     {
         $validated = $request->validate([
+            'mode_of_study' => 'sometimes|required|in:day_scholar,boarder',
             'reason' => ['required', 'string', 'max:1000'],
         ]);
         $reason = trim($validated['reason']);
@@ -52,6 +55,9 @@ class LearnerController extends BaseCrudController
         }
 
         $learner = DB::transaction(function () use ($request, $id, $reason) {
+            app(LearnerActivationModeService::class)
+                ->lockSchool($this->schoolId($request));
+
             $learner = $this->learnerQuery($request)
                 ->whereKey($id)
                 ->lockForUpdate()
@@ -86,6 +92,20 @@ class LearnerController extends BaseCrudController
             }
 
             $oldValues = $learner->toArray();
+
+            if ($learner->lifecycle_status === 'active') {
+                app(LearnerActivationModeService::class)
+                    ->apply(
+                        $learner,
+                        $request->input('mode_of_study'),
+                        (string) $request->user()->id,
+                        $reason
+                    );
+            } elseif ($request->exists('mode_of_study')) {
+                throw ValidationException::withMessages([
+                    'mode_of_study' => 'Restore this inactive record first, then correct classification during reactivation.',
+                ]);
+            }
 
             // A terminal or unclassified lifecycle remains inactive.
             // Portal settings and linked user-account state are not rewritten.
@@ -165,6 +185,7 @@ class LearnerController extends BaseCrudController
         $schoolId = $this->schoolId($request);
 
         $validated = $request->validate([
+            'mode_of_study' => 'required|in:day_scholar,boarder',
             'admission_no' => [
                 'required',
                 'string',
@@ -256,6 +277,9 @@ class LearnerController extends BaseCrudController
             $schoolId,
             $validated
         ) {
+            app(SchoolOperatingModePolicy::class)
+                ->assertLearnerModeAllowed($schoolId, $validated['mode_of_study']);
+
             $learner = Learner::query()
                 ->withoutGlobalScopes()
                 ->create([
@@ -286,6 +310,7 @@ class LearnerController extends BaseCrudController
              * lifecycle_status deliberately remains outside Learner::$fillable.
              * Admission owns initialization of the canonical lifecycle state.
              */
+            $learner->mode_of_study = $validated['mode_of_study'];
             $learner->lifecycle_status = 'active';
             $learner->save();
             $learner->refresh();

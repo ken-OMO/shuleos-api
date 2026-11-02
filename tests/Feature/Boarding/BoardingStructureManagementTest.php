@@ -880,6 +880,7 @@ class BoardingStructureManagementTest extends TestCase
             'short_name' => 'BRD',
             'registration_number' => 'REG-'.Str::upper(Str::random(10)),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(
                 10000000,

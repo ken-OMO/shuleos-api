@@ -8,6 +8,10 @@ class PaymentMethod extends TenantModel
 {
     use HasFactory;
 
+    public $incrementing = false;
+
+    protected $keyType = 'string';
+
     protected $fillable = [
 
         'school_id',

@@ -56,6 +56,8 @@ class School extends Model
 
         'school_type',
 
+        'operating_mode',
+
         'ownership',
 
         'registration_number',

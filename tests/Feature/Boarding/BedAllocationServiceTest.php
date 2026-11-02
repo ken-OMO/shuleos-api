@@ -12,6 +12,7 @@ use App\Models\Learner;
 use App\Models\Role;
 use App\Models\School;
 use App\Models\User;
+use App\Services\Administrator\AdministratorPortalService;
 use App\Services\Boarding\BedAllocationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -20,6 +21,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\TestCase;
 
 class BedAllocationServiceTest extends TestCase
@@ -2676,6 +2678,149 @@ class BedAllocationServiceTest extends TestCase
         }
     }
 
+    public function test_school_mode_change_rejects_occupied_beds_even_for_inactive_learner(): void
+    {
+        $school = $this->school();
+        $user = $this->user($school);
+        $learner = $this->learner($school, 'Male', 'boarder', 'active', true);
+        $bed = $this->boardingBed($school, 'BOYS', 'MODE-CONFLICT');
+        $allocation = $this->service->allocate(
+            (string) $school->id,
+            (string) $learner->id,
+            (string) $bed->id,
+            (string) $user->id
+        );
+
+        $roleId = DB::table('roles')->where('role_name', 'School Admin')
+            ->whereNull('school_id')->where('system_role', true)
+            ->where('active', true)->value('id');
+        $this->assertNotNull($roleId);
+        $user->update(['role_id' => $roleId]);
+        $user->unsetRelation('role');
+
+        foreach (['access_administrator_portal', 'manage_school_profile'] as $name) {
+            $id = DB::table('permissions')->where('permission_name', $name)->value('id');
+            $this->assertNotNull($id);
+            DB::table('role_permissions')->insertOrIgnore([
+                'id' => (string) Str::uuid(), 'role_id' => $roleId,
+                'permission_id' => $id, 'created_at' => now(),
+            ]);
+        }
+
+        $learner->lifecycle_status = 'withdrawn';
+        $learner->active = false;
+        $learner->save();
+        $before = (array) DB::table('bed_allocations')
+            ->where('id', $allocation->id)->first();
+
+        try {
+            app(AdministratorPortalService::class)
+                ->updateSchool($user, ['operating_mode' => 'day']);
+            $this->fail('Day mode accepted while a bed remains occupied.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('operating_mode', $exception->errors());
+        }
+
+        $this->assertDatabaseHas('schools', [
+            'id' => $school->id, 'operating_mode' => 'day_and_boarding',
+        ]);
+        $this->assertSame(
+            $before,
+            (array) DB::table('bed_allocations')->where('id', $allocation->id)->first()
+        );
+
+        $this->service->release(
+            (string) $school->id,
+            (string) $allocation->id,
+            (string) $user->id,
+            'Release before changing school mode'
+        );
+
+        app(AdministratorPortalService::class)
+            ->updateSchool($user, ['operating_mode' => 'day']);
+
+        $this->assertDatabaseHas('schools', [
+            'id' => $school->id, 'operating_mode' => 'day',
+        ]);
+        $this->assertDatabaseHas('bed_allocations', [
+            'id' => $allocation->id, 'status' => 'released', 'active' => false,
+        ]);
+        $this->assertDatabaseHas('bed_allocation_history', [
+            'source_allocation_id' => $allocation->id, 'event_type' => 'release',
+        ]);
+    }
+
+    public function test_classification_change_requires_bed_release_before_becoming_day_scholar(): void
+    {
+        config(['jwt.secret' => str_repeat('boarding-mode-change-test-', 3)]);
+        $school = $this->school();
+        $user = $this->user($school);
+        $learner = $this->learner($school, 'Male', 'boarder', 'active', true);
+        $bed = $this->boardingBed($school, 'BOYS', 'CLASSIFICATION');
+
+        $permission = DB::table('permissions')
+            ->where('permission_name', 'manage_learners')->value('id');
+        $this->assertNotNull($permission);
+        DB::table('role_permissions')->insertOrIgnore([
+            'id' => (string) Str::uuid(),
+            'role_id' => $user->role_id,
+            'permission_id' => $permission,
+            'created_at' => now(),
+        ]);
+
+        $allocation = $this->service->allocate(
+            (string) $school->id,
+            (string) $learner->id,
+            (string) $bed->id,
+            (string) $user->id
+        );
+
+        $token = JWTAuth::fromUser($user);
+        JWTAuth::setToken($token);
+        $this->withToken($token);
+
+        $url = '/api/learners/'.$learner->id.'/mode-of-study';
+        $data = [
+            'mode_of_study' => 'day_scholar',
+            'effective_date' => now()->toDateString(),
+            'reason' => 'Learner moves to day schooling',
+        ];
+        $historyBefore = DB::table('learner_mode_of_study_history')->count();
+
+        $this->patchJson($url, $data)->assertUnprocessable()
+            ->assertJsonValidationErrors('mode_of_study');
+
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id, 'mode_of_study' => 'boarder',
+        ]);
+        $this->assertDatabaseHas('bed_allocations', [
+            'id' => $allocation->id, 'active' => true, 'status' => 'active',
+        ]);
+        $this->assertSame(
+            $historyBefore, DB::table('learner_mode_of_study_history')->count()
+        );
+
+        $this->service->release(
+            (string) $school->id,
+            (string) $allocation->id,
+            (string) $user->id,
+            'Release before study-mode change'
+        );
+
+        $this->patchJson($url, $data)->assertOk()
+            ->assertJsonPath('data.mode_of_study', 'day_scholar');
+
+        $this->assertDatabaseHas('bed_allocations', [
+            'id' => $allocation->id, 'active' => false, 'status' => 'released',
+        ]);
+        $this->assertDatabaseHas('learner_mode_of_study_history', [
+            'learner_id' => $learner->id,
+            'from_mode' => 'boarder',
+            'to_mode' => 'day_scholar',
+            'effective_date' => now()->toDateString(),
+        ]);
+    }
+
     private function school(): School
     {
         return School::query()->create([
@@ -2691,6 +2836,7 @@ class BedAllocationServiceTest extends TestCase
                 Str::random(10)
             ),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(
                 10000000,

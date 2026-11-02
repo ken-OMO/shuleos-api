@@ -749,8 +749,9 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'is_deleted' => false,
         ]);
 
+        $feeAccountId = (string) Str::uuid();
         DB::table('learner_fee_accounts')->insert([
-            'id' => (string) Str::uuid(),
+            'id' => $feeAccountId,
             'school_id' => $school->id,
             'learner_id' => $learner->id,
             'account_number' => 'ARCHIVE-'.Str::random(12),
@@ -767,6 +768,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         $invoiceId = (string) Str::uuid();
         DB::table('fee_invoices')->insert([
             'id' => $invoiceId,
+            'learner_fee_account_id' => $feeAccountId,
             'school_id' => $school->id,
             'learner_id' => $learner->id,
             'academic_year_id' => $year->id,
@@ -775,7 +777,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'total_amount' => 2000,
             'amount_paid' => 750,
             'balance' => 1250,
-            'status' => 'UNPAID',
+            'status' => 'partially_paid',
             'invoice_date' => now()->toDateString(),
         ]);
 
@@ -789,6 +791,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'transaction_type' => 'INVOICE',
             'reference_type' => 'fee_invoice',
             'reference_id' => $invoiceId,
+            'learner_fee_account_id' => $feeAccountId,
             'debit_amount' => 2000,
             'credit_amount' => 0,
             'running_balance' => 2000,
@@ -1146,6 +1149,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'short_name' => 'LRN',
             'registration_number' => 'REG-'.Str::upper(Str::random(10)),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(10000000, 99999999),
             'email' => Str::lower(Str::random(10)).'@example.test',
@@ -1252,6 +1256,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
     {
         return [
             'admission_no' => 'ADM-001',
+            'mode_of_study' => 'day_scholar',
             'first_name' => 'Amina',
             'middle_name' => 'Njeri',
             'last_name' => 'Kamau',
@@ -1271,7 +1276,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         Stream $stream,
         string $admissionNo = 'ADM-EXISTING'
     ): Learner {
-        return Learner::query()->withoutGlobalScopes()->create([
+        $learner = Learner::query()->withoutGlobalScopes()->create([
             'id' => (string) Str::uuid(),
             'school_id' => $school->id,
             'admission_no' => $admissionNo,
@@ -1284,6 +1289,11 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'is_deleted' => false,
             'portal_enabled' => false,
         ]);
+
+        $learner->mode_of_study = 'day_scholar';
+        $learner->save();
+
+        return $learner->refresh();
     }
 
     private function tokenFor(User $user): string

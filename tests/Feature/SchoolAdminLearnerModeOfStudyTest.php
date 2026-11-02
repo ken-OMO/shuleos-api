@@ -41,6 +41,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'day_scholar',
                     'reason' => 'Initial mode assignment.',
                 ]
@@ -78,6 +79,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -117,6 +120,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'boarder',
                     'reason' => 'Approved boarding request.',
                 ]
@@ -153,6 +157,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'day_scholar',
                     'reason' => 'Approved day scholar request.',
                 ]
@@ -186,6 +191,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'day_scholar',
                 ]
             )
@@ -210,6 +217,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'day_with_transport',
                 ]
             )
@@ -231,7 +240,9 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
         $this->withToken($this->tokenFor($user))
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
-                []
+                [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change', ]
             )
             ->assertStatus(422)
             ->assertJsonValidationErrors('mode_of_study');
@@ -247,6 +258,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'boarder',
                     'reason' => str_repeat('x', 501),
                 ]
@@ -280,6 +292,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$foreignLearner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -308,6 +322,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -340,6 +356,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -439,6 +457,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'day_scholar',
                     'reason' => 'Initial assignment.',
                 ]
@@ -449,6 +468,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'boarder',
                     'reason' => 'Boarding approved.',
                 ]
@@ -459,6 +479,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$foreignLearner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -565,6 +587,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
                     'mode_of_study' => 'boarder',
                     'reason' => 'Valid reason.',
                     'school_id' => $foreignSchool->id,
@@ -603,6 +626,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -691,6 +716,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
         $this->patchJson(
             "/api/learners/{$learner->id}/mode-of-study",
             [
+                'effective_date' => now()->toDateString(),
+                'reason' => 'Classification test change',
                 'mode_of_study' => 'boarder',
             ]
         )
@@ -709,6 +736,8 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             ->patchJson(
                 "/api/learners/{$learner->id}/mode-of-study",
                 [
+                    'effective_date' => now()->toDateString(),
+                    'reason' => 'Classification test change',
                     'mode_of_study' => 'boarder',
                 ]
             )
@@ -776,6 +805,7 @@ class SchoolAdminLearnerModeOfStudyTest extends TestCase
             'short_name' => 'LRN',
             'registration_number' => 'REG-'.Str::upper(Str::random(10)),
             'school_type' => 'Primary',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '+2547'.random_int(
                 10000000,

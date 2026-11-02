@@ -26,6 +26,8 @@ class FeeStructure extends TenantModel
         'stream_id',
 
         'fee_category_id',
+        'charge_target',
+        'requires_participation',
 
         'payment_plan_id',
 

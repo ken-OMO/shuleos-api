@@ -126,6 +126,7 @@ class SchoolAdminInitialSetupTest extends TestCase
             'short_name' => 'Setup',
             'registration_number' => 'REG-'.Str::upper(Str::random(8)),
             'school_type' => 'Junior School',
+            'operating_mode' => 'day_and_boarding',
             'county' => 'Nairobi',
             'phone' => '07'.random_int(10000000, 99999999),
             'email' => 'setup-'.Str::lower(Str::random(8)).'@example.test',
