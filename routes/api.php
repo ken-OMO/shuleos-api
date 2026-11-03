@@ -19,6 +19,11 @@ use App\Http\Controllers\Api\BehaviourLeadershipController;
 use App\Http\Controllers\Api\BehaviourLearnerController;
 use App\Http\Controllers\Api\BehaviourParentController;
 use App\Http\Controllers\Api\BehaviourTeacherController;
+use App\Http\Controllers\Api\BoardingDailyReportController;
+use App\Http\Controllers\Api\BoardingOccurrenceCategoryController;
+use App\Http\Controllers\Api\BoardingReportingObligationController;
+use App\Http\Controllers\Api\BoardingReportingPolicyController;
+use App\Http\Controllers\Api\BoardingReportOccurrenceController;
 use App\Http\Controllers\Api\CommunicationController;
 use App\Http\Controllers\Api\CommunicationPhaseTwoController;
 use App\Http\Controllers\Api\CommunicationWebhookController;
@@ -2815,3 +2820,108 @@ Route::prefix('assessment-reissues')->middleware($secure)->group(function () {
     Route::post('/{reissue}/publish', [$controller, 'publish'])
         ->whereUuid('reissue')->middleware('permission:publish_assessment_reissues');
 });
+
+// Reporting services enforce their own permissions and dated responsibility.
+// Keep facility-management module gates on the existing boarding routes.
+Route::prefix('boarding/reporting')
+    ->middleware(['jwt', 'tenant'])
+    ->group(function () {
+        $controller = BoardingDailyReportController::class;
+
+        Route::get('/reports/{report}', [$controller, 'show'])
+            ->whereUuid('report')
+            ->name('boarding.reporting.show');
+
+        Route::post('/obligations/{obligation}/report', [$controller, 'open'])
+            ->whereUuid('obligation')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.open');
+
+        Route::patch('/revisions/{revision}', [$controller, 'updateDraft'])
+            ->whereUuid('revision')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.update');
+
+        Route::post('/revisions/{revision}/submit', [$controller, 'submit'])
+            ->whereUuid('revision')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.submit');
+
+        Route::post('/reports/{report}/corrections', [$controller, 'correction'])
+            ->whereUuid('report')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.correction');
+
+        Route::post('/submissions/{submission}/review', [$controller, 'review'])
+            ->whereUuid('submission')
+            ->middleware('permission:review_boarding_reports')
+            ->name('boarding.reporting.review');
+    });
+
+Route::prefix('boarding/reporting')
+    ->middleware(['jwt', 'tenant'])
+    ->group(function () {
+        $controller = BoardingReportOccurrenceController::class;
+
+        Route::get('/reports/{report}/occurrences', [$controller, 'index'])
+            ->whereUuid('report')
+            ->name('boarding.reporting.occurrences.index');
+
+        Route::post('/revisions/{revision}/occurrences', [$controller, 'store'])
+            ->whereUuid('revision')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.occurrences.store');
+
+        Route::post(
+            '/revisions/{revision}/occurrences/{event}/corrections',
+            [$controller, 'correct']
+        )->whereUuid('revision')->whereUuid('event')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.occurrences.correct');
+
+        Route::post(
+            '/revisions/{revision}/occurrences/{event}/void',
+            [$controller, 'void']
+        )->whereUuid('revision')->whereUuid('event')
+            ->middleware('permission:record_boarding_operations')
+            ->name('boarding.reporting.occurrences.void');
+    });
+
+Route::prefix('boarding/reporting')
+    ->middleware(['jwt', 'tenant', 'permission:configure_boarding_reporting'])
+    ->group(function () {
+        $controller = BoardingReportingPolicyController::class;
+
+        Route::get('/policies', [$controller, 'index'])
+            ->name('boarding.reporting.policies.index');
+
+        Route::post('/policies', [$controller, 'configure'])
+            ->name('boarding.reporting.policies.configure');
+
+        Route::post('/obligations/materialize-today', [$controller, 'materialize'])
+            ->name('boarding.reporting.policies.materialize');
+    });
+
+Route::prefix('boarding/reporting')
+    ->middleware(['jwt', 'tenant'])
+    ->group(function () {
+        $controller = BoardingOccurrenceCategoryController::class;
+
+        Route::get('/occurrence-categories', [$controller, 'index'])
+            ->name('boarding.reporting.categories.index');
+
+        Route::post('/occurrence-categories', [$controller, 'store'])
+            ->middleware('permission:configure_boarding_reporting')
+            ->name('boarding.reporting.categories.store');
+
+        Route::patch('/occurrence-categories/{category}', [$controller, 'update'])
+            ->whereUuid('category')
+            ->middleware('permission:configure_boarding_reporting')
+            ->name('boarding.reporting.categories.update');
+    });
+
+Route::get(
+    '/boarding/reporting/obligations',
+    [BoardingReportingObligationController::class, 'index']
+)->middleware(['jwt', 'tenant'])
+    ->name('boarding.reporting.obligations.index');

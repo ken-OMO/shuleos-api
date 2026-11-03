@@ -27,7 +27,7 @@ abstract class BoardingController extends BaseCrudController
 
         $schoolId = $this->schoolId($request);
 
-        abort_unless((string) $model->school_id === $schoolId, 403);
+        abort_unless((string) $model->getAttribute('school_id') === $schoolId, 403);
 
         AuditLog::create([
             'school_id' => $schoolId,
