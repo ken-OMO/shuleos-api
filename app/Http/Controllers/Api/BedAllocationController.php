@@ -12,6 +12,7 @@ use App\Models\BedAllocationHistory;
 use App\Services\Boarding\BedAllocationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BedAllocationController extends BoardingController
 {
@@ -24,101 +25,107 @@ class BedAllocationController extends BoardingController
     public function store(
         StoreBedAllocationRequest $request
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
+        return DB::transaction(function () use ($request): JsonResponse {
+            $schoolId = $this->schoolId($request);
 
-        $validated = $request->validated();
+            $validated = $request->validated();
 
-        $allocation = $this->allocations->allocate(
-            $schoolId,
-            (string) $validated['learner_id'],
-            (string) $validated['bed_id'],
-            $this->userId($request)
-        );
+            $allocation = $this->allocations->allocate(
+                $schoolId,
+                (string) $validated['learner_id'],
+                (string) $validated['bed_id'],
+                $this->userId($request)
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Create',
-            $allocation,
-            null,
-            $this->auditValues($allocation),
-            'Allocated boarding hostel bed to learner.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Create',
+                $allocation,
+                null,
+                $this->auditValues($allocation),
+                'Allocated boarding hostel bed to learner.'
+            );
 
-        return response()->json([
-            'message' => 'Bed allocated successfully.',
-            'data' => $this->resource($allocation),
-        ], 201);
+            return response()->json([
+                'message' => 'Bed allocated successfully.',
+                'data' => $this->resource($allocation),
+            ], 201);
+        });
     }
 
     public function release(
         ReleaseBedAllocationRequest $request,
         string $allocation
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
-        $validated = $request->validated();
+        return DB::transaction(function () use ($request, $allocation): JsonResponse {
+            $schoolId = $this->schoolId($request);
+            $validated = $request->validated();
 
-        $released = $this->allocations->release(
-            $schoolId,
-            $allocation,
-            $this->userId($request),
-            isset($validated['reason'])
-                ? (string) $validated['reason']
-                : null
-        );
+            $released = $this->allocations->release(
+                $schoolId,
+                $allocation,
+                $this->userId($request),
+                isset($validated['reason'])
+                    ? (string) $validated['reason']
+                    : null
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Release',
-            $released,
-            null,
-            $this->auditValues($released),
-            'Released learner boarding bed allocation.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Release',
+                $released,
+                null,
+                $this->auditValues($released),
+                'Released learner boarding bed allocation.'
+            );
 
-        return response()->json([
-            'message' => 'Bed allocation released successfully.',
-            'data' => $this->resource($released),
-        ]);
+            return response()->json([
+                'message' => 'Bed allocation released successfully.',
+                'data' => $this->resource($released),
+            ]);
+        });
     }
 
     public function transfer(
         TransferBedAllocationRequest $request,
         string $allocation
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
-        $validated = $request->validated();
+        return DB::transaction(function () use ($request, $allocation): JsonResponse {
+            $schoolId = $this->schoolId($request);
+            $validated = $request->validated();
 
-        $destination = $this->allocations->transfer(
-            $schoolId,
-            $allocation,
-            (string) $validated['destination_bed_id'],
-            $this->userId($request),
-            isset($validated['reason'])
-                ? (string) $validated['reason']
-                : null
-        );
+            $destination = $this->allocations->transfer(
+                $schoolId,
+                $allocation,
+                (string) $validated['destination_bed_id'],
+                $this->userId($request),
+                isset($validated['reason'])
+                    ? (string) $validated['reason']
+                    : null
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Transfer',
-            $destination,
-            null,
-            array_merge(
-                $this->auditValues($destination),
-                [
-                    'source_allocation_id' => $allocation,
-                ]
-            ),
-            'Transferred learner boarding bed allocation.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Transfer',
+                $destination,
+                null,
+                array_merge(
+                    $this->auditValues($destination),
+                    [
+                        'source_allocation_id' => $allocation,
+                    ]
+                ),
+                'Transferred learner boarding bed allocation.'
+            );
 
-        return response()->json([
-            'message' => 'Bed allocation transferred successfully.',
-            'data' => $this->resource($destination),
-        ]);
+            return response()->json([
+                'message' => 'Bed allocation transferred successfully.',
+                'data' => $this->resource($destination),
+            ]);
+        });
     }
 
     public function history(

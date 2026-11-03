@@ -11,6 +11,7 @@ use App\Services\Administrator\AdministratorImportService;
 use App\Services\Administrator\Operations\AdministratorIntegrationService;
 use App\Services\Administrator\Operations\AdministratorRecoveryService;
 use App\Services\Attendance\AttendanceIntelligenceService;
+use App\Services\Boarding\BoardingReportingSchedulerService;
 use App\Services\Communication\CommunicationDigestService;
 use App\Services\Communication\CommunicationSandboxSmokeService;
 use App\Services\Communication\CommunicationService;
@@ -25,6 +26,7 @@ use App\Services\TeacherDuty\TeacherDutyNotificationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Str;
 use Symfony\Component\Console\Command\Command;
 
@@ -375,3 +377,37 @@ Artisan::command('admin-ops:cleanup-operational-history {--limit=500}', function
     $runs = DB::table('administrator_scheduler_runs')->whereIn('status', ['completed', 'failed'])->where('updated_at', '<', now()->subDays(90))->limit($limit)->delete();
     $this->info("Removed {$previews} expired one-time previews and {$runs} old scheduler run receipts; audit and change histories were preserved.");
 })->purpose('Clean bounded transient operational receipts while preserving audit history');
+
+Artisan::command(
+    'boarding:materialize-reporting-obligations',
+    function (BoardingReportingSchedulerService $service) {
+        $result = $service->run();
+
+        if (! $result['enabled']) {
+            $this->info('Boarding reporting scheduler disabled.');
+
+            return Command::SUCCESS;
+        }
+
+        foreach ($result['schools'] as $school) {
+            if ($school['status'] !== 'completed') {
+                $this->warn('Boarding reporting access unavailable for school '.$school['school_id'].'.');
+            }
+        }
+
+        $this->info(
+            'Boarding reporting obligations: created='.$result['created']
+            .', failed='.$result['failed'].'.'
+        );
+
+        return $result['failed'] > 0
+            ? Command::FAILURE
+            : Command::SUCCESS;
+    }
+)->purpose('Materialize current-day boarding obligations for explicitly configured school actors');
+
+Schedule::command('boarding:materialize-reporting-obligations')
+    ->name('boarding-reporting-obligations')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->when(fn (): bool => (bool) config('boarding_reporting.scheduler_enabled', false));

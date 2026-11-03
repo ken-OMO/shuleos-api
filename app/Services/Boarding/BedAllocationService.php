@@ -98,9 +98,9 @@ class BedAllocationService
                 $allocation->school_id = $schoolId;
                 $allocation->learner_id = $learner->id;
                 $allocation->bed_id = $bed->id;
-                $allocation->allocation_date = CarbonImmutable::now(
+                $allocation->setAttribute('allocation_date', CarbonImmutable::now(
                     $school->timezone ?: config('app.timezone')
-                )->toDateString();
+                )->toDateString());
                 $allocation->release_date = null;
                 $allocation->active = true;
                 $allocation->status = 'active';
@@ -300,7 +300,7 @@ class BedAllocationService
                  */
                 $source->status = 'transferred';
                 $source->active = false;
-                $source->release_date = $effectiveDate;
+                $source->setAttribute('release_date', $effectiveDate);
                 $source->save();
 
                 /*
@@ -312,7 +312,7 @@ class BedAllocationService
                 $destination->school_id = $schoolId;
                 $destination->learner_id = $learner->id;
                 $destination->bed_id = $destinationBed->id;
-                $destination->allocation_date = $effectiveDate;
+                $destination->setAttribute('allocation_date', $effectiveDate);
                 $destination->release_date = null;
                 $destination->active = true;
                 $destination->status = 'active';
@@ -336,7 +336,7 @@ class BedAllocationService
                 $history->destination_allocation_id = $destination->id;
                 $history->from_status = 'active';
                 $history->to_status = 'transferred';
-                $history->effective_date = $effectiveDate;
+                $history->setAttribute('effective_date', $effectiveDate);
                 $history->reason = $reason;
                 $history->changed_by = $actor->id;
                 $history->changed_at = now();
@@ -421,7 +421,7 @@ class BedAllocationService
 
             $source->status = 'released';
             $source->active = false;
-            $source->release_date = $effectiveDate;
+            $source->setAttribute('release_date', $effectiveDate);
             $source->save();
 
             $history = new BedAllocationHistory;
@@ -435,7 +435,7 @@ class BedAllocationService
             $history->destination_allocation_id = null;
             $history->from_status = 'active';
             $history->to_status = 'released';
-            $history->effective_date = $effectiveDate;
+            $history->setAttribute('effective_date', $effectiveDate);
             $history->reason = $reason;
             $history->changed_by = $actor->id;
             $history->changed_at = now();

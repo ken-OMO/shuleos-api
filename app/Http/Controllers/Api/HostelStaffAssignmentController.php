@@ -10,6 +10,7 @@ use App\Models\HostelStaffAssignment;
 use App\Services\Boarding\BoardingStaffResponsibilityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class HostelStaffAssignmentController extends BoardingController
 {
@@ -43,34 +44,36 @@ class HostelStaffAssignmentController extends BoardingController
         StoreHostelStaffAssignmentRequest $request,
         string $hostel
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
-        $validated = $request->validated();
+        return DB::transaction(function () use ($request, $hostel): JsonResponse {
+            $schoolId = $this->schoolId($request);
+            $validated = $request->validated();
 
-        $assignment = $this->responsibilities->assign(
-            $schoolId,
-            $hostel,
-            (string) $validated['user_id'],
-            (string) $validated['responsibility_role'],
-            isset($validated['effective_from'])
-                ? (string) $validated['effective_from']
-                : null,
-            $this->userId($request)
-        );
+            $assignment = $this->responsibilities->assign(
+                $schoolId,
+                $hostel,
+                (string) $validated['user_id'],
+                (string) $validated['responsibility_role'],
+                isset($validated['effective_from'])
+                    ? (string) $validated['effective_from']
+                    : null,
+                $this->userId($request)
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'Create',
-            $assignment,
-            null,
-            $this->auditValues($assignment),
-            'Assigned boarding hostel staff responsibility.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'Create',
+                $assignment,
+                null,
+                $this->auditValues($assignment),
+                'Assigned boarding hostel staff responsibility.'
+            );
 
-        return response()->json([
-            'message' => 'Hostel staff responsibility assigned successfully.',
-            'data' => $this->resource($assignment),
-        ], 201);
+            return response()->json([
+                'message' => 'Hostel staff responsibility assigned successfully.',
+                'data' => $this->resource($assignment),
+            ], 201);
+        });
     }
 
     public function history(
@@ -97,39 +100,41 @@ class HostelStaffAssignmentController extends BoardingController
         EndHostelStaffAssignmentRequest $request,
         string $assignment
     ): JsonResponse {
-        $schoolId = $this->schoolId($request);
+        return DB::transaction(function () use ($request, $assignment): JsonResponse {
+            $schoolId = $this->schoolId($request);
 
-        $current = $this->responsibilities->assignment(
-            $schoolId,
-            $assignment
-        );
+            $current = $this->responsibilities->assignment(
+                $schoolId,
+                $assignment
+            );
 
-        $oldValues = $this->auditValues($current);
-        $validated = $request->validated();
+            $oldValues = $this->auditValues($current);
+            $validated = $request->validated();
 
-        $ended = $this->responsibilities->end(
-            $schoolId,
-            $assignment,
-            $this->userId($request),
-            isset($validated['reason'])
-                ? (string) $validated['reason']
-                : null
-        );
+            $ended = $this->responsibilities->end(
+                $schoolId,
+                $assignment,
+                $this->userId($request),
+                isset($validated['reason'])
+                    ? (string) $validated['reason']
+                    : null
+            );
 
-        $this->audit(
-            $request,
-            self::MODULE,
-            'End',
-            $ended,
-            $oldValues,
-            $this->auditValues($ended),
-            'Ended boarding hostel staff responsibility.'
-        );
+            $this->audit(
+                $request,
+                self::MODULE,
+                'End',
+                $ended,
+                $oldValues,
+                $this->auditValues($ended),
+                'Ended boarding hostel staff responsibility.'
+            );
 
-        return response()->json([
-            'message' => 'Hostel staff responsibility ended successfully.',
-            'data' => $this->resource($ended),
-        ]);
+            return response()->json([
+                'message' => 'Hostel staff responsibility ended successfully.',
+                'data' => $this->resource($ended),
+            ]);
+        });
     }
 
     private function resource(

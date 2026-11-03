@@ -82,7 +82,7 @@ class BoardingStaffResponsibilityService
                 $assignment->hostel_id = $hostel->id;
                 $assignment->user_id = $responsibleUser->id;
                 $assignment->responsibility_role = $role;
-                $assignment->effective_from = $effectiveDate;
+                $assignment->setAttribute('effective_from', $effectiveDate);
                 $assignment->effective_to = null;
                 $assignment->active = true;
                 $assignment->assigned_by = $actor->id;
@@ -140,7 +140,7 @@ class BoardingStaffResponsibilityService
             $effectiveTo = $this->schoolLocalToday($school);
 
             if (
-                $assignment->effective_from
+                $assignment->getAttribute('effective_from')
                 && $effectiveTo < $assignment->effective_from->toDateString()
             ) {
                 throw ValidationException::withMessages([
@@ -151,7 +151,7 @@ class BoardingStaffResponsibilityService
             }
 
             $assignment->active = false;
-            $assignment->effective_to = $effectiveTo;
+            $assignment->setAttribute('effective_to', $effectiveTo);
             $assignment->ended_by = $actor->id;
             $assignment->ended_at = now();
             $assignment->end_reason = $normalizedReason;
