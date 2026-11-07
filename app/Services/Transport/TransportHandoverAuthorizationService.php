@@ -65,7 +65,7 @@ class TransportHandoverAuthorizationService
 
         try {
             return DB::transaction(function () use ($authenticated, $data, $guardian): array {
-                $actor = $this->access->actor($authenticated, true);
+                $actor = $this->access->authorizationActor($authenticated, $data);
                 $this->access->requirePermission($actor, $this->permission($data['kind']));
                 $school = (string) $actor->school_id;
 
@@ -129,7 +129,7 @@ class TransportHandoverAuthorizationService
 
         try {
             return DB::transaction(function () use ($authenticated, $id, $data): array {
-                $actor = $this->access->actor($authenticated, true);
+                $actor = $this->access->revocationActor($authenticated, $id);
                 $row = DB::table('transport_handover_authorizations')
                     ->where('school_id', $actor->school_id)->where('id', $id)
                     ->lockForUpdate()->first();

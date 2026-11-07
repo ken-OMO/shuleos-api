@@ -41,7 +41,7 @@ class TransportDailyReportService
         ]);
 
         return $this->write(function () use ($authenticated, $obligationId, $data): array {
-            $actor = $this->access->actor($authenticated, true);
+            $actor = $this->access->reportActor($authenticated, $obligationId);
             $this->access->requirePermission($actor, 'submit_transport_daily_reports');
             $row = $this->obligation($actor, $obligationId);
             $before = $this->response($row);
@@ -91,7 +91,7 @@ class TransportDailyReportService
         ]);
 
         return $this->write(function () use ($authenticated, $submissionId, $data): array {
-            $actor = $this->access->actor($authenticated, true);
+            $actor = $this->access->reportActor($authenticated, $submissionId, true);
             $this->access->requirePermission($actor, 'review_transport_daily_reports');
             $submission = DB::table('transport_daily_submissions')
                 ->where('school_id', $actor->school_id)->where('id', $submissionId)->first();

@@ -22,6 +22,7 @@ use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\Support\Database\UserBuilder;
 use Tests\Support\TransportConcurrencyRunner;
+use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
 class TransportAssignmentConcurrencyTest extends TestCase
@@ -493,6 +494,7 @@ class TransportAssignmentConcurrencyTest extends TestCase
                 'locale' => 'en',
                 'lifecycle_state' => 'active',
             ]);
+            TransportSubscriptionFixture::activate((string) $school->id);
             $role = RoleBuilder::create();
             $actor = UserBuilder::create($school, $role);
             $a = UserBuilder::create($school, $role);
@@ -594,6 +596,8 @@ class TransportAssignmentConcurrencyTest extends TestCase
         $role = $this->raceFixture['role'];
 
         $tables = [
+            'transport_addon_periods',
+            'school_subscriptions',
             'transport_daily_reviews',
             'transport_daily_submissions',
             'transport_reporting_obligations',
@@ -630,6 +634,8 @@ class TransportAssignmentConcurrencyTest extends TestCase
 
         DB::transaction(function () use ($tables, $school, $role): void {
             DB::statement("SET LOCAL lock_timeout = '5s'");
+            $addonOwners = DB::table('transport_addon_periods')->where('school_id', $school)->pluck('activated_by');
+            $addonPackages = DB::table('school_subscriptions')->where('school_id', $school)->pluck('package_id');
 
             // Exact test-database fixture cleanup, matching Boarding's pattern.
             // Foreign-key constraint triggers remain enabled.
@@ -650,6 +656,10 @@ class TransportAssignmentConcurrencyTest extends TestCase
                     $query->where('school_id', $school)->delete();
                 }
             }
+
+            DB::table('users')->whereNull('school_id')->whereIn('id', $addonOwners)->delete();
+            DB::table('subscription_packages')->whereIn('id', $addonPackages)
+                ->where('package_name', 'TRANSPORT-FIXTURE-'.$school)->delete();
 
             foreach (array_reverse($tables) as $table) {
                 DB::statement('ALTER TABLE "'.$table.'" ENABLE TRIGGER USER');

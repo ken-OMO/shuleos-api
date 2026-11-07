@@ -27,11 +27,16 @@ use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\Support\Database\UserBuilder;
 use Tests\Support\TransportJourneyConcurrencyRunner;
+use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
 class TransportJourneyConcurrencyTest extends TestCase
 {
     private array $raceFixture = [];
+
+    private ?string $addonFixtureEndsAt = null;
+
+    private array $addonRoleGrants = [];
 
     protected function setUp(): void
     {
@@ -50,6 +55,117 @@ class TransportJourneyConcurrencyTest extends TestCase
             CarbonImmutable::setTestNow();
             parent::tearDown();
         }
+    }
+
+    public function test_addon_expiry_is_rechecked_after_waiting_for_the_main_subscription_lock(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $auditCount = DB::table('audit_logs')->where('school_id', $f['school'])->count();
+        $first = ['operation' => 'addon_main_lock', 'school_id' => $f['school']];
+        $second = $this->addonNormalPayload($f, '2026-11-09T04:30:00Z');
+        $second['expire_after_main_lock'] = true;
+        $result = $this->race($first, $second);
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('rejected', $result['second']['event']);
+        $this->assertSame(403, $result['second']['http_status']);
+        $this->assertSame(1, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+        $this->assertSame($auditCount, DB::table('audit_logs')->where('school_id', $f['school'])->count());
+    }
+
+    public function test_waiting_normal_operation_is_denied_at_exact_addon_expiry(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $result = $this->race($this->addonNormalPayload($f, '2026-11-09T04:30:00Z'),
+            $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('rejected', $result['second']['event']);
+        $this->assertSame(403, $result['second']['http_status']);
+        $this->assertSame(1, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+    }
+
+    public function test_waiting_normal_operation_observes_committed_adjacent_renewal(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $result = $this->race($this->addonRenewalPayload($f), $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('finished', $result['second']['event']);
+        $this->assertSame($result['first']['result']['id'], $result['second']['result']['id']);
+        $this->assertSame(2, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+        $this->assertSame(1, DB::table('audit_logs')->where('school_id', $f['school'])->where('action', 'transport_addon_renew')->count());
+    }
+
+    public function test_rolled_back_renewal_does_not_extend_waiting_operational_access(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $first = $this->addonRenewalPayload($f);
+        $first['rollback'] = true;
+        $result = $this->race($first, $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertTrue($result['first']['result']['rolled_back']);
+        $this->assertSame('rejected', $result['second']['event']);
+        $this->assertSame(403, $result['second']['http_status']);
+        $this->assertSame(1, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+        $this->assertSame(0, DB::table('audit_logs')->where('school_id', $f['school'])->where('action', 'transport_addon_renew')->count());
+    }
+
+    public function test_competing_identical_renewal_retries_append_one_period_and_audit(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $payload = $this->addonRenewalPayload($f);
+        $result = $this->race($payload, $payload);
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('finished', $result['second']['event']);
+        $this->assertSame($result['first']['result']['id'], $result['second']['result']['id']);
+        $this->assertTrue($result['second']['result']['replayed']);
+        $this->assertSame(2, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+        $this->assertSame(1, DB::table('audit_logs')->where('school_id', $f['school'])->where('action', 'transport_addon_renew')->count());
+    }
+
+    public function test_competing_distinct_renewals_reject_stale_history(): void
+    {
+        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $f = $this->fixture();
+        $first = $this->addonRenewalPayload($f);
+        $second = $first;
+        $second['input']['request_id'] = (string) Str::uuid();
+        $second['input']['evidence_reference'] = 'RACE-'.Str::upper(Str::random(12));
+        $result = $this->race($first, $second);
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('rejected', $result['second']['event']);
+        $this->assertSame(409, $result['second']['http_status']);
+        $this->assertSame(2, DB::table('transport_addon_periods')->where('school_id', $f['school'])->count());
+    }
+
+    private function addonNormalPayload(array $f, string $at): array
+    {
+        return ['operation' => 'addon_normal', 'school_id' => $f['school'], 'actor_id' => $f['actor'], 'at' => $at];
+    }
+
+    private function addonRenewalPayload(array $f): array
+    {
+        $period = DB::table('transport_addon_periods')->where('school_id', $f['school'])->first();
+        $owner = User::withoutGlobalScopes()->findOrFail($period->activated_by);
+        foreach (['access_administrator_portal', 'access_platform_administration', 'manage_transport_subscriptions'] as $name) {
+            $permission = DB::table('permissions')->where('permission_name', $name)->value('id');
+            $this->assertNotNull($permission);
+            if (! DB::table('role_permissions')->where('role_id', $owner->role_id)->where('permission_id', $permission)->exists()) {
+                $id = (string) Str::uuid();
+                DB::table('role_permissions')->insert(['id' => $id, 'role_id' => $owner->role_id, 'permission_id' => $permission]);
+                $this->addonRoleGrants[] = $id;
+            }
+        }
+
+        return ['operation' => 'addon_renew', 'school_id' => $f['school'], 'actor_id' => (string) $owner->id,
+            'input' => ['request_id' => (string) Str::uuid(),
+                'expected_version' => hash('sha256', 'transport-addon:'.$f['school'].':1:'.$period->id),
+                'starts_at' => '2026-11-09T04:31:00+00:00', 'ends_at' => '2026-12-09T04:31:00+00:00',
+                'commercial_timezone' => 'UTC', 'evidence_reference' => 'RACE-'.Str::upper(Str::random(12)),
+                'reason' => 'Explicit isolated concurrent renewal evidence attestation.']];
     }
 
     public function test_competing_reporting_schedulers_create_one_obligation_and_one_audit(): void
@@ -1150,6 +1266,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'locale' => 'en',
                 'lifecycle_state' => 'active',
             ]);
+            TransportSubscriptionFixture::activate((string) $school->id, $this->addonFixtureEndsAt);
             $role = RoleBuilder::create();
             $actor = UserBuilder::create($school, $role);
             $a = UserBuilder::create($school, $role);
@@ -1253,6 +1370,8 @@ class TransportJourneyConcurrencyTest extends TestCase
         $role = $this->raceFixture['role'];
 
         $tables = [
+            'transport_addon_periods',
+            'school_subscriptions',
             'transport_daily_reviews',
             'transport_daily_submissions',
             'transport_reporting_obligations',
@@ -1291,6 +1410,8 @@ class TransportJourneyConcurrencyTest extends TestCase
 
         DB::transaction(function () use ($tables, $school, $role): void {
             DB::statement("SET LOCAL lock_timeout = '5s'");
+            $addonOwners = DB::table('transport_addon_periods')->where('school_id', $school)->pluck('activated_by');
+            $addonPackages = DB::table('school_subscriptions')->where('school_id', $school)->pluck('package_id');
             $learners = DB::table('learners')->where('school_id', $school)->pluck('id');
 
             // Test-fixture cleanup only. Constraint triggers remain enabled.
@@ -1314,11 +1435,17 @@ class TransportJourneyConcurrencyTest extends TestCase
                 }
             }
 
+            DB::table('role_permissions')->whereIn('id', $this->addonRoleGrants)->delete();
+            DB::table('users')->whereNull('school_id')->whereIn('id', $addonOwners)->delete();
+            DB::table('subscription_packages')->whereIn('id', $addonPackages)
+                ->where('package_name', 'TRANSPORT-FIXTURE-'.$school)->delete();
+
             foreach (array_reverse($tables) as $table) {
                 DB::statement('ALTER TABLE "'.$table.'" ENABLE TRIGGER USER');
             }
         });
 
         $this->raceFixture = [];
+        $this->addonRoleGrants = [];
     }
 }

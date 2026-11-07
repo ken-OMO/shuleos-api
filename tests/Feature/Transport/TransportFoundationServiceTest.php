@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
 class TransportFoundationServiceTest extends TestCase
@@ -244,6 +245,7 @@ class TransportFoundationServiceTest extends TestCase
         $school = SchoolBuilder::create([
             'operating_mode' => 'day', 'lifecycle_state' => 'active',
         ]);
+        TransportSubscriptionFixture::activate((string) $school->id);
         $role = RoleBuilder::create();
         $row = UserBuilder::create($school, $role);
 
