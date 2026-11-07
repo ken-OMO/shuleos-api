@@ -23,6 +23,7 @@ use App\Services\Homework\HomeworkAssignmentService;
 use App\Services\Homework\HomeworkNotificationService;
 use App\Services\ParentPortal\ParentPaymentReconciliationService;
 use App\Services\TeacherDuty\TeacherDutyNotificationService;
+use App\Services\Transport\TransportReportingSchedulerService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -411,3 +412,37 @@ Schedule::command('boarding:materialize-reporting-obligations')
     ->everyFiveMinutes()
     ->withoutOverlapping(10)
     ->when(fn (): bool => (bool) config('boarding_reporting.scheduler_enabled', false));
+
+// Transport reporting remains disabled until explicit deployment configuration.
+Artisan::command(
+    'transport:materialize-reporting-obligations',
+    function (TransportReportingSchedulerService $service) {
+        try {
+            $result = $service->run();
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->error('Transport reporting materialization failed; consult application logs.');
+
+            return Command::FAILURE;
+        }
+        if (! $result['enabled']) {
+            $this->info('Transport reporting scheduler disabled.');
+
+            return Command::SUCCESS;
+        }
+        $this->info(
+            'Transport reporting obligations: created='.$result['created']
+            .', existing='.$result['existing'].', failed='.$result['failed'].'.'
+        );
+
+        return $result['failed'] > 0
+            ? Command::FAILURE
+            : Command::SUCCESS;
+    }
+)->purpose('Materialize current service-local reporting obligations for explicitly configured Transport actors');
+
+Schedule::command('transport:materialize-reporting-obligations')
+    ->name('transport-reporting-obligations')
+    ->everyFiveMinutes()
+    ->withoutOverlapping(10)
+    ->when(fn (): bool => config('transport_reporting.scheduler_enabled', false) === true);

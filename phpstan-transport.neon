@@ -1,0 +1,19 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+
+    squashedMigrationsPath:
+        - tools/phpstan/schema
+
+    paths:
+        - app/Services/Transport
+        - app/Http/Controllers/Api/TransportAllocationController.php
+        - app/Http/Controllers/Api/TransportCatalogueController.php
+        - app/Http/Controllers/Api/TransportController.php
+        - app/Http/Controllers/Api/TransportFoundationController.php
+        - app/Http/Controllers/Api/TransportHandoverController.php
+        - app/Http/Controllers/Api/TransportReportingController.php
+        - app/Http/Controllers/Api/TransportTripController.php
+        - config/transport_reporting.php
