@@ -27,6 +27,10 @@ class TransportAuditService
             throw new LogicException('Transport audit requires a school actor.');
         }
 
+        if ($actor->relationLoaded('transportAccessBasis')) {
+            $new['entitlement_access'] = (array) $actor->getRelation('transportAccessBasis');
+        }
+
         $audit = AuditLog::create([
             'school_id' => $actor->school_id,
             'user_id' => $actor->getKey(),

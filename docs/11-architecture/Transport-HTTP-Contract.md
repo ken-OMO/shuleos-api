@@ -113,3 +113,25 @@ on shuleos_assessment_fk_test after the migration function rebuild fix.
 The operations contract section 15 records the delivery limits and evidence.
 The final persistent Transport static-analysis configuration and remote CI remain
 separate checks; these local results do not claim deployment or scheduler activation.
+
+
+## Transport add-on enforcement
+
+All existing Transport mutation endpoints enforce commercial access through their
+shared services. No new paid activation HTTP endpoint is introduced in this slice.
+Normal writes require an effective add-on and eligible main subscription plus all
+existing security, permission, mode, setup and responsibility rules. A missing or
+expired entitlement returns 403 without a mutation or audit. An invalid input can
+still return validation errors before access is evaluated; denial grants no access.
+
+Historical authorized GET operations remain available after commercial expiry.
+Only concrete captured-work closure can continue: already-onboard arrival or
+drop-off, scoped replacement recipient authorization/revocation, custody follow-up,
+non-travel attendance, trip reconciliation and eligible preexisting report closure.
+Pickup, school departure, capture, new configuration and obligation scheduling
+cannot use continuation. Existing stale tokens, recipient checks, service windows,
+independent review and atomic audit rules remain in effect.
+
+Commercial time is evaluated after acquiring the school write lock and latest
+main-subscription shared lock. Waiting for a commercial row cannot reuse a
+pre-wait timestamp to admit a new operation after Transport expiry.

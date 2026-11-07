@@ -27,6 +27,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
 class TransportAttendanceServiceTest extends TestCase
@@ -418,6 +419,7 @@ class TransportAttendanceServiceTest extends TestCase
             'operating_mode' => 'day', 'lifecycle_state' => 'active',
             'timezone' => 'Africa/Nairobi',
         ]);
+        TransportSubscriptionFixture::activate((string) $school->id);
         $role = RoleBuilder::create();
         $user = UserBuilder::create($school, $role);
         $actor = User::withoutGlobalScopes()->findOrFail($user->id);

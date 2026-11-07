@@ -32,6 +32,8 @@ abstract class TransportHttpTestCase extends TestCase
 {
     use DatabaseTransactions;
 
+    protected ?string $transportAddonEndsAt = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -281,6 +283,7 @@ abstract class TransportHttpTestCase extends TestCase
             'operating_mode' => 'day', 'lifecycle_state' => 'active',
             'timezone' => 'Africa/Nairobi',
         ]);
+        TransportSubscriptionFixture::activate((string) $school->id, $this->transportAddonEndsAt);
         $role = RoleBuilder::create();
         $user = UserBuilder::create($school, $role);
         $actor = User::withoutGlobalScopes()->findOrFail($user->id);

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Services\Transport\TransportAccessService;
 use App\Services\Transport\TransportAssignmentService;
 use App\Services\Transport\TransportAttendanceService;
 use App\Services\Transport\TransportDailyReportService;
@@ -11,6 +12,7 @@ use App\Services\Transport\TransportHandoverAuthorizationService;
 use App\Services\Transport\TransportJourneyEventService;
 use App\Services\Transport\TransportLearnerReservationService;
 use App\Services\Transport\TransportReportingSchedulerService;
+use App\Services\TransportSubscription\TransportAddonService;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\QueryException;
@@ -76,7 +78,33 @@ try {
 
     DB::beginTransaction();
 
-    if ($payload['operation'] === 'database') {
+    if ($payload['operation'] === 'addon_main_lock') {
+        $row = DB::table('school_subscriptions')->where('school_id', $payload['school_id'])
+            ->lockForUpdate()->first();
+        if ($row === null) {
+            throw new RuntimeException('Main subscription fixture missing.');
+        }
+        $result = ['id' => $row->id];
+    } elseif ($payload['operation'] === 'addon_normal') {
+        CarbonImmutable::setTestNow($payload['at']);
+        if ($payload['expire_after_main_lock'] ?? false) {
+            // Test clock changes when the blocked main-row read actually returns.
+            // The runner separately proves real PostgreSQL lock contention.
+            DB::listen(static function ($query): void {
+                $sql = strtolower($query->sql);
+                if (str_contains($sql, '"school_subscriptions"') && str_contains($sql, 'for share')) {
+                    CarbonImmutable::setTestNow('2026-11-09T04:31:00Z');
+                }
+            });
+        }
+        $actor = User::withoutGlobalScopes()->where('school_id', $payload['school_id'])->findOrFail($payload['actor_id']);
+        $checked = app(TransportAccessService::class)->actor($actor, true);
+        $result = ['id' => $checked->getRelation('transportAccessBasis')->period_id];
+    } elseif ($payload['operation'] === 'addon_renew') {
+        $owner = User::withoutGlobalScopes()->whereNull('school_id')->findOrFail($payload['actor_id']);
+        $issued = app(TransportAddonService::class)->issue($owner, $payload['school_id'], $payload['input']);
+        $result = ['id' => $issued['period']['id'], 'replayed' => $issued['replayed']];
+    } elseif ($payload['operation'] === 'database') {
         $row = $payload['assignment'];
 
         // Connection and school are verified independently of input row data.

@@ -17,3 +17,4 @@ parameters:
         - app/Http/Controllers/Api/TransportReportingController.php
         - app/Http/Controllers/Api/TransportTripController.php
         - config/transport_reporting.php
+        - app/Services/TransportSubscription

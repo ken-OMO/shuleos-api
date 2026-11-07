@@ -28,7 +28,7 @@ class TransportAttendanceService
         ]);
 
         return $this->write(function () use ($authenticated, $rosterId, $data): array {
-            $actor = $this->access->actor($authenticated, true);
+            $actor = $this->access->attendanceActor($authenticated, $rosterId);
             $this->access->requirePermission($actor, 'record_transport_journeys');
             $roster = DB::table('transport_trip_roster')->where('school_id', $actor->school_id)
                 ->where('id', $rosterId)->first();
@@ -89,7 +89,7 @@ class TransportAttendanceService
         ]);
 
         return $this->write(function () use ($authenticated, $tripId, $data): array {
-            $actor = $this->access->actor($authenticated, true);
+            $actor = $this->access->completionActor($authenticated, $tripId);
             $this->access->requirePermission($actor, 'record_transport_journeys');
             $trip = $this->trip((string) $actor->school_id, $tripId, true);
             $this->requireCrew($actor, $trip);

@@ -72,7 +72,7 @@ class TransportJourneyEventService
 
         try {
             return DB::transaction(function () use ($authenticated, $rosterId, $data, $failed): array {
-                $actor = $this->access->actor($authenticated, true);
+                $actor = $this->access->journeyActor($authenticated, $rosterId, $data['boundary']);
                 $this->access->requirePermission($actor, 'record_transport_journeys');
                 $school = (string) $actor->school_id;
                 $roster = $this->roster($school, $rosterId);

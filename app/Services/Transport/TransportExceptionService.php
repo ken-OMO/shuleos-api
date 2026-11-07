@@ -50,7 +50,7 @@ class TransportExceptionService
 
         try {
             return DB::transaction(function () use ($authenticated, $failureId, $data): array {
-                $actor = $this->access->actor($authenticated, true);
+                $actor = $this->access->exceptionActor($authenticated, $failureId);
                 $school = (string) $actor->school_id;
                 $failure = $this->failure($school, $failureId);
 
