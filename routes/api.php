@@ -119,6 +119,12 @@ use App\Http\Controllers\Api\TimetablePeriodController;
 use App\Http\Controllers\Api\TimetableProfileController;
 use App\Http\Controllers\Api\TimetablePublicationController;
 use App\Http\Controllers\Api\TimetableSubstitutionController;
+use App\Http\Controllers\Api\TransportAllocationController;
+use App\Http\Controllers\Api\TransportCatalogueController;
+use App\Http\Controllers\Api\TransportFoundationController;
+use App\Http\Controllers\Api\TransportHandoverController;
+use App\Http\Controllers\Api\TransportReportingController;
+use App\Http\Controllers\Api\TransportTripController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Middleware\TeacherAcademicScope;
 use Illuminate\Http\Request;
@@ -2925,3 +2931,172 @@ Route::get(
     [BoardingReportingObligationController::class, 'index']
 )->middleware(['jwt', 'tenant'])
     ->name('boarding.reporting.obligations.index');
+
+// Transport services retain permission, lifecycle, responsibility and audit checks.
+Route::prefix('transport')->middleware(['jwt', 'tenant'])->group(function (): void {
+    Route::get('/{resource}', [TransportCatalogueController::class, 'index'])
+        ->whereIn('resource', ['vehicles', 'routes', 'stops', 'schedules', 'assignments', 'reservations', 'enrolments', 'trips', 'authorizations'])
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.catalogue');
+
+    Route::get('/{resource}/{id}', [TransportFoundationController::class, 'show'])
+        ->whereIn('resource', ['vehicles', 'routes', 'stops'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.foundation.show');
+
+    Route::post('/{resource}', [TransportFoundationController::class, 'store'])
+        ->whereIn('resource', ['vehicles', 'routes', 'stops'])
+        ->middleware('permission:manage_transport')
+        ->name('transport.foundation.store');
+
+    Route::patch('/{resource}/{id}', [TransportFoundationController::class, 'update'])
+        ->whereIn('resource', ['vehicles', 'routes', 'stops'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport')
+        ->name('transport.foundation.update');
+
+    Route::post('/schedules', [TransportFoundationController::class, 'storeSchedule'])
+        ->middleware('permission:manage_transport')
+        ->name('transport.schedules.store');
+
+    Route::get('/schedules/{id}', [TransportFoundationController::class, 'showSchedule'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.schedules.show');
+
+    Route::patch('/schedules/{id}/state', [TransportFoundationController::class, 'scheduleState'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport')
+        ->name('transport.schedules.state');
+
+    Route::post('/assignments', [TransportAllocationController::class, 'storeAssignment'])
+        ->middleware('permission:manage_transport')
+        ->name('transport.assignments.store');
+
+    Route::get('/assignments/{id}', [TransportAllocationController::class, 'showAssignment'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.assignments.show');
+
+    Route::post('/assignments/{id}/end', [TransportAllocationController::class, 'endAssignment'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport')
+        ->name('transport.assignments.end');
+
+    Route::post('/reservations', [TransportAllocationController::class, 'storeReservation'])
+        ->middleware('permission:manage_transport_enrolments')
+        ->name('transport.reservations.store');
+
+    Route::get('/reservations/{id}', [TransportAllocationController::class, 'showReservation'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.reservations.show');
+
+    Route::post('/reservations/{id}/end', [TransportAllocationController::class, 'endReservation'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport_enrolments')
+        ->name('transport.reservations.end');
+
+    Route::post('/enrolments', [TransportAllocationController::class, 'storeEnrolment'])
+        ->middleware('permission:manage_transport_enrolments')
+        ->name('transport.enrolments.store');
+
+    Route::get('/enrolments/{id}', [TransportAllocationController::class, 'showEnrolment'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.enrolments.show');
+
+    Route::post('/enrolments/{id}/transfer', [TransportAllocationController::class, 'transferEnrolment'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport_enrolments')
+        ->name('transport.enrolments.transfer');
+
+    Route::post('/trips', [TransportTripController::class, 'capture'])
+        ->middleware('permission:record_transport_journeys')
+        ->name('transport.trips.capture');
+
+    Route::get('/trips/{id}', [TransportTripController::class, 'show'])
+        ->whereUuid('id')
+        ->name('transport.trips.show');
+
+    Route::get('/trips/{id}/attendance', [TransportTripController::class, 'attendance'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.trips.attendance');
+
+    Route::post('/trips/{id}/complete', [TransportTripController::class, 'complete'])
+        ->whereUuid('id')
+        ->middleware('permission:record_transport_journeys')
+        ->name('transport.trips.complete');
+
+    Route::post('/rosters/{id}/outcome', [TransportTripController::class, 'outcome'])
+        ->whereUuid('id')
+        ->middleware('permission:record_transport_journeys')
+        ->name('transport.attendance.outcome');
+
+    Route::post('/authorizations', [TransportHandoverController::class, 'storeAuthorization'])
+        ->name('transport.authorizations.store');
+
+    Route::get('/authorizations/{id}', [TransportHandoverController::class, 'showAuthorization'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.authorizations.show');
+
+    Route::post('/authorizations/{id}/revoke', [TransportHandoverController::class, 'revoke'])
+        ->whereUuid('id')
+        ->name('transport.authorizations.revoke');
+
+    Route::get('/rosters/{id}/journey', [TransportHandoverController::class, 'journey'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.journey.show');
+
+    Route::post('/rosters/{id}/events', [TransportHandoverController::class, 'record'])
+        ->whereUuid('id')
+        ->middleware('permission:record_transport_journeys')
+        ->name('transport.journey.record');
+
+    Route::get('/exceptions/{id}', [TransportHandoverController::class, 'exception'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.exceptions.show');
+
+    Route::post('/exceptions/{id}/actions', [TransportHandoverController::class, 'append'])
+        ->whereUuid('id')
+        ->name('transport.exceptions.append');
+
+    Route::post('/reporting/policies', [TransportReportingController::class, 'configure'])
+        ->middleware('permission:manage_transport')
+        ->name('transport.reporting.configure');
+
+    Route::post('/reporting/policies/{id}/materialize-today', [TransportReportingController::class, 'materialize'])
+        ->whereUuid('id')
+        ->middleware('permission:manage_transport')
+        ->name('transport.reporting.materialize');
+
+    Route::get('/reporting/obligations', [TransportReportingController::class, 'listing'])
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.reporting.index');
+
+    Route::get('/reporting/obligations/{id}', [TransportReportingController::class, 'obligation'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.reporting.obligation');
+
+    Route::get('/reporting/obligations/{id}/report', [TransportReportingController::class, 'report'])
+        ->whereUuid('id')
+        ->middleware('permission:view_transport_operations')
+        ->name('transport.reporting.report');
+
+    Route::post('/reporting/obligations/{id}/submissions', [TransportReportingController::class, 'submit'])
+        ->whereUuid('id')
+        ->middleware('permission:submit_transport_daily_reports')
+        ->name('transport.reporting.submit');
+
+    Route::post('/reporting/submissions/{id}/review', [TransportReportingController::class, 'review'])
+        ->whereUuid('id')
+        ->middleware('permission:review_transport_daily_reports')
+        ->name('transport.reporting.review');
+
+});
