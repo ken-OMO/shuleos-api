@@ -4,8 +4,8 @@ namespace App\Http\Middleware;
 
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Auth\AuthContextService;
-use App\Services\School\SchoolOperatingModePolicy;
 use App\Services\School\SchoolBusinessWriteAccess;
+use App\Services\School\SchoolOperatingModePolicy;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;

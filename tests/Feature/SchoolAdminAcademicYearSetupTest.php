@@ -10,6 +10,7 @@ use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use Tests\Support\Database\EducationLevelBuilder;
 use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\TeacherBuilder;
 use Tests\Support\Database\UserBuilder;
@@ -52,7 +53,7 @@ class SchoolAdminAcademicYearSetupTest extends TestCase
             ], $attributes)
         );
 
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($id);
+        MainSubscriptionBuilder::activeFor($id);
 
         return (object) DB::table('schools')
             ->where('id', $id)

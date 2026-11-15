@@ -23,10 +23,15 @@ class SchoolBusinessWriteAccessTest extends TestCase
     use DatabaseTransactions;
 
     private object $school;
+
     private object $grade;
+
     private object $stream;
+
     private object $subscription;
+
     private string $token;
+
     private string $roleId;
 
     protected function setUp(): void
@@ -81,6 +86,7 @@ class SchoolBusinessWriteAccessTest extends TestCase
         ]);
         $before = $this->snapshot();
         $this->withToken($this->token)->postJson('/api/learners', $this->payload())->assertStatus($expected);
+        $this->withToken($this->token)->postJson('/api/academic-years', $this->yearPayload())->assertStatus($expected);
         if ($expected === 403) {
             $this->assertSame($before, $this->snapshot());
         } else {
@@ -119,10 +125,19 @@ class SchoolBusinessWriteAccessTest extends TestCase
         $this->assertSame($before, $this->snapshot());
     }
 
-    public function test_recorded_trial_and_inclusive_school_local_expiry_are_supported_without_inventing_grace(): void
+    public static function inclusiveBoundaries(): array
+    {
+        return ['active expiry' => ['ACTIVE'], 'trial expiry' => ['TRIAL'], 'grace end' => ['GRACE_PERIOD']];
+    }
+
+    #[DataProvider('inclusiveBoundaries')]
+    public function test_recorded_inclusive_school_local_dates_do_not_invent_grace(string $status): void
     {
         DB::table('school_subscriptions')->where('id', $this->subscription->id)->update([
-            'status' => 'TRIAL', 'is_trial' => true, 'package_id' => null, 'expiry_date' => '2026-11-15',
+            'status' => $status, 'is_trial' => $status === 'TRIAL',
+            'package_id' => $status === 'TRIAL' ? null : $this->subscription->package_id,
+            'start_date' => '2026-10-01', 'expiry_date' => $status === 'GRACE_PERIOD' ? '2026-11-01' : '2026-11-15',
+            'grace_end_date' => '2026-11-15',
         ]);
         $this->withToken($this->token)->postJson('/api/learners', $this->payload())->assertCreated();
         // Nairobi has crossed midnight even though UTC is still the previous day.
@@ -218,6 +233,7 @@ class SchoolBusinessWriteAccessTest extends TestCase
         foreach (['schools', 'school_subscriptions', 'learners', 'academic_years', 'grades', 'streams', 'terms', 'audit_logs'] as $table) {
             $snapshot[$table] = DB::table($table)->orderBy('id')->get()->toJson();
         }
+
         return $snapshot;
     }
 }

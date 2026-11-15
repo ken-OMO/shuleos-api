@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminGuardianLinkingTest extends TestCase
@@ -1219,7 +1220,7 @@ class SchoolAdminGuardianLinkingTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
+        MainSubscriptionBuilder::activeFor($school->id);
 
         return $school;
 

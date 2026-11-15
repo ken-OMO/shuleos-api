@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Symfony\Component\HttpFoundation\Response;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolOperationalSetupGateTest extends TestCase
@@ -330,7 +331,7 @@ class SchoolOperationalSetupGateTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
+        MainSubscriptionBuilder::activeFor($school->id);
 
         $role = Role::query()
             ->where('role_name', 'School Admin')

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminProfileCompletionTest extends TestCase
@@ -513,7 +514,7 @@ class SchoolAdminProfileCompletionTest extends TestCase
             'timezone' => 'Africa/Nairobi',
             'locale' => 'en',
         ]);
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
+        MainSubscriptionBuilder::activeFor($school->id);
 
         $role = Role::query()
             ->where(

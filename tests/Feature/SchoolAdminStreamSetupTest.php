@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminStreamSetupTest extends TestCase
@@ -46,7 +47,7 @@ class SchoolAdminStreamSetupTest extends TestCase
             ], $attributes)
         );
 
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($id);
+        MainSubscriptionBuilder::activeFor($id);
 
         return (object) DB::table('schools')
             ->where('id', $id)

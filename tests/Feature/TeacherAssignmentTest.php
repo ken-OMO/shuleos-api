@@ -11,6 +11,7 @@ use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearningAreaAllocationBuilder;
 use Tests\Support\Database\LearningAreaBuilder;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
@@ -46,7 +47,7 @@ class TeacherAssignmentTest extends TestCase
         $this->withoutMiddleware();
 
         $this->school = SchoolBuilder::create();
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($this->school->id);
+        MainSubscriptionBuilder::activeFor($this->school->id);
 
         $this->role = RoleBuilder::create();
 

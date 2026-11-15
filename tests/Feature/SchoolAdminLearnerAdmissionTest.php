@@ -15,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminLearnerAdmissionTest extends TestCase
@@ -1157,7 +1158,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
-        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
+        MainSubscriptionBuilder::activeFor($school->id);
 
         return $school;
 
