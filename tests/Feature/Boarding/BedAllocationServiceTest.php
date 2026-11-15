@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class BedAllocationServiceTest extends TestCase
@@ -2754,6 +2755,7 @@ class BedAllocationServiceTest extends TestCase
     {
         config(['jwt.secret' => str_repeat('boarding-mode-change-test-', 3)]);
         $school = $this->school();
+        MainSubscriptionBuilder::activeFor($school->id);
         $user = $this->user($school);
         $learner = $this->learner($school, 'Male', 'boarder', 'active', true);
         $bed = $this->boardingBed($school, 'BOYS', 'CLASSIFICATION');

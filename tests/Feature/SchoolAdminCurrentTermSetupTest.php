@@ -8,6 +8,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminCurrentTermSetupTest extends TestCase
@@ -45,6 +46,8 @@ class SchoolAdminCurrentTermSetupTest extends TestCase
                 'created_at' => now(),
             ], $attributes)
         );
+
+        MainSubscriptionBuilder::activeFor($id);
 
         return (object) DB::table('schools')
             ->where('id', $id)

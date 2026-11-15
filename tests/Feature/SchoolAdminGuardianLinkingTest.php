@@ -13,6 +13,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\TestCase;
 
 class SchoolAdminGuardianLinkingTest extends TestCase
@@ -1204,7 +1205,7 @@ class SchoolAdminGuardianLinkingTest extends TestCase
 
     private function school(): School
     {
-        return School::query()->create([
+        $school = School::query()->create([
             'id' => (string) Str::uuid(),
             'school_name' => 'School '.Str::upper(Str::random(8)),
             'school_code' => 'LRN-'.Str::upper(Str::random(8)),
@@ -1219,6 +1220,10 @@ class SchoolAdminGuardianLinkingTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
+        MainSubscriptionBuilder::activeFor($school->id);
+
+        return $school;
+
     }
 
     private function user(School $school): User

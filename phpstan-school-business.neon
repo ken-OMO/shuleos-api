@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    squashedMigrationsPath:
+        - tools/phpstan/schema
+    paths:
+        - app/Services/School/SchoolBusinessWriteAccess.php
+        - app/Http/Middleware/ModulePermissionMiddleware.php

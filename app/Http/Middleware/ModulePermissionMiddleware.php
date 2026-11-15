@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Auth\AuthContextService;
+use App\Services\School\SchoolBusinessWriteAccess;
 use App\Services\School\SchoolOperatingModePolicy;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -35,7 +36,7 @@ class ModulePermissionMiddleware
         // The learning-area catalogue is shared across schools.
         if ($prefix === 'learning-areas'
             && ! $request->isMethodSafe()
-            && $user->school_id !== null) {
+            && filled($user->school_id)) {
             return response()->json([
                 'success' => false,
                 'message' => 'School users cannot modify the shared learning-area catalogue.',
@@ -124,6 +125,11 @@ class ModulePermissionMiddleware
                     return $next($request);
                 }
             );
+        }
+
+        $businessAccess = app(SchoolBusinessWriteAccess::class);
+        if ($businessAccess->covers($request)) {
+            return $businessAccess->run((string) $user->school_id, fn () => $next($request));
         }
 
         return $next($request);

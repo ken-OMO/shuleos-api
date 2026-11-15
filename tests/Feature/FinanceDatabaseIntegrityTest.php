@@ -22,6 +22,7 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
@@ -1217,6 +1218,7 @@ class FinanceDatabaseIntegrityTest extends TestCase
         $this->prepareFinanceHttp();
 
         foreach ([$this->a, $this->b] as $school) {
+            MainSubscriptionBuilder::activeFor($school['school']->id);
             $id = DB::table('permissions')
                 ->where('permission_name', 'manage_learners')->value('id');
             $this->assertNotNull($id);
