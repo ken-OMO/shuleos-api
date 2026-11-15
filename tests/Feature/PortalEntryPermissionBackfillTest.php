@@ -4,12 +4,19 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
+use App\Services\LeadershipPortal\LeadershipPortalPhaseTwoService;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Tests\Support\Database\AcademicYearBuilder;
+use Tests\Support\Database\GradeBuilder;
+use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\LearningAreaBuilder;
 use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\Database\StreamBuilder;
+use Tests\Support\Database\TermBuilder;
 use Tests\Support\Database\UserBuilder;
 use Tests\TestCase;
 
@@ -159,6 +166,49 @@ class PortalEntryPermissionBackfillTest extends TestCase
                 ->getJson('/api/leadership/dashboard/principal')
                 ->assertOk()->assertJsonPath('data.role_view', 'principal');
         }
+    }
+
+    public function test_existing_academic_insight_grant_uses_parent_exam_tenant_scope(): void
+    {
+        $permission = $this->permission('view_academic_insights');
+        $role = $this->role('Principal');
+        if (! DB::table('role_permissions')->where('role_id', $role->id)->where('permission_id', $permission)->exists()) {
+            DB::table('role_permissions')->insert(['id' => (string) Str::uuid(), 'role_id' => $role->id, 'permission_id' => $permission]);
+        }
+        $fixtures = [];
+        foreach ([2, 3] as $paperCount) {
+            $school = SchoolBuilder::create();
+            $record = UserBuilder::create($school, $role);
+            $year = AcademicYearBuilder::create($school);
+            $term = TermBuilder::create($school, $year);
+            $grade = GradeBuilder::create($school);
+            $stream = StreamBuilder::create($school, $grade);
+            $learner = LearnerBuilder::create($school, $grade, $stream);
+            $area = LearningAreaBuilder::create();
+            $assessmentType = (string) Str::uuid();
+            $exam = (string) Str::uuid();
+            $examArea = (string) Str::uuid();
+            DB::table('assessment_types')->insert(['id' => $assessmentType, 'school_id' => $school->id, 'assessment_type_name' => 'Readiness fixture']);
+            DB::table('exams')->insert(['id' => $exam, 'school_id' => $school->id, 'exam_name' => 'Readiness fixture', 'assessment_type_id' => $assessmentType, 'academic_year_id' => $year->id, 'term_id' => $term->id]);
+            DB::table('exam_learning_areas')->insert(['id' => $examArea, 'exam_id' => $exam, 'learning_area_id' => $area->id]);
+            for ($index = 1; $index <= $paperCount; $index++) {
+                $paper = (string) Str::uuid();
+                DB::table('exam_papers')->insert(['id' => $paper, 'exam_learning_area_id' => $examArea, 'paper_name' => 'Paper '.$index, 'paper_number' => $index]);
+                DB::table('exam_results')->insert(['id' => (string) Str::uuid(), 'exam_id' => $exam, 'learner_id' => $learner->id, 'learning_area_id' => $area->id, 'paper_id' => $paper, 'marks' => 50]);
+            }
+            $fixtures[] = ['user' => User::findOrFail($record->id), 'exam' => $exam, 'count' => $paperCount];
+        }
+        foreach ($fixtures as $fixture) {
+            $dashboard = app(LeadershipPortalPhaseTwoService::class)
+                ->dashboard($fixture['user'], 'principal');
+            $this->assertSame($fixture['count'], $dashboard['widgets']['academic_readiness']['exam_papers']);
+            $this->assertSame($fixture['count'], $dashboard['widgets']['academic_readiness']['raw_results']);
+        }
+        DB::table('exams')->where('id', $fixtures[0]['exam'])->update(['is_deleted' => true]);
+        $dashboard = app(LeadershipPortalPhaseTwoService::class)
+            ->dashboard($fixtures[0]['user'], 'principal');
+        $this->assertSame(0, $dashboard['widgets']['academic_readiness']['exam_papers']);
+        $this->assertSame(0, $dashboard['widgets']['academic_readiness']['raw_results']);
     }
 
     public function test_rollback_is_explicitly_refused_without_revoking_existing_grants(): void

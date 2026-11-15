@@ -627,8 +627,20 @@ class LeadershipPortalPhaseTwoService
 
     private function readiness(string $schoolId): array
     {
-        $papers = DB::table('exam_papers')->where('school_id', $schoolId)->where('is_deleted', false)->count();
-        $results = DB::table('exam_results')->where('school_id', $schoolId)->where('is_deleted', false)->count();
+        $papers = DB::table('exam_papers as papers')
+            ->join('exam_learning_areas as areas', 'areas.id', '=', 'papers.exam_learning_area_id')
+            ->join('exams', 'exams.id', '=', 'areas.exam_id')
+            ->where('exams.school_id', $schoolId)
+            ->where('exams.is_deleted', false)
+            ->where('areas.is_deleted', false)
+            ->where('papers.is_deleted', false)
+            ->count();
+        $results = DB::table('exam_results as results')
+            ->join('exams', 'exams.id', '=', 'results.exam_id')
+            ->where('exams.school_id', $schoolId)
+            ->where('exams.is_deleted', false)
+            ->where('results.is_deleted', false)
+            ->count();
         $processed = DB::table('learning_area_results')->where('school_id', $schoolId)->where('is_deleted', false)->where('processing_status', 'processed')->count();
 
         return ['exam_papers' => $papers, 'raw_results' => $results, 'processed_results' => $processed, 'missing_raw_results' => max(0, $papers - $results), 'deterministic' => true];
