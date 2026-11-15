@@ -36,6 +36,14 @@ AuthenticationContractTest updates only the expected authoritative Teacher claim
 
 Run formatting, these tests and authorization/portal regressions on PostgreSQL, then the full backend regression. Point the frontend live workflow at the exact resulting backend commit and rerun all nine real two-school tests without fixture-only permission grants. PR #1 stays a draft; business workflows remain on hold until the gate passes. Nothing merged or deployed by this change.
 
-## Current validation state
+## Regression discovered while preserving existing grants
 
-Implementation and tests are prepared locally. PHP/Composer/PostgreSQL are unavailable in the current workspace, so execution requires repository CI. At preparation time the GitHub installation has access only to `shuleos-web`; publishing this backend branch and running backend CI requires adding `shuleos-api` to that existing installation. No test-pass claim is made for this unexecuted repair.
+Full regression exercised a Principal with an existing `view_academic_insights` grant. Its dashboard readiness query incorrectly assumed `school_id` existed on `exam_papers` and `exam_results`, causing HTTP 500. The repair derives ownership through `exam_learning_areas` → `exams` for papers and through `exams` for raw results, excluding deleted ancestor exams/areas. It preserves the existing grant instead of suppressing the academic widget or broadening authority. A two-school regression uses distinct nonzero paper/result counts and checks deleted-exam exclusion.
+
+## Validation evidence
+
+The initial fifteen-grant candidate passed fresh/existing PostgreSQL checks (23 tests / 203 assertions per state) and all nine live two-school browser/API tests. The full regression then exposed the readiness defect above. The final candidate adds the schema-correct query and its regression test; the exact final commits and latest CI results are tracked in [backend PR #87](https://github.com/ken-OMO/shuleos-api/pull/87) and [frontend PR #1](https://github.com/ken-OMO/shuleos-web/pull/1).
+
+Dedicated CI applies the migration to a fresh schema and separately upgrades the previous schema containing users in two schools, a custom role and a prior legitimate grant. The upgrade preserves all previous rows, adds exactly fourteen remaining allowlisted pairs, and repeats without changes. The normal backend CI runs formatting, dependency/security checks, static analysis and full regression. The frontend live workflow pins an exact backend candidate commit and uses real HTTP/PostgreSQL without fixture-only permission grants.
+
+Both PRs remain drafts. Nothing merged or deployed; business workflows have not started. Passing this scoped gate is not verification of every ERP endpoint, platform OTP/email delivery, production deployment or real-school Elections readiness.
