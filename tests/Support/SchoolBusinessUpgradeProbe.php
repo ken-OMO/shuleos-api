@@ -6,16 +6,12 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\SchoolBuilder;
+use Tests\Support\SchoolBusinessTestDatabase;
 
 require __DIR__.'/../../vendor/autoload.php';
 $app = require __DIR__.'/../../bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
-if (! app()->environment('testing') || config('database.default') !== 'pgsql'
-    || config('database.connections.pgsql.database') !== 'shuleos_assessment_fk_test'
-    || ! in_array(config('database.connections.pgsql.host'), ['127.0.0.1', 'localhost'], true)
-    || is_file(base_path('bootstrap/cache/config.php'))) {
-    throw new RuntimeException('Upgrade probe requires an isolated PostgreSQL test database.');
-}
+SchoolBusinessTestDatabase::assertIsolated();
 $path = sys_get_temp_dir().'/shuleos-business-write-upgrade.json';
 $tables = ['schools', 'school_subscriptions', 'subscription_packages', 'roles', 'role_permissions', 'users'];
 if (($argv[1] ?? '') === 'prepare') {

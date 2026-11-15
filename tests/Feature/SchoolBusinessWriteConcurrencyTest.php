@@ -8,6 +8,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\SchoolBusinessConcurrencyRunner;
+use Tests\Support\SchoolBusinessTestDatabase;
 use Tests\TestCase;
 
 class SchoolBusinessWriteConcurrencyTest extends TestCase
@@ -52,12 +53,7 @@ class SchoolBusinessWriteConcurrencyTest extends TestCase
 
     private function withFixture(\Closure $test): void
     {
-        if (! app()->environment('testing') || config('database.default') !== 'pgsql'
-            || config('database.connections.pgsql.database') !== 'shuleos_assessment_fk_test'
-            || ! in_array(config('database.connections.pgsql.host'), ['127.0.0.1', 'localhost'], true)
-            || app()->configurationIsCached() || DB::transactionLevel() !== 0) {
-            throw new \RuntimeException('Committed fixtures require the isolated PostgreSQL testing database.');
-        }
+        SchoolBusinessTestDatabase::assertIsolated(true);
         $school = SchoolBuilder::create(['lifecycle_state' => 'active', 'timezone' => 'Africa/Nairobi', 'short_name' => 'Before']);
         $subscription = MainSubscriptionBuilder::activeFor($school->id);
         try {

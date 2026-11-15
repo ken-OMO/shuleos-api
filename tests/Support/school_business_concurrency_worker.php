@@ -4,6 +4,7 @@ use App\Services\School\SchoolBusinessWriteAccess;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\SchoolBusinessTestDatabase;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -30,6 +31,7 @@ try {
     $name = config('database.default');
     config(['database.connections.'.$name => $connection]);
     DB::purge($name);
+    SchoolBusinessTestDatabase::assertIsolated();
     $actual = DB::selectOne('SELECT current_database() AS name, pg_backend_pid() AS pid');
     if ($actual->name !== 'shuleos_assessment_fk_test') {
         throw new RuntimeException('Unexpected actual database.');

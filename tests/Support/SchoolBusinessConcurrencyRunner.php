@@ -13,19 +13,8 @@ final class SchoolBusinessConcurrencyRunner
 
     public function run(array $first, array $second): array
     {
-        $connection = DB::connection()->getConfig();
-        $database = $connection['database'] ?? '';
-
-        if (! app()->environment('testing')
-            || ($connection['driver'] ?? '') !== 'pgsql'
-            || ! is_string($database)
-            || $database !== 'shuleos_assessment_fk_test'
-            || ! empty($connection['url'])
-            || DB::transactionLevel() !== 0) {
-            throw new RuntimeException(
-                'Concurrency tests require committed fixtures in a named PostgreSQL testing database.'
-            );
-        }
+        SchoolBusinessTestDatabase::assertIsolated(true);
+        $connection = DB::connection('pgsql')->getConfig();
 
         try {
             $a = $this->start($first + [
