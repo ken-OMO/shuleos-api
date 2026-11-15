@@ -76,7 +76,7 @@ jobs:
         run: |
           php -l app/Services/School/SchoolBusinessWriteAccess.php
           php -l tests/Support/school_business_concurrency_worker.php
-          vendor/bin/pint --test app/Services/School/SchoolBusinessWriteAccess.php app/Http/Middleware/ModulePermissionMiddleware.php database/migrations/2026_11_15_210000_serialize_main_subscription_changes.php tests/Feature/SchoolBusinessWriteAccessTest.php tests/Feature/SchoolBusinessWriteConcurrencyTest.php tests/Support/SchoolBusinessConcurrencyRunner.php tests/Support/school_business_concurrency_worker.php tests/Support/SchoolBusinessUpgradeProbe.php tests/Support/Database/MainSubscriptionBuilder.php tests/Feature/SchoolAdmin*Test.php tests/Feature/SchoolOperationalSetupGateTest.php tests/Feature/TeacherAssignmentTest.php tests/Feature/FinanceDatabaseIntegrityTest.php tests/Feature/PlatformSchoolOnboardingSecurityTest.php
+          vendor/bin/pint --test app/Services/School/SchoolBusinessWriteAccess.php app/Http/Middleware/ModulePermissionMiddleware.php database/migrations/2026_11_15_210000_serialize_main_subscription_changes.php tests/Feature/SchoolBusinessWriteAccessTest.php tests/Feature/SchoolBusinessWriteConcurrencyTest.php tests/Support/SchoolBusinessConcurrencyRunner.php tests/Support/school_business_concurrency_worker.php tests/Support/SchoolBusinessUpgradeProbe.php tests/Support/Database/MainSubscriptionBuilder.php tests/Feature/SchoolAdmin*Test.php tests/Feature/SchoolOperationalSetupGateTest.php tests/Feature/TeacherAssignmentTest.php tests/Feature/FinanceDatabaseIntegrityTest.php tests/Feature/PlatformSchoolOnboardingSecurityTest.php tests/Feature/Boarding/BedAllocationServiceTest.php
       - name: Static analysis of business boundary
         run: vendor/bin/phpstan analyse --configuration=phpstan-school-business.neon --memory-limit=1G --no-progress
       - name: Fresh or upgraded HTTP and concurrency boundary tests
@@ -99,5 +99,6 @@ jobs:
           tests/Feature/TeacherAssignmentTest.php
           tests/Feature/FinanceDatabaseIntegrityTest.php
           tests/Feature/PlatformSchoolOnboardingSecurityTest.php
+          tests/Feature/Boarding/BedAllocationServiceTest.php
           tests/Feature/AssessmentReadOnlyAccessTest.php
           tests/Feature/AuthenticationContractTest.php

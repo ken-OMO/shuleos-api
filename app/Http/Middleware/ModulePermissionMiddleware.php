@@ -36,7 +36,7 @@ class ModulePermissionMiddleware
         // The learning-area catalogue is shared across schools.
         if ($prefix === 'learning-areas'
             && ! $request->isMethodSafe()
-            && $user->school_id !== null) {
+            && filled($user->school_id)) {
             return response()->json([
                 'success' => false,
                 'message' => 'School users cannot modify the shared learning-area catalogue.',
