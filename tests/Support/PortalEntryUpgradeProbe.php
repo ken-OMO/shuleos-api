@@ -49,8 +49,8 @@ if (($argv[1] ?? '') === 'prepare') {
             }
         }
     }
-    if (DB::table('role_permissions')->count() !== count($before['role_permissions']) + 6) {
-        throw new RuntimeException('Upgrade did not add exactly the six remaining allowlisted grants.');
+    if (DB::table('role_permissions')->count() !== count($before['role_permissions']) + 14) {
+        throw new RuntimeException('Upgrade did not add exactly the fourteen remaining allowlisted grants.');
     }
     $migration = require database_path('migrations/2026_11_15_160000_backfill_portal_entry_permissions.php');
     $once = DB::table('role_permissions')->orderBy('id')->get()->toJson();
@@ -59,7 +59,7 @@ if (($argv[1] ?? '') === 'prepare') {
         throw new RuntimeException('Upgrade rerun was not a no-op.');
     }
     unlink($path);
-    echo "Existing-state upgrade preserved every prior row, added exactly six missing grants and reran without changes.\n";
+    echo "Existing-state upgrade preserved every prior row, added exactly fourteen missing grants and reran without changes.\n";
 } else {
     throw new RuntimeException('Expected prepare or verify.');
 }

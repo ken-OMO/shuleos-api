@@ -19,8 +19,22 @@ class PortalEntryPermissionBackfillTest extends TestCase
 
     private const GRANTS = [
         'Teacher' => ['view_own_teacher_assignments'],
-        'Principal' => ['access_leadership_portal_phase_two', 'view_principal_dashboard'],
-        'Headteacher' => ['access_leadership_portal_phase_two', 'view_principal_dashboard'],
+        'Principal' => [
+            'access_school_leadership_portal',
+            'access_leadership_portal_phase_two',
+            'view_principal_dashboard',
+            'view_school_kpis',
+            'view_leadership_action_queue',
+            'view_leadership_alerts',
+        ],
+        'Headteacher' => [
+            'access_school_leadership_portal',
+            'access_leadership_portal_phase_two',
+            'view_principal_dashboard',
+            'view_school_kpis',
+            'view_leadership_action_queue',
+            'view_leadership_alerts',
+        ],
         'Parent' => ['access_parent_portal_phase_two'],
         'Learner' => ['access_learner_portal_phase_two'],
     ];
@@ -45,7 +59,7 @@ class PortalEntryPermissionBackfillTest extends TestCase
         $after = $this->snapshot();
         $this->assertSame($before, array_intersect_key($after, $before));
         $added = array_diff_key($after, $before);
-        $this->assertCount(7, $added);
+        $this->assertCount(15, $added);
         $expected = [];
         foreach (self::GRANTS as $name => $permissions) {
             foreach ($permissions as $permission) {
@@ -127,6 +141,23 @@ class PortalEntryPermissionBackfillTest extends TestCase
                     $this->assertNotContains('view_principal_dashboard', $context['permissions']);
                 }
             }
+        }
+    }
+
+    public function test_minimum_leadership_grants_satisfy_real_dashboard_middleware_and_service(): void
+    {
+        config(['jwt.secret' => str_repeat('portal-entry-regression-', 4)]);
+        foreach (['Principal', 'Headteacher'] as $name) {
+            $school = SchoolBuilder::create();
+            $record = UserBuilder::create($school, $this->role($name));
+            $login = $this->postJson('/api/auth/login', [
+                'username' => $record->username,
+                'password' => 'Password123!',
+            ]);
+            $login->assertOk();
+            $this->withToken($login->json('token'))
+                ->getJson('/api/leadership/dashboard/principal')
+                ->assertOk()->assertJsonPath('data.role_view', 'principal');
         }
     }
 

@@ -10,8 +10,22 @@ return new class extends Migration
     // failed live verification. Do not replay historical bulk permission grants.
     private const GRANTS = [
         'Teacher' => ['view_own_teacher_assignments'],
-        'Principal' => ['access_leadership_portal_phase_two', 'view_principal_dashboard'],
-        'Headteacher' => ['access_leadership_portal_phase_two', 'view_principal_dashboard'],
+        'Principal' => [
+            'access_school_leadership_portal',
+            'access_leadership_portal_phase_two',
+            'view_principal_dashboard',
+            'view_school_kpis',
+            'view_leadership_action_queue',
+            'view_leadership_alerts',
+        ],
+        'Headteacher' => [
+            'access_school_leadership_portal',
+            'access_leadership_portal_phase_two',
+            'view_principal_dashboard',
+            'view_school_kpis',
+            'view_leadership_action_queue',
+            'view_leadership_alerts',
+        ],
         'Parent' => ['access_parent_portal_phase_two'],
         'Learner' => ['access_learner_portal_phase_two'],
     ];

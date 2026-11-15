@@ -9,12 +9,12 @@ The forward-only migration `2026_11_15_160000_backfill_portal_entry_permissions.
 | System role | Added minimum permissions |
 |---|---|
 | Teacher | `view_own_teacher_assignments` |
-| Principal | `access_leadership_portal_phase_two`, `view_principal_dashboard` |
-| Headteacher | `access_leadership_portal_phase_two`, `view_principal_dashboard` |
+| Principal | `access_school_leadership_portal`, `access_leadership_portal_phase_two`, `view_principal_dashboard`, `view_school_kpis`, `view_leadership_action_queue`, `view_leadership_alerts` |
+| Headteacher | `access_school_leadership_portal`, `access_leadership_portal_phase_two`, `view_principal_dashboard`, `view_school_kpis`, `view_leadership_action_queue`, `view_leadership_alerts` |
 | Parent | `access_parent_portal_phase_two` |
 | Learner | `access_learner_portal_phase_two` |
 
-Headteacher uses the same principal dashboard contract. This is not a replay of historical bulk grants: no new finance, platform administration, Elections, mutation or other operational permissions are added. Existing extra grants are retained, not normalized or revoked. Missing roles are not created; inactive roles are not reactivated. School-specific roles and global non-system roles are not changed or synchronized. Custom role configuration remains explicit.
+Headteacher uses the same principal dashboard contract. The leadership dashboard unconditionally reads KPIs, action queue and alerts and passes a separate legacy module gate; these read-only dependencies are included. This is not a replay of historical bulk grants: no new finance, platform administration, Elections, mutation or other operational permissions are added. Existing extra grants are retained, not normalized or revoked. Missing roles are not created; inactive roles are not reactivated. School-specific roles and global non-system roles are not changed or synchronized. Custom role configuration remains explicit.
 
 Portal-entry permissions do not replace the existing identity, tenant, assignment, linked-child, resource ownership and operation-specific permission checks. The system roles are shared, so existing users of the named system roles receive the restored minimum grants after migration; custom roles do not inherit them automatically.
 
