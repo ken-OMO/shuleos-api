@@ -15,6 +15,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -102,7 +103,7 @@ class TransportAssignmentServiceTest extends TestCase
         $morning = $this->schedule($f, '01:10', '02:00');
         $this->denied(fn () => $service->create($f['actor'], $this->input($f, [
             'schedule_id' => $morning,
-            'service_date' => '2026-11-10',
+            'service_date' => TransportFixtureClock::shift('2026-11-10'),
         ])), 409);
     }
 
@@ -111,17 +112,17 @@ class TransportAssignmentServiceTest extends TestCase
         $f = $this->fixture();
         $service = app(TransportAssignmentService::class);
         $future = $service->create($f['actor'], $this->input($f, [
-            'service_date' => '2026-12-07',
+            'service_date' => TransportFixtureClock::shift('2026-12-07'),
         ]));
-        $this->assertSame('2026-12-07', $future['service_date']);
+        $this->assertSame(TransportFixtureClock::shift('2026-12-07'), $future['service_date']);
 
         $mondays = $this->schedule($f, '10:00', '11:00', ['weekday_mask' => 1]);
         $this->denied(fn () => $service->create($f['actor'], $this->input($f, [
-            'schedule_id' => $mondays, 'service_date' => '2026-11-10',
+            'schedule_id' => $mondays, 'service_date' => TransportFixtureClock::shift('2026-11-10'),
         ])), 422);
 
         $this->denied(fn () => $service->create($f['actor'], $this->input($f, [
-            'service_date' => '2027-01-01',
+            'service_date' => TransportFixtureClock::shift('2027-01-01'),
         ])), 422);
     }
 
@@ -271,7 +272,7 @@ class TransportAssignmentServiceTest extends TestCase
             'route_id' => $f['route'], 'service_code' => 'S-'.Str::random(12),
             'direction' => 'to_school', 'timezone' => 'Africa/Nairobi',
             'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
             'departure_time' => $departure, 'completion_time' => $completion,
             'turnaround_minutes' => 15,
             'created_by' => $f['actor']->id, 'updated_by' => $f['actor']->id,
@@ -283,7 +284,7 @@ class TransportAssignmentServiceTest extends TestCase
     private function input(array $f, array $override = []): array
     {
         return array_merge([
-            'schedule_id' => $f['schedule'], 'service_date' => '2026-11-09',
+            'schedule_id' => $f['schedule'], 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $f['vehicle'],
             'driver_id' => $f['driver']->id,
             'attendant_id' => $f['attendant']->id,

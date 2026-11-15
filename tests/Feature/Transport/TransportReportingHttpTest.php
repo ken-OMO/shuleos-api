@@ -8,17 +8,20 @@ use App\Services\Transport\TransportAuditService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportHttpTestCase;
 
 class TransportReportingHttpTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_http_policy_creation_and_explicit_today_materialization_are_idempotent(): void
     {
         $f = $this->fixture();
         $this->httpAs($f['actor']);
         $schedule = DB::table('transport_dated_assignments')->where('id', $f['assignment']['id'])->value('schedule_id');
         $policy = $this->postJson('/api/transport/reporting/policies', [
-            'schedule_id' => $schedule, 'effective_from' => '2026-11-09', 'effective_to' => '2026-11-30',
+            'schedule_id' => $schedule, 'effective_from' => TransportFixtureClock::shift('2026-11-09'), 'effective_to' => TransportFixtureClock::shift('2026-11-30'),
             'weekday_mask' => 127, 'deadline_time' => '17:00', 'deadline_day_offset' => 0, 'grace_minutes' => 30,
         ])->assertCreated()->json('data');
         $first = $this->postJson('/api/transport/reporting/policies/'.$policy['id'].'/materialize-today')->assertOk()->json('data');
@@ -26,7 +29,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
         $this->postJson('/api/transport/reporting/policies/'.$policy['id'].'/materialize-today')->assertOk()->assertJsonPath('data.id', $first['id']);
         $this->getJson('/api/transport/reporting/obligations/'.$first['id'])->assertOk();
         $this->getJson('/api/transport/reporting/obligations/'.$first['id'].'/report')->assertOk()->assertJsonPath('data.state', 'missing');
-        $this->postJson('/api/transport/reporting/policies/'.$policy['id'].'/materialize-today', ['service_date' => '2026-11-08'])->assertUnprocessable();
+        $this->postJson('/api/transport/reporting/policies/'.$policy['id'].'/materialize-today', ['service_date' => TransportFixtureClock::shift('2026-11-08')])->assertUnprocessable();
         $this->assertSame($before, $this->httpSnapshot($f));
     }
 
@@ -34,7 +37,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
     {
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->httpAs($f['actor']);
         $current = $this->getJson('/api/transport/reporting/obligations/'.$f['obligation'].'/report')->assertOk()->json('data');
         $submitted = $this->postJson('/api/transport/reporting/obligations/'.$f['obligation'].'/submissions', [
@@ -61,7 +64,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
     public function test_changes_requested_allow_a_new_immutable_revision(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $first = $this->submitDaily($f)['submissions'][0];
         $this->httpAs($this->reviewer($f));
         $this->postJson('/api/transport/reporting/submissions/'.$first['id'].'/review', [
@@ -80,7 +83,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
     {
         $f = $this->fixture();
         $this->policy($f);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $this->httpAs($f['actor']);
         $before = $this->httpSnapshot($f);
         $this->getJson('/api/transport/reporting/obligations?overdue=1&responsibility=unassigned')
@@ -99,7 +102,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
         $this->postJson('/api/transport/reporting/obligations/'.$f['obligation'].'/submissions', [])->assertForbidden();
         $this->postJson('/api/transport/reporting/submissions/'.Str::uuid().'/review', [])->assertForbidden();
         $this->grant($f['actor'], 'submit_transport_daily_reports');
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->httpAs($f['receiver']);
         $current = $this->getJson('/api/transport/reporting/obligations/'.$f['obligation'].'/report')->assertOk()->json('data');
         $this->postJson('/api/transport/reporting/obligations/'.$f['obligation'].'/submissions', [
@@ -112,7 +115,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
     {
         $a = $this->dailyFixture();
         $b = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $a['submission'] = $this->submitDaily($a)['submissions'][0];
         $b['submission'] = $this->submitDaily($b)['submissions'][0];
         foreach ([[$a, $b], [$b, $a]] as [$own,$foreign]) {
@@ -137,7 +140,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
         $this->httpAs($f['actor']);
         $current = $this->getJson('/api/transport/reporting/obligations/'.$f['obligation'].'/report')->assertOk()->json('data');
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->httpAs($f['actor']);
         $input = ['expected_version' => $current['version'], 'summary' => 'End of service account.', 'exception_note' => 'Crew retains custody pending handover.'];
         $before = $this->httpSnapshot($f);
@@ -152,7 +155,7 @@ class TransportReportingHttpTest extends TransportHttpTestCase
     public function test_http_audit_failure_rolls_back_resource_and_report_mutations(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->httpAs($f['actor']);
         $current = $this->getJson('/api/transport/reporting/obligations/'.$f['obligation'].'/report')->assertOk()->json('data');
         $before = $this->httpSnapshot($f);

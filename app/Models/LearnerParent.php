@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class LearnerParent extends Model
 {
@@ -47,7 +49,8 @@ class LearnerParent extends Model
     /**
      * Learner relationship
      */
-    public function learner()
+    /** @return BelongsTo<Learner, $this> */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -61,7 +64,8 @@ class LearnerParent extends Model
     /**
      * Guardian relationship
      */
-    public function guardian()
+    /** @return BelongsTo<Guardian, $this> */
+    public function guardian(): BelongsTo
     {
         return $this->belongsTo(
 
@@ -72,17 +76,23 @@ class LearnerParent extends Model
         );
     }
 
-    public function linkedBy()
+    /** @return BelongsTo<User, $this> */
+    public function linkedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'linked_by');
     }
 
-    public function deletedBy()
+    /** @return BelongsTo<User, $this> */
+    public function deletedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'deleted_by');
     }
 
-    public function scopeCurrent($q)
+    /**
+     * @param  Builder<static>  $q
+     * @return Builder<static>
+     */
+    public function scopeCurrent(Builder $q): Builder
     {
         return $q->where('active', true)->where('portal_enabled', true)->where('is_deleted', false);
     }

@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
 class StudentElection extends TenantModel
 {
     protected $guarded = [];
@@ -12,12 +15,17 @@ class StudentElection extends TenantModel
 
     protected $casts = ['voting_opens_at' => 'datetime', 'voting_closes_at' => 'datetime', 'is_deleted' => 'boolean'];
 
-    public function electionPositions()
+    /** @return HasMany<StudentElectionPosition, $this> */
+    public function electionPositions(): HasMany
     {
         return $this->hasMany(StudentElectionPosition::class, 'election_id');
     }
 
-    public function scopeCurrent($q)
+    /**
+     * @param  Builder<static>  $q
+     * @return Builder<static>
+     */
+    public function scopeCurrent(Builder $q): Builder
     {
         return $q->where('is_deleted', false);
     }

@@ -27,6 +27,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -49,7 +50,7 @@ class TransportAttendanceServiceTest extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T02:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -63,7 +64,7 @@ class TransportAttendanceServiceTest extends TestCase
     public function test_missed_pickup_is_non_travel_and_blocks_later_pickup(): void
     {
         $f = $this->attendanceFixture();
-        CarbonImmutable::setTestNow('2026-11-09T05:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T05:00:00Z'));
         $result = $this->outcome($f, 'missed_pickup');
 
         $this->assertSame(1, $result['attendance']['missed_pickup']);
@@ -87,7 +88,7 @@ class TransportAttendanceServiceTest extends TestCase
     public function test_outbound_not_boarded_is_distinct_from_inbound_missed_pickup(): void
     {
         $f = $this->attendanceFixture('from_school');
-        CarbonImmutable::setTestNow('2026-11-09T05:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T05:00:00Z'));
         $this->denied(fn () => $this->outcome($f, 'missed_pickup'), 422);
         $result = $this->outcome($f, 'not_boarded');
         $this->assertSame(1, $result['attendance']['not_boarded']);
@@ -347,7 +348,7 @@ class TransportAttendanceServiceTest extends TestCase
     private function journey(string $direction = 'to_school'): array
     {
         $f = $this->fixture($direction);
-        CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
 
         $permission = DB::table('permissions')
             ->where('permission_name', 'authorize_transport_handover')->value('id');
@@ -379,7 +380,7 @@ class TransportAttendanceServiceTest extends TestCase
             'kind' => 'guardian_recipient',
             'learner_id' => $f['learner']->id, 'stop_id' => $f['stop'],
             'guardian_id' => $guardian, 'guardian_link_id' => $link,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Approved concrete-run handover arrangement.',
         ]);
         $receiver = User::withoutGlobalScopes()->findOrFail($f['unassigned']->id);
@@ -387,7 +388,7 @@ class TransportAttendanceServiceTest extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => $direction === 'to_school' ? 'school_receiver' : 'school_releaser',
             'staff_user_id' => $receiver->id,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Assigned school handover counterpart.',
         ]);
         $trip = app(TransportTripService::class)->capture($f['actor'], [
@@ -469,13 +470,13 @@ class TransportAttendanceServiceTest extends TestCase
             'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
             'service_code' => 'S-'.Str::random(12), 'direction' => $direction,
             'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'created_by' => $actor->id, 'updated_by' => $actor->id,
         ]);
 
         $assignment = app(TransportAssignmentService::class)->create($actor, [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-09',
+            'schedule_id' => $schedule, 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
         ]);
         $reservation = app(TransportLearnerReservationService::class)->create($actor, [

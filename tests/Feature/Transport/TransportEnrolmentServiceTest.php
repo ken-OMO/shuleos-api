@@ -21,6 +21,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -43,7 +44,7 @@ class TransportEnrolmentServiceTest extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
-        CarbonImmutable::setTestNow('2026-11-06T09:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-06T09:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -75,7 +76,7 @@ class TransportEnrolmentServiceTest extends TestCase
 
         $this->assertSame(1, $this->links($row['id'])->count());
         $this->assertDatabaseHas('transport_enrolment_reservations', [
-            'episode_id' => $row['id'], 'service_date' => '2026-11-10',
+            'episode_id' => $row['id'], 'service_date' => TransportFixtureClock::shift('2026-11-10'),
         ]);
     }
 
@@ -83,7 +84,7 @@ class TransportEnrolmentServiceTest extends TestCase
     {
         $f = $this->fixture();
         DB::table('transport_dated_assignments')
-            ->where('id', $f['source_assignments']['2026-11-11'])
+            ->where('id', $f['source_assignments'][TransportFixtureClock::shift('2026-11-11')])
             ->update(['active' => false]);
 
         $this->denied(
@@ -110,7 +111,7 @@ class TransportEnrolmentServiceTest extends TestCase
         $this->assertSame(2, $this->links($result['target_episode']['id'])->count());
         $this->assertSame(3, $this->activeReservations($f));
         $this->assertDatabaseHas('transport_enrolment_episodes', [
-            'id' => $source['id'], 'ended_before' => '2026-11-10',
+            'id' => $source['id'], 'ended_before' => TransportFixtureClock::shift('2026-11-10'),
         ]);
         $this->assertSame(2, DB::table('transport_learner_reservations')
             ->where('school_id', $f['school']->id)->where('active', false)->count());
@@ -130,7 +131,7 @@ class TransportEnrolmentServiceTest extends TestCase
         $source = $service->create($f['actor'], $this->input($f));
 
         app(TransportLearnerReservationService::class)->create($f['actor'], [
-            'assignment_id' => $f['target_assignments']['2026-11-11'],
+            'assignment_id' => $f['target_assignments'][TransportFixtureClock::shift('2026-11-11')],
             'learner_id' => $f['other']->id,
             'stop_id' => $f['stop'],
         ]);
@@ -262,7 +263,7 @@ class TransportEnrolmentServiceTest extends TestCase
                 'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
                 'service_code' => 'S-'.Str::random(12), 'direction' => 'to_school',
                 'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-                'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+                'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
                 'departure_time' => $times[0], 'completion_time' => $times[1],
                 'turnaround_minutes' => 15,
                 'created_by' => $actor->id, 'updated_by' => $actor->id,
@@ -270,7 +271,7 @@ class TransportEnrolmentServiceTest extends TestCase
             $f[$key.'_schedule'] = $schedule;
             $f[$key.'_assignments'] = [];
 
-            foreach (['2026-11-09', '2026-11-10', '2026-11-11'] as $date) {
+            foreach ([TransportFixtureClock::shift('2026-11-09'), TransportFixtureClock::shift('2026-11-10'), TransportFixtureClock::shift('2026-11-11')] as $date) {
                 $assignment = app(TransportAssignmentService::class)->create($actor, [
                     'schedule_id' => $schedule, 'service_date' => $date,
                     'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
@@ -287,7 +288,7 @@ class TransportEnrolmentServiceTest extends TestCase
         return array_merge([
             'learner_id' => $f['learner']->id,
             'schedule_id' => $f['source_schedule'], 'stop_id' => $f['stop'],
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-11',
+            'effective_from' => TransportFixtureClock::shift('2026-11-09'), 'effective_to' => TransportFixtureClock::shift('2026-11-11'),
             'weekday_mask' => 127,
         ], $override);
     }
@@ -295,7 +296,7 @@ class TransportEnrolmentServiceTest extends TestCase
     private function transferInput(array $f, array $source): array
     {
         return [
-            'expected_version' => $source['version'], 'effective_from' => '2026-11-10',
+            'expected_version' => $source['version'], 'effective_from' => TransportFixtureClock::shift('2026-11-10'),
             'schedule_id' => $f['target_schedule'], 'stop_id' => $f['stop'],
             'reason' => 'Family changed service arrangements.',
         ];

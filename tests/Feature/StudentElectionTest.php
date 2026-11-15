@@ -2,13 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Api\StudentElectionLearnerController;
 use App\Models\User;
 use App\Services\StudentElection\StudentElectionVotingService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\StudentElectionSubscriptionFixture;
 use Tests\TestCase;
 
 class StudentElectionTest extends TestCase
@@ -84,6 +87,7 @@ class StudentElectionTest extends TestCase
         DB::table('student_election_positions')->insert(['id' => $this->id['ep'], 'school_id' => $this->id['school'], 'election_id' => $this->id['election'], 'position_id' => $this->id['position'], 'active' => 1]);
         DB::table('student_election_candidates')->insert(['id' => $this->id['candidate'], 'school_id' => $this->id['school'], 'election_position_id' => $this->id['ep'], 'learner_id' => $this->id['learner'], 'nomination_type' => 'manual', 'status' => 'approved', 'is_deleted' => 0]);
         DB::table('student_election_voters')->insert(['id' => $this->id['voter'], 'school_id' => $this->id['school'], 'election_id' => $this->id['election'], 'election_position_id' => $this->id['ep'], 'learner_id' => $this->id['learner'], 'eligible' => 1, 'has_voted' => 0]);
+        StudentElectionSubscriptionFixture::activate($this->id['school']);
     }
 
     private function u(): User
@@ -122,5 +126,90 @@ class StudentElectionTest extends TestCase
         DB::table('student_election_candidates')->update(['status' => 'rejected']);
         $this->expectException(ValidationException::class);
         app(StudentElectionVotingService::class)->vote($this->u(), $this->id['election'], $this->id['ep'], $this->id['candidate']);
+    }
+
+    public function test_candidate_response_exposes_only_public_campaign_fields(): void
+    {
+        DB::table('student_election_candidates')
+            ->where('id', $this->id['candidate'])
+            ->update([
+                'manifesto' => 'Improve our school environment.',
+                'slogan' => 'Together we serve.',
+                'review_comments' => 'PRIVATE-REVIEW-NOTE',
+                'photo_path' => 'private/candidate-photo.jpg',
+            ]);
+
+        $this->actingAs($this->u());
+
+        $response = app(StudentElectionLearnerController::class)
+            ->candidates($this->id['election'], $this->id['ep']);
+
+        $data = $response->getData(true)['data'];
+        $this->assertCount(1, $data);
+        $this->assertSame([
+            'id',
+            'election_position_id',
+            'display_name',
+            'manifesto',
+            'slogan',
+        ], array_keys($data[0]));
+        $this->assertSame('Election Learner', $data[0]['display_name']);
+        $this->assertSame('Together we serve.', $data[0]['slogan']);
+        $this->assertStringNotContainsString(
+            'PRIVATE-REVIEW-NOTE', $response->getContent()
+        );
+        $this->assertStringNotContainsString(
+            'private/candidate-photo.jpg', $response->getContent()
+        );
+        $this->assertStringNotContainsString(
+            $this->id['learner'], $response->getContent()
+        );
+        $this->assertStringNotContainsString(
+            $this->id['user'], $response->getContent()
+        );
+    }
+
+    public function test_candidates_reject_position_from_another_election(): void
+    {
+        $other = (array) DB::table('student_elections')
+            ->where('id', $this->id['election'])->first();
+        $other['id'] = (string) Str::uuid();
+        $other['title'] = 'Another election';
+        DB::table('student_elections')->insert($other);
+
+        $this->actingAs($this->u());
+        $this->expectException(
+            ModelNotFoundException::class
+        );
+
+        app(StudentElectionLearnerController::class)
+            ->candidates($other['id'], $this->id['ep']);
+    }
+
+    public function test_candidates_reject_another_schools_election(): void
+    {
+        $otherSchool = (string) Str::uuid();
+        DB::table('schools')->insert([
+            'id' => $otherSchool,
+            'school_name' => 'Other Election School',
+            'school_code' => 'OTHER-'.Str::upper(Str::random(10)),
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        $other = (array) DB::table('student_elections')
+            ->where('id', $this->id['election'])->first();
+        $other['id'] = (string) Str::uuid();
+        $other['school_id'] = $otherSchool;
+        $other['title'] = 'Other school election';
+        DB::table('student_elections')->insert($other);
+
+        $this->actingAs($this->u());
+        $this->expectException(
+            ModelNotFoundException::class
+        );
+
+        app(StudentElectionLearnerController::class)
+            ->candidates($other['id'], $this->id['ep']);
     }
 }

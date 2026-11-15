@@ -138,6 +138,47 @@ jobs:
       - name: Analyze Transport code without a baseline
         run: php vendor/bin/phpstan analyse --configuration=phpstan-transport.neon --memory-limit=1G --no-progress
 
+  elections-static-analysis:
+    name: Elections Static Analysis
+    runs-on: ubuntu-latest
+    env:
+      APP_ENV: testing
+      APP_DEBUG: "false"
+      DB_CONNECTION: pgsql
+      DB_DATABASE: shuleos_assessment_fk_test
+      DB_URL: ""
+      DATABASE_URL: ""
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      BOARDING_REPORTING_SCHEDULER_ENABLED: "false"
+      TRANSPORT_REPORTING_SCHEDULER_ENABLED: "false"
+      TRANSPORT_REPORTING_SCHEDULER_ACTORS: "{}"
+      STUDENT_ELECTION_STATIONS_ENABLED: "false"
+      TELESCOPE_ENABLED: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pgsql, pdo_pgsql, gd
+          coverage: none
+          ini-values: memory_limit=1G
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Verify Composer autoload compliance
+        run: composer dump-autoload --optimize --strict-psr --no-scripts
+
+      - name: Analyze Elections code without a baseline
+        run: php vendor/bin/phpstan analyse --configuration=phpstan-elections.neon --memory-limit=1G --no-progress
+
   backend-tests:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -146,6 +187,16 @@ jobs:
       - dependency-security-scan
       - assessment-static-analysis
       - transport-static-analysis
+      - elections-static-analysis
+
+    env:
+      DB_URL: ""
+      DATABASE_URL: ""
+      BOARDING_REPORTING_SCHEDULER_ENABLED: "false"
+      TRANSPORT_REPORTING_SCHEDULER_ENABLED: "false"
+      TRANSPORT_REPORTING_SCHEDULER_ACTORS: "{}"
+      STUDENT_ELECTION_STATIONS_ENABLED: "false"
+      TELESCOPE_ENABLED: "false"
 
     services:
       postgres:
@@ -170,7 +221,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.2"
-          extensions: pgsql, pdo_pgsql
+          extensions: pgsql, pdo_pgsql, gd
           coverage: none
           ini-values: memory_limit=1G
 

@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class StudentLeadershipTerm extends TenantModel
 {
     protected $guarded = [];
@@ -10,12 +12,14 @@ class StudentLeadershipTerm extends TenantModel
 
     protected $keyType = 'string';
 
-    public function learner()
+    /** @return BelongsTo<Learner, $this> */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(Learner::class);
     }
 
-    public function position()
+    /** @return BelongsTo<StudentLeadershipPosition, $this> */
+    public function position(): BelongsTo
     {
         return $this->belongsTo(StudentLeadershipPosition::class);
     }

@@ -34,6 +34,24 @@ abstract class TransportHttpTestCase extends TestCase
 
     protected ?string $transportAddonEndsAt = null;
 
+    protected bool $useRelativeTransportFixtureDates = false;
+
+    private int $transportFixtureDayShift = 0;
+
+    /** Keep legacy fixtures unchanged unless a subclass opts into relative dates. */
+    protected function transportFixtureDate(string $value): string
+    {
+        if (! $this->useRelativeTransportFixtureDates) {
+            return $value;
+        }
+        $date = new \DateTimeImmutable($value, new \DateTimeZone('UTC'));
+        $date = $date->modify(sprintf('%+d days', $this->transportFixtureDayShift));
+        $format = strlen($value) === 10 ? 'Y-m-d'
+            : (str_ends_with($value, 'Z') ? 'Y-m-d\TH:i:s\Z' : 'Y-m-d\TH:i:sP');
+
+        return $date->format($format);
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -49,9 +67,13 @@ abstract class TransportHttpTestCase extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
+        if ($this->useRelativeTransportFixtureDates) {
+            $this->transportFixtureDayShift = TransportFixtureClock::days();
+        }
+
         config(['jwt.secret' => str_repeat('transport-http-test-secret-', 3), 'jwt.ttl' => 60,
             'transport_reporting.scheduler_enabled' => false, 'boarding_reporting.scheduler_enabled' => false]);
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T02:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -97,7 +119,7 @@ abstract class TransportHttpTestCase extends TestCase
         return [
             'route_id' => $f['route'], 'service_code' => 'HTTP-'.Str::random(12),
             'direction' => 'to_school', 'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-30',
+            'effective_from' => $this->transportFixtureDate('2026-11-09'), 'effective_to' => $this->transportFixtureDate('2026-11-30'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'completion_day_offset' => 0, 'turnaround_minutes' => 15, ...$extra,
         ];
@@ -166,7 +188,7 @@ abstract class TransportHttpTestCase extends TestCase
 
         return $this->reporting()->createPolicy($f['actor'], [
             'schedule_id' => $schedule,
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-30',
+            'effective_from' => $this->transportFixtureDate('2026-11-09'), 'effective_to' => $this->transportFixtureDate('2026-11-30'),
             'weekday_mask' => 127,
             'deadline_time' => '17:00', 'deadline_day_offset' => 0,
             'grace_minutes' => 30,
@@ -211,7 +233,7 @@ abstract class TransportHttpTestCase extends TestCase
     protected function journey(string $direction = 'to_school'): array
     {
         $f = $this->fixture($direction);
-        CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T04:30:00Z'));
 
         $permission = DB::table('permissions')
             ->where('permission_name', 'authorize_transport_handover')->value('id');
@@ -243,7 +265,7 @@ abstract class TransportHttpTestCase extends TestCase
             'kind' => 'guardian_recipient',
             'learner_id' => $f['learner']->id, 'stop_id' => $f['stop'],
             'guardian_id' => $guardian, 'guardian_link_id' => $link,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => $this->transportFixtureDate('2026-11-09'), 'valid_to' => $this->transportFixtureDate('2026-11-09'),
             'reason' => 'Approved concrete-run handover arrangement.',
         ]);
         $receiver = User::withoutGlobalScopes()->findOrFail($f['unassigned']->id);
@@ -251,7 +273,7 @@ abstract class TransportHttpTestCase extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => $direction === 'to_school' ? 'school_receiver' : 'school_releaser',
             'staff_user_id' => $receiver->id,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => $this->transportFixtureDate('2026-11-09'), 'valid_to' => $this->transportFixtureDate('2026-11-09'),
             'reason' => 'Assigned school handover counterpart.',
         ]);
         $trip = app(TransportTripService::class)->capture($f['actor'], [
@@ -333,13 +355,13 @@ abstract class TransportHttpTestCase extends TestCase
             'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
             'service_code' => 'S-'.Str::random(12), 'direction' => $direction,
             'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => $this->transportFixtureDate('2026-11-01'), 'effective_to' => $this->transportFixtureDate('2026-12-31'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'created_by' => $actor->id, 'updated_by' => $actor->id,
         ]);
 
         $assignment = app(TransportAssignmentService::class)->create($actor, [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-09',
+            'schedule_id' => $schedule, 'service_date' => $this->transportFixtureDate('2026-11-09'),
             'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
         ]);
         $reservation = app(TransportLearnerReservationService::class)->create($actor, [

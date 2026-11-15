@@ -13,6 +13,8 @@ use Tests\Support\TransportHttpTestCase;
 
 class TransportFoundationHttpTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_every_transport_route_requires_jwt_and_tenant_context(): void
     {
         $routes = collect(Route::getRoutes()->getRoutes())->filter(fn ($route) => str_starts_with($route->getName() ?? '', 'transport.'));

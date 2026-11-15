@@ -23,6 +23,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -45,7 +46,7 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T02:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -94,8 +95,8 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => 'school_receiver',
             'staff_user_id' => $f['unassigned']->id,
-            'valid_from' => '2026-11-09',
-            'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'),
+            'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Assigned school arrival receiver.',
         ];
 
@@ -109,7 +110,7 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             ...$input, 'kind' => 'school_releaser',
         ]), 422);
         $this->denied(fn () => $this->service()->create($f['actor'], [
-            ...$input, 'valid_to' => '2026-11-08',
+            ...$input, 'valid_to' => TransportFixtureClock::shift('2026-11-08'),
         ]), 422);
     }
 
@@ -251,8 +252,8 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => 'school_receiver',
             'staff_user_id' => $f['unassigned']->id,
-            'valid_from' => '2026-11-09',
-            'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'),
+            'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'School receiving responsibility.',
         ];
 
@@ -317,8 +318,8 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             'stop_id' => $f['stop'],
             'guardian_id' => $guardian,
             'guardian_link_id' => $link,
-            'valid_from' => '2026-11-09',
-            'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'),
+            'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Approved collection arrangement for this dated run.',
         ];
     }
@@ -379,13 +380,13 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
             'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
             'service_code' => 'S-'.Str::random(12), 'direction' => 'to_school',
             'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'created_by' => $actor->id, 'updated_by' => $actor->id,
         ]);
 
         $assignment = app(TransportAssignmentService::class)->create($actor, [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-09',
+            'schedule_id' => $schedule, 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
         ]);
         $reservation = app(TransportLearnerReservationService::class)->create($actor, [

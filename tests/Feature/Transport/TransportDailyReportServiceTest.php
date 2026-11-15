@@ -27,6 +27,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -49,7 +50,7 @@ class TransportDailyReportServiceTest extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T02:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -64,7 +65,7 @@ class TransportDailyReportServiceTest extends TestCase
     {
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $submitted = $this->submitDaily($f);
         $saved = $submitted['submissions'][0];
         $this->assertSame(1, $saved['snapshot']['totals']['on_board']);
@@ -91,7 +92,7 @@ class TransportDailyReportServiceTest extends TestCase
             'failure_reason' => 'person_unavailable',
             'follow_up' => 'Crew retains custody pending verified school handover.',
         ]);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $before = $this->daily()->show($f['actor'], $f['obligation']);
         $this->denied(fn () => $this->daily()->submit($f['actor'], $f['obligation'], [
             'expected_version' => $before['version'], 'summary' => 'End of service account.',
@@ -109,7 +110,7 @@ class TransportDailyReportServiceTest extends TestCase
         $this->denied(fn () => $this->submitDaily($f), 422);
         $before = $this->daily()->show($f['actor'], $f['obligation']);
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->denied(fn () => $this->daily()->submit($f['actor'], $f['obligation'], [
             'expected_version' => $before['version'], 'summary' => 'End of service account.',
             'exception_note' => 'Outstanding issues remain under active custody follow-up.',
@@ -121,7 +122,7 @@ class TransportDailyReportServiceTest extends TestCase
     {
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $submitted = $this->submitDaily($f)['submissions'][0];
         $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver']);
         $reviewer = $this->reviewer($f);
@@ -145,7 +146,7 @@ class TransportDailyReportServiceTest extends TestCase
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
         $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $submission = $this->submitDaily($f)['submissions'][0];
         $this->grant($f['actor'], 'review_transport_daily_reports');
         foreach ([$f['actor'], $f['receiver']] as $participant) {
@@ -159,7 +160,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_requested_changes_create_new_revision_without_rewriting_history(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $first = $this->submitDaily($f)['submissions'][0];
         $this->denied(fn () => $this->submitDaily($f), 409);
         $reviewer = $this->reviewer($f);
@@ -184,7 +185,7 @@ class TransportDailyReportServiceTest extends TestCase
     {
         $f = $this->journey();
         $f['obligation'] = $this->reporting()->materialize($f['actor'], $this->policy($f)['id'])['id'];
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->denied(fn () => $this->submitDaily($f), 403);
         $this->grant($f['actor'], 'submit_transport_daily_reports');
         $unassigned = User::withoutGlobalScopes()->findOrFail($f['unassigned']->id);
@@ -204,7 +205,7 @@ class TransportDailyReportServiceTest extends TestCase
     {
         $a = $this->dailyFixture();
         $b = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         foreach ([[$a, $b], [$b, $a]] as [$owner, $foreign]) {
             $submission = $this->submitDaily($owner)['submissions'][0];
             $this->denied(fn () => $this->daily()->show($foreign['actor'], $owner['obligation']), 404);
@@ -221,7 +222,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_submissions_and_reviews_are_immutable_in_the_database(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $submission = $this->submitDaily($f)['submissions'][0];
         $reviewed = $this->daily()->review($this->reviewer($f), $submission['id'], [
             'expected_version' => $submission['review_version'], 'decision' => 'accepted',
@@ -252,7 +253,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_audit_failure_rolls_back_submission_and_review(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $before = $this->daily()->show($f['actor'], $f['obligation']);
         $this->mock(TransportAuditService::class)
             ->shouldReceive('record')->andThrow(new \RuntimeException('Strict daily audit failure.'));
@@ -286,7 +287,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_deadline_equality_is_on_time_and_later_revision_preserves_first_timing(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T14:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:00:00Z'));
         $first = $this->submitDaily($f)['submissions'][0];
         $this->assertFalse($first['late']);
         $this->assertFalse($first['overdue']);
@@ -294,7 +295,7 @@ class TransportDailyReportServiceTest extends TestCase
             'expected_version' => $first['review_version'], 'decision' => 'changes_requested',
             'note' => 'Request an additional explicit service account.',
         ]);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $result = $this->submitDaily($f);
         $this->assertFalse($result['submissions'][0]['late']);
         $this->assertTrue($result['submissions'][1]['late']);
@@ -304,7 +305,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_unknown_fields_cannot_supply_totals_or_fabricated_actor(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $before = $this->daily()->show($f['actor'], $f['obligation']);
         foreach (['snapshot', 'submitted_by', 'submitted_at', 'totals'] as $field) {
             $this->denied(fn () => $this->daily()->submit($f['actor'], $f['obligation'], [
@@ -318,7 +319,7 @@ class TransportDailyReportServiceTest extends TestCase
     public function test_database_rejects_forged_snapshot_and_self_review(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $before = $this->daily()->show($f['actor'], $f['obligation']);
         $forged = $before['current_snapshot'];
         $forged['totals']['on_board'] = 999;
@@ -413,7 +414,7 @@ class TransportDailyReportServiceTest extends TestCase
 
         return $this->reporting()->createPolicy($f['actor'], [
             'schedule_id' => $schedule,
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-30',
+            'effective_from' => TransportFixtureClock::shift('2026-11-09'), 'effective_to' => TransportFixtureClock::shift('2026-11-30'),
             'weekday_mask' => 127,
             'deadline_time' => '17:00', 'deadline_day_offset' => 0,
             'grace_minutes' => 30,
@@ -458,7 +459,7 @@ class TransportDailyReportServiceTest extends TestCase
     private function journey(string $direction = 'to_school'): array
     {
         $f = $this->fixture($direction);
-        CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
 
         $permission = DB::table('permissions')
             ->where('permission_name', 'authorize_transport_handover')->value('id');
@@ -490,7 +491,7 @@ class TransportDailyReportServiceTest extends TestCase
             'kind' => 'guardian_recipient',
             'learner_id' => $f['learner']->id, 'stop_id' => $f['stop'],
             'guardian_id' => $guardian, 'guardian_link_id' => $link,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Approved concrete-run handover arrangement.',
         ]);
         $receiver = User::withoutGlobalScopes()->findOrFail($f['unassigned']->id);
@@ -498,7 +499,7 @@ class TransportDailyReportServiceTest extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => $direction === 'to_school' ? 'school_receiver' : 'school_releaser',
             'staff_user_id' => $receiver->id,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Assigned school handover counterpart.',
         ]);
         $trip = app(TransportTripService::class)->capture($f['actor'], [
@@ -580,13 +581,13 @@ class TransportDailyReportServiceTest extends TestCase
             'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
             'service_code' => 'S-'.Str::random(12), 'direction' => $direction,
             'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'created_by' => $actor->id, 'updated_by' => $actor->id,
         ]);
 
         $assignment = app(TransportAssignmentService::class)->create($actor, [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-09',
+            'schedule_id' => $schedule, 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
         ]);
         $reservation = app(TransportLearnerReservationService::class)->create($actor, [

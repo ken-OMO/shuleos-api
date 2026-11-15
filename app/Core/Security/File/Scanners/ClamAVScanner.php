@@ -6,166 +6,55 @@ namespace App\Core\Security\File\Scanners;
 
 use App\Core\Security\File\Contracts\VirusScannerInterface;
 use Illuminate\Http\UploadedFile;
+use Symfony\Component\Process\ExecutableFinder;
+use Symfony\Component\Process\Process;
 
-/**
- * ClamAV malware scanner.
- *
- * Uses the clamscan command-line utility
- * to scan uploaded files for malware.
- */
 final class ClamAVScanner implements VirusScannerInterface
 {
-    /**
-     * Last detected threat.
-     */
     private ?string $threat = null;
 
-    /**
-     * Determine whether ClamAV
-     * is available.
-     */
     public function available(): bool
     {
-        $command = strtoupper(
-
-            substr(
-
-                PHP_OS,
-
-                0,
-
-                3
-
-            )
-
-        ) === 'WIN'
-
-            ? 'where clamscan'
-
-            : 'which clamscan';
-
-        exec(
-
-            $command,
-
-            $output,
-
-            $status
-
-        );
-
-        return $status === 0;
+        return (new ExecutableFinder)->find('clamscan') !== null;
     }
 
-    /**
-     * Scanner name.
-     */
     public function name(): string
     {
         return 'ClamAV';
     }
 
-    /**
-     * Return the last detected threat.
-     */
     public function detectedThreat(): ?string
     {
         return $this->threat;
     }
 
-    /**
-     * Scan an uploaded file.
-     */
-    public function scan(
-        UploadedFile $file
-    ): bool {
-
+    public function scan(UploadedFile $file): bool
+    {
         $this->threat = null;
-
-        if (
-
-            ! $this->available()
-
-        ) {
-
-            return true;
-
-        }
-
-        $command = sprintf(
-
-            'clamscan --no-summary %s',
-
-            escapeshellarg(
-
-                $file->getRealPath()
-
-            )
-
-        );
-
-        exec(
-
-            $command,
-
-            $output,
-
-            $status
-
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Exit Codes
-        |--------------------------------------------------------------------------
-        |
-        | 0 = Clean
-        | 1 = Virus Found
-        | 2 = Error
-        |
-        */
-
-        if (
-
-            $status === 0
-
-        ) {
-
-            return true;
-
-        }
-
-        if (
-
-            $status === 1
-
-        ) {
-
-            $this->threat = trim(
-
-                implode(
-
-                    PHP_EOL,
-
-                    $output
-
-                )
-
-            );
+        $executable = (new ExecutableFinder)->find('clamscan');
+        if ($executable === null) {
+            $this->threat = 'Scanner unavailable.';
 
             return false;
+        }
+        $path = $file->getRealPath();
+        if ($path === false || ! is_file($path) || ! is_readable($path)) {
+            $this->threat = 'Scanner input unavailable.';
 
+            return false;
+        }
+        try {
+            $process = new Process([$executable, '--no-summary', '--', $path]);
+            $process->setTimeout(60);
+            $status = $process->run();
+            if ($status === 0) {
+                return true;
+            }
+            $this->threat = $status === 1 ? mb_substr(trim($process->getOutput()), 0, 1000) : 'Scanner execution failed.';
+        } catch (\Throwable) {
+            $this->threat = 'Scanner execution failed.';
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Scanner Error
-        |--------------------------------------------------------------------------
-        */
-
-        $this->threat = 'Scanner execution failed.';
-
         return false;
-
     }
 }

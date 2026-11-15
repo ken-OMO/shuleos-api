@@ -6,17 +6,20 @@ namespace Tests\Feature\Transport;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportHttpTestCase;
 
 class TransportAllocationHttpTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_assignments_can_be_created_read_ended_and_reject_stale_end_requests(): void
     {
         $f = $this->fixture();
         $this->httpAs($f['actor']);
         $schedule = DB::table('transport_dated_assignments')->where('id', $f['assignment']['id'])->value('schedule_id');
         $created = $this->postJson('/api/transport/assignments', [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-10',
+            'schedule_id' => $schedule, 'service_date' => TransportFixtureClock::shift('2026-11-10'),
             'vehicle_id' => $f['vehicle'], 'driver_id' => $f['actor']->id,
         ])->assertCreated()->json('data');
         $this->getJson('/api/transport/assignments/'.$created['id'])->assertOk();
@@ -58,7 +61,7 @@ class TransportAllocationHttpTest extends TransportHttpTestCase
         $sourceSchedule = DB::table('transport_dated_assignments')->where('id', $f['assignment']['id'])->value('schedule_id');
         $episode = $this->postJson('/api/transport/enrolments', [
             'learner_id' => $f['other']->id, 'schedule_id' => $sourceSchedule, 'stop_id' => $f['stop'],
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-09', 'weekday_mask' => 1,
+            'effective_from' => TransportFixtureClock::shift('2026-11-09'), 'effective_to' => TransportFixtureClock::shift('2026-11-09'), 'weekday_mask' => 1,
         ])->assertCreated()->json('data');
         $vehicle = $this->postJson('/api/transport/vehicles', [
             'registration_number' => 'TRANSFER-'.Str::random(8),
@@ -66,16 +69,16 @@ class TransportAllocationHttpTest extends TransportHttpTestCase
         ])->assertCreated()->json('data');
         $target = $this->postJson('/api/transport/schedules', $this->scheduleInput($f))->assertCreated()->json('data');
         $this->postJson('/api/transport/assignments', [
-            'schedule_id' => $target['id'], 'service_date' => '2026-11-09',
+            'schedule_id' => $target['id'], 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $vehicle['id'], 'driver_id' => $f['unassigned']->id,
         ])->assertCreated();
         $transfer = [
-            'expected_version' => $episode['version'], 'effective_from' => '2026-11-09',
+            'expected_version' => $episode['version'], 'effective_from' => TransportFixtureClock::shift('2026-11-09'),
             'schedule_id' => $target['id'], 'stop_id' => $f['stop'], 'reason' => 'Approved replacement service.',
         ];
         $moved = $this->postJson('/api/transport/enrolments/'.$episode['id'].'/transfer', $transfer)->assertOk()->json('data');
         $this->assertNotSame($episode['id'], $moved['target_episode']['id']);
-        $this->getJson('/api/transport/enrolments/'.$episode['id'])->assertOk()->assertJsonPath('data.ended_before', '2026-11-09');
+        $this->getJson('/api/transport/enrolments/'.$episode['id'])->assertOk()->assertJsonPath('data.ended_before', TransportFixtureClock::shift('2026-11-09'));
         $this->getJson('/api/transport/enrolments/'.$moved['target_episode']['id'])->assertOk();
         $before = $this->httpSnapshot($f);
         $this->postJson('/api/transport/enrolments/'.$episode['id'].'/transfer', $transfer)->assertConflict();
