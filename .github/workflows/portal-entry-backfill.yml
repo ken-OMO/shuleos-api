@@ -1,0 +1,81 @@
+name: Portal entry backfill verification
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: ['fix/portal-entry-role-backfill']
+permissions:
+  contents: read
+concurrency:
+  group: portal-backfill-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  postgres-backfill:
+    name: PostgreSQL backfill (${{ matrix.state }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        state: [fresh, existing]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: shuleos
+          POSTGRES_PASSWORD: shuleos
+          POSTGRES_DB: shuleos_assessment_fk_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U shuleos -d shuleos_assessment_fk_test"
+          --health-interval=5s --health-timeout=5s --health-retries=10
+    env:
+      APP_ENV: testing
+      APP_DEBUG: 'false'
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: shuleos_assessment_fk_test
+      DB_USERNAME: shuleos
+      DB_PASSWORD: shuleos
+      DB_URL: ''
+      DATABASE_URL: ''
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: array
+      BOARDING_REPORTING_SCHEDULER_ENABLED: 'false'
+      TRANSPORT_REPORTING_SCHEDULER_ENABLED: 'false'
+      STUDENT_ELECTION_STATIONS_ENABLED: 'false'
+      TELESCOPE_ENABLED: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pgsql, pdo_pgsql, gd
+          coverage: none
+          ini-values: memory_limit=1G
+      - run: composer install --prefer-dist --no-interaction --no-progress
+      - run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: Fresh schema with repair
+        if: matrix.state == 'fresh'
+        run: php artisan migrate --force
+      - name: Upgrade existing schema with users and custom grants
+        if: matrix.state == 'existing'
+        run: |
+          mv database/migrations/2026_11_15_160000_backfill_portal_entry_permissions.php /tmp/portal-entry-backfill.php
+          php artisan migrate --force
+          php tests/Support/PortalEntryUpgradeProbe.php prepare
+          mv /tmp/portal-entry-backfill.php database/migrations/2026_11_15_160000_backfill_portal_entry_permissions.php
+          php artisan migrate --force
+          php tests/Support/PortalEntryUpgradeProbe.php verify
+      - name: Migration and authorization regression tests
+        run: >-
+          php vendor/bin/phpunit --configuration=phpunit.xml
+          tests/Feature/PortalEntryPermissionBackfillTest.php
+          tests/Feature/AuthenticationContractTest.php
+          tests/Feature/AuthorizationResolutionConsistencyTest.php
+          tests/Feature/PlatformDashboardAccessTest.php
