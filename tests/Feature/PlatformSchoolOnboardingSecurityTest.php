@@ -16,6 +16,7 @@ use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use RuntimeException;
 use Tests\Support\Database\GradeBuilder;
 use Tests\Support\Database\LearnerBuilder;
+use Tests\Support\Database\MainSubscriptionBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\TestCase;
 
@@ -910,6 +911,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
     private function operatingModeAdmin(string $schoolId): User
     {
+        MainSubscriptionBuilder::activeFor($schoolId);
         $this->grantPermission($this->schoolAdminRoleId, 'access_administrator_portal');
         $this->grantPermission($this->schoolAdminRoleId, 'manage_school_profile');
 
