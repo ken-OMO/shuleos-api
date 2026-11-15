@@ -1142,7 +1142,7 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
 
     private function school(): School
     {
-        return School::query()->create([
+        $school = School::query()->create([
             'id' => (string) Str::uuid(),
             'school_name' => 'School '.Str::upper(Str::random(8)),
             'school_code' => 'LRN-'.Str::upper(Str::random(8)),
@@ -1157,6 +1157,10 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
+        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
+
+        return $school;
+
     }
 
     private function user(School $school): User

@@ -330,6 +330,7 @@ class SchoolOperationalSetupGateTest extends TestCase
             'locale' => 'en',
             'active' => true,
         ]);
+        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
 
         $role = Role::query()
             ->where('role_name', 'School Admin')

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Services\Assessment\ExamResultLifecycleService;
 use App\Services\Auth\AuthContextService;
 use App\Services\School\SchoolOperatingModePolicy;
+use App\Services\School\SchoolBusinessWriteAccess;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -124,6 +125,11 @@ class ModulePermissionMiddleware
                     return $next($request);
                 }
             );
+        }
+
+        $businessAccess = app(SchoolBusinessWriteAccess::class);
+        if ($businessAccess->covers($request)) {
+            return $businessAccess->run((string) $user->school_id, fn () => $next($request));
         }
 
         return $next($request);

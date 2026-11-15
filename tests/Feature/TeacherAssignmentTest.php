@@ -46,6 +46,7 @@ class TeacherAssignmentTest extends TestCase
         $this->withoutMiddleware();
 
         $this->school = SchoolBuilder::create();
+        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($this->school->id);
 
         $this->role = RoleBuilder::create();
 

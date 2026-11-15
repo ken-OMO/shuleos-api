@@ -513,6 +513,7 @@ class SchoolAdminProfileCompletionTest extends TestCase
             'timezone' => 'Africa/Nairobi',
             'locale' => 'en',
         ]);
+        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($school->id);
 
         $role = Role::query()
             ->where(

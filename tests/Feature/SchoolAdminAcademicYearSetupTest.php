@@ -52,6 +52,8 @@ class SchoolAdminAcademicYearSetupTest extends TestCase
             ], $attributes)
         );
 
+        \Tests\Support\Database\MainSubscriptionBuilder::activeFor($id);
+
         return (object) DB::table('schools')
             ->where('id', $id)
             ->first();
