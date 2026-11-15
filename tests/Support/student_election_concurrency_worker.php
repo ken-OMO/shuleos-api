@@ -95,6 +95,10 @@ try {
     } elseif ($job['operation'] === 'station_attendance_change') {
         DB::table('attendance_registers')->where('id', $job['register'])->lockForUpdate()->firstOrFail();
         DB::table('learner_attendance')->where('id', $job['attendance'])->update(['finalized' => false]);
+    } elseif ($job['operation'] === 'generate_voters') {
+        app(StudentElectionService::class)->generateVoters($job['school'], $job['election'], $job['actor']);
+    } elseif ($job['operation'] === 'create_position') {
+        app(StudentElectionService::class)->position($job['school'], ['name' => 'Race position', 'scope' => 'school'], $job['actor']);
     } elseif ($job['operation'] === 'hold_voter') {
         DB::table('student_election_voters')->where('school_id', $job['school'])
             ->where('id', $job['voter'])->lockForUpdate()->firstOrFail();

@@ -49,7 +49,7 @@ class StudentElectionRoundConcurrencyTest extends TestCase
     private function job(string $operation, string $actor = 'admin'): array
     {
         return ['operation' => $operation, 'school' => $this->id['school'], 'election' => $this->id['election'],
-            'ep' => $this->id['ep'], 'actor' => $this->id[$actor], 'round' => $this->round['id'] ?? null,
+            'ep' => $this->id['ep'], 'actor' => $this->id[$operation === 'publish' ? 'publisher' : $actor], 'round' => $this->round['id'] ?? null,
             'token' => $this->tokens[$actor] ?? null, 'choice' => 'approve'];
     }
 

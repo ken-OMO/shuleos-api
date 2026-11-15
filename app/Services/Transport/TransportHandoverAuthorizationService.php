@@ -65,8 +65,10 @@ class TransportHandoverAuthorizationService
 
         try {
             return DB::transaction(function () use ($authenticated, $data, $guardian): array {
+                $preflight = $this->access->actor($authenticated);
+                $this->access->requirePermission($preflight, 'authorize_transport_handover');
                 $actor = $this->access->authorizationActor($authenticated, $data);
-                $this->access->requirePermission($actor, $this->permission($data['kind']));
+                $this->access->requirePermission($actor, $this->permission());
                 $school = (string) $actor->school_id;
 
                 $assignment = DB::table('transport_dated_assignments')
@@ -129,12 +131,14 @@ class TransportHandoverAuthorizationService
 
         try {
             return DB::transaction(function () use ($authenticated, $id, $data): array {
+                $preflight = $this->access->actor($authenticated);
+                $this->access->requirePermission($preflight, 'authorize_transport_handover');
                 $actor = $this->access->revocationActor($authenticated, $id);
                 $row = DB::table('transport_handover_authorizations')
                     ->where('school_id', $actor->school_id)->where('id', $id)
                     ->lockForUpdate()->first();
                 abort_unless($row !== null, 404);
-                $this->access->requirePermission($actor, $this->permission($row->kind));
+                $this->access->requirePermission($actor, $this->permission());
                 $before = $this->response($row);
                 abort_unless(hash_equals($before['version'], $data['expected_version']), 409);
 
@@ -204,11 +208,9 @@ class TransportHandoverAuthorizationService
         ];
     }
 
-    private function permission(string $kind): string
+    private function permission(): string
     {
-        return $kind === 'guardian_recipient'
-            ? 'authorize_transport_handover'
-            : 'manage_transport';
+        return 'authorize_transport_handover';
     }
 
     private function rejectUnknown(array $input, array $allowed): void

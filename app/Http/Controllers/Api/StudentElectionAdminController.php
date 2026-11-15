@@ -64,12 +64,12 @@ class StudentElectionAdminController extends BaseApiController
     {
         $v = $r->validate(['position_id' => 'required|uuid', 'display_order' => 'sometimes|integer', 'number_of_winners' => 'nullable|integer|min:1', 'candidate_eligibility_rules' => 'nullable|array', 'voter_eligibility_rules' => 'nullable|array']);
 
-        return $this->created(new StudentElectionAttachmentResource($this->s->attach($this->school($r), $election, $v['position_id'], $v)));
+        return $this->created(new StudentElectionAttachmentResource($this->s->attach($this->school($r), $election, $v['position_id'], $v, auth()->id())));
     }
 
     public function voters(Request $r, string $election)
     {
-        return $this->success(['generated' => $this->s->generateVoters($this->school($r), $election)]);
+        return $this->success(['generated' => $this->s->generateVoters($this->school($r), $election, auth()->id())]);
     }
 
     public function transition(Request $r, string $election, string $to)

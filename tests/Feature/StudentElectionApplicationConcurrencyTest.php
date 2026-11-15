@@ -66,6 +66,7 @@ class StudentElectionApplicationConcurrencyTest extends TestCase
         $actor = match ($operation) {
             'submit', 'vote' => 'user',
             'consent', 'withdraw' => 'parent_user',
+            'publish' => 'publisher',
             default => 'admin',
         };
 

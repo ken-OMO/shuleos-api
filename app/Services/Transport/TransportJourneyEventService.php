@@ -77,6 +77,9 @@ class TransportJourneyEventService
                 $school = (string) $actor->school_id;
                 $roster = $this->roster($school, $rosterId);
 
+                DB::table('transport_trips')->where('school_id', $school)
+                    ->where('id', $roster->trip_id)->lockForUpdate()->firstOrFail();
+
                 DB::table('learners')->where('school_id', $school)
                     ->where('id', $roster->learner_id)->lockForUpdate()->first();
                 DB::table('transport_trip_roster')->where('school_id', $school)
@@ -181,6 +184,9 @@ class TransportJourneyEventService
             });
         } catch (QueryException $exception) {
             $state = $exception->errorInfo[0] ?? null;
+            if ($state === '40P01') {
+                abort(409, 'Concurrent Transport operation rolled back; refresh before retrying.');
+            }
             if (in_array($state, ['23P01', '23505'], true)) {
                 abort(409, 'Journey evidence conflicts with the current state.');
             }

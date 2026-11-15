@@ -7,6 +7,7 @@ namespace Tests\Feature\Transport;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportHttpTestCase;
 
@@ -52,8 +53,8 @@ class TransportJourneyHttpTest extends TransportHttpTestCase
         $this->postJson('/api/transport/authorizations', [
             'assignment_id' => $f['assignment']['id'], 'kind' => 'school_receiver',
             'staff_user_id' => $f['receiver']->id, 'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
-            'reason' => 'Management assigns school handover responsibility.',
-        ])->assertCreated();
+            'reason' => 'Management alone cannot assign school handover responsibility.',
+        ])->assertForbidden();
     }
 
     public function test_pickup_and_school_arrival_preserve_actual_people_and_receipt(): void
@@ -184,6 +185,30 @@ class TransportJourneyHttpTest extends TransportHttpTestCase
             'expected_version' => $this->events()->show($f['actor'], $f['roster'])['version'],
             'outcome' => 'cancelled', 'reason' => 'Unassigned staff cannot declare attendance.',
         ])->assertForbidden();
+        $this->assertSame($before, $this->httpSnapshot($f));
+    }
+
+    public function test_http_permissionless_exception_ids_have_the_same_denial(): void
+    {
+        $f = $this->journey('from_school');
+        $this->httpAs($f['actor']);
+        $departure = $this->postJson('/api/transport/rosters/'.$f['roster'].'/events', $this->input($f, 'school_departure', $f['schoolGrant']['id']))->assertCreated()->json('data');
+        $failed = $this->postJson('/api/transport/rosters/'.$f['roster'].'/events', [
+            'expected_version' => $departure['version'], 'boundary' => 'destination_dropoff', 'outcome' => 'failed',
+            'crew_user_id' => $f['actor']->id, 'occurred_at' => CarbonImmutable::now('UTC')->toIso8601String(),
+            'receipt_method' => 'none', 'failure_reason' => 'person_unavailable',
+            'follow_up' => 'Crew retains custody and contacts school leadership.',
+        ])->assertCreated()->json('data');
+        $failureId = $failed['events'][1]['id'];
+        $current = $this->getJson('/api/transport/exceptions/'.$failureId)->assertOk()->json('data');
+        $this->removePermission($f['actor'], 'record_transport_journeys');
+        $this->removePermission($f['actor'], 'authorize_transport_handover');
+        $input = ['expected_version' => $current['version'], 'expected_journey_version' => $current['journey_version'],
+            'action' => 'follow_up', 'note' => 'Unprivileged HTTP attempt.'];
+        $before = $this->httpSnapshot($f);
+        foreach ([$failureId, (string) Str::uuid()] as $id) {
+            $this->postJson('/api/transport/exceptions/'.$id.'/actions', $input)->assertForbidden();
+        }
         $this->assertSame($before, $this->httpSnapshot($f));
     }
 }

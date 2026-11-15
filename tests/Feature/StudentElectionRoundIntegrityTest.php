@@ -47,7 +47,7 @@ class StudentElectionRoundIntegrityTest extends TestCase
 
     private function publish(): void
     {
-        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['admin']);
+        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['publisher']);
     }
 
     public function test_runoff_keeps_original_electorate_and_does_not_rewrite_tied_results(): void
@@ -373,5 +373,20 @@ class StudentElectionRoundIntegrityTest extends TestCase
         $foreign = F::create();
         $this->httpAsOfficer();
         $this->getJson('/api/student-elections/'.$foreign['election'].'/rounds')->assertNotFound();
+    }
+
+    public function test_round_tally_officer_cannot_declare_and_missing_round_audit_blocks_publication(): void
+    {
+        $r = $this->fixture();
+        F::open($this->id, $r);
+        F::cast($this->id, $r, 'selection', false, $this->id['candidate']);
+        F::cast($this->id, $r, 'selection', true, $this->id['candidate']);
+        // The root tally belongs to admin; let the other officer tally the runoff.
+        $other = [...$this->id, 'admin' => $this->id['publisher']];
+        F::finish($other, $r);
+        $this->denied(fn () => $this->publish(), 'declaration');
+        DB::table('student_election_audit_logs')->where('entity_id', $r['id'])->where('action', 'round_tallied')->delete();
+        $this->denied(fn () => $this->publish(), 'declaration');
+        $this->assertSame('tallied', DB::table('student_elections')->where('id', $this->id['election'])->value('status'));
     }
 }

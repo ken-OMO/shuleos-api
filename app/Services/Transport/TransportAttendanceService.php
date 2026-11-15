@@ -194,6 +194,9 @@ class TransportAttendanceService
             return DB::transaction($operation);
         } catch (QueryException $exception) {
             $state = $exception->errorInfo[0] ?? null;
+            if ($state === '40P01') {
+                abort(409, 'Concurrent Transport operation rolled back; refresh before retrying.');
+            }
             if (in_array($state, ['23P01', '23505'], true)) {
                 abort(409, 'Journey attendance or completion state conflicts.');
             }

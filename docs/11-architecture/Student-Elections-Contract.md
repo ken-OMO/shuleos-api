@@ -1,5 +1,7 @@
 # Student Elections Module Contract
 
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Voting extension and certificates/PDFs remain undelivered requirements.
+
 ## Current verification — 15 November 2026
 
 Local Elections and full backend checks passed. See

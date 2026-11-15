@@ -1449,4 +1449,33 @@ class TransportJourneyConcurrencyTest extends TestCase
         $this->raceFixture = [];
         $this->addonRoleGrants = [];
     }
+
+    public function test_journey_waits_for_trip_without_holding_the_learner(): void
+    {
+        $f = $this->journeyFixture();
+        $roster = DB::table('transport_trip_roster')->where('school_id', $f['school'])->where('id', $f['roster'])->firstOrFail();
+        $first = ['operation' => 'hold_trip', 'school_id' => $f['school'], 'trip_id' => $roster->trip_id];
+        $second = [...$this->eventPayload($f), 'probe_learner_id' => $roster->learner_id];
+        $result = $this->race($first, $second);
+        $this->assertTrue($result['learner_probe_verified']);
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('finished', $result['second']['event']);
+        $this->assertSame(1, DB::table('transport_journey_events')->where('roster_id', $f['roster'])->count());
+    }
+
+    public function test_top_level_deadlock_returns_conflict_after_event_rollback(): void
+    {
+        $f = $this->journeyFixture();
+        $roster = DB::table('transport_trip_roster')->where('school_id', $f['school'])->where('id', $f['roster'])->firstOrFail();
+        $auditCount = DB::table('audit_logs')->where('school_id', $f['school'])->count();
+        $first = ['operation' => 'hold_trip', 'school_id' => $f['school'], 'trip_id' => $roster->trip_id];
+        $second = [...$this->eventPayload($f), 'operation' => 'standalone_journey_deadlock', 'probe_learner_id' => $roster->learner_id];
+        $result = $this->race($first, $second);
+        $this->assertTrue($result['learner_probe_verified']);
+        $this->assertSame('finished', $result['first']['event']);
+        $this->assertSame('rejected', $result['second']['event']);
+        $this->assertSame(409, $result['second']['http_status']);
+        $this->assertSame(0, DB::table('transport_journey_events')->where('roster_id', $f['roster'])->count());
+        $this->assertSame($auditCount, DB::table('audit_logs')->where('school_id', $f['school'])->count());
+    }
 }

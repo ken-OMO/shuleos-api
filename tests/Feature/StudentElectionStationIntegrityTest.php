@@ -108,7 +108,7 @@ class StudentElectionStationIntegrityTest extends TestCase
         $this->assertSame(2, array_sum(array_column($report['positions'], 'abstentions')));
         $this->assertSame(0, array_sum(array_column($report['positions'], 'valid_selections')));
         app(StudentElectionService::class)->tally($this->id['school'], $this->id['election'], $this->id['admin']);
-        $this->denied(fn () => app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['admin']), 'declaration');
+        $this->denied(fn () => app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['publisher']), 'declaration');
     }
 
     public function test_original_unopposed_confirmation_can_be_declared_without_second_poll(): void
@@ -119,7 +119,7 @@ class StudentElectionStationIntegrityTest extends TestCase
         $this->submit($state);
         app(StudentElectionService::class)->transition($this->id['school'], $this->id['election'], 'voting_closed', $this->id['admin']);
         app(StudentElectionService::class)->tally($this->id['school'], $this->id['election'], $this->id['admin']);
-        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['admin']);
+        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['publisher']);
         $this->assertSame(1, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
     }
 
@@ -131,7 +131,7 @@ class StudentElectionStationIntegrityTest extends TestCase
         $this->assertSame(1, DB::table('student_election_round_ballots')->where('round_id', $this->id['round']['id'])->count());
         $this->assertSame(0, $this->ballotCount());
         R::finish($this->id, $this->id['round']);
-        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['admin']);
+        app(StudentElectionService::class)->publish($this->id['school'], $this->id['election'], $this->id['publisher']);
         $this->assertSame(1, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
     }
 
