@@ -10,7 +10,8 @@ class StudentElectionVoter extends TenantModel
 
     protected $keyType = 'string';
 
-    protected $hidden = ['voting_token_hash'];
+    // Participation updates must not record the moment a secret ballot was cast.
+    public $timestamps = false;
 
-    protected $casts = ['eligible' => 'boolean', 'has_voted' => 'boolean', 'voted_at' => 'datetime'];
+    protected $casts = ['eligible' => 'boolean', 'has_voted' => 'boolean'];
 }

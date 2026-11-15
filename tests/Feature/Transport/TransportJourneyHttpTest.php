@@ -7,10 +7,13 @@ namespace Tests\Feature\Transport;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportHttpTestCase;
 
 class TransportJourneyHttpTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_capture_is_idempotent_and_assigned_crew_can_read_without_leadership_view(): void
     {
         $f = $this->fixture();
@@ -34,7 +37,7 @@ class TransportJourneyHttpTest extends TransportHttpTestCase
             'assignment_id' => $f['assignment']['id'], 'kind' => 'guardian_recipient',
             'learner_id' => $f['learner']->id, 'stop_id' => $f['stop'],
             'guardian_id' => $f['guardian'], 'guardian_link_id' => $f['link'],
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09', 'reason' => 'Explicit HTTP recipient authorization.',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'), 'reason' => 'Explicit HTTP recipient authorization.',
         ];
         $grant = $this->postJson('/api/transport/authorizations', $input)->assertCreated()->json('data');
         $this->getJson('/api/transport/authorizations/'.$grant['id'])->assertOk();
@@ -48,7 +51,7 @@ class TransportJourneyHttpTest extends TransportHttpTestCase
         $this->postJson('/api/transport/authorizations', $input)->assertForbidden();
         $this->postJson('/api/transport/authorizations', [
             'assignment_id' => $f['assignment']['id'], 'kind' => 'school_receiver',
-            'staff_user_id' => $f['receiver']->id, 'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'staff_user_id' => $f['receiver']->id, 'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Management assigns school handover responsibility.',
         ])->assertCreated();
     }

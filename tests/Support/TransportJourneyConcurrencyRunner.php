@@ -30,6 +30,7 @@ final class TransportJourneyConcurrencyRunner
         try {
             $a = $this->start($first + [
                 'connection' => $connection,
+                'fixture_shift_days' => TransportFixtureClock::days(),
                 'hold_lock' => true,
             ]);
             $readyA = $this->awaitEvent($a, 'ready');
@@ -37,6 +38,7 @@ final class TransportJourneyConcurrencyRunner
 
             $b = $this->start($second + [
                 'connection' => $connection,
+                'fixture_shift_days' => TransportFixtureClock::days(),
                 'hold_lock' => false,
             ]);
             $readyB = $this->awaitEvent($b, 'ready');

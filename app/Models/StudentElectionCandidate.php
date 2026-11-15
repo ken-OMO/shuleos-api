@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 class StudentElectionCandidate extends TenantModel
 {
     protected $guarded = [];
@@ -12,12 +14,14 @@ class StudentElectionCandidate extends TenantModel
 
     protected $casts = ['reviewed_at' => 'datetime', 'is_deleted' => 'boolean'];
 
-    public function learner()
+    /** @return BelongsTo<Learner, $this> */
+    public function learner(): BelongsTo
     {
         return $this->belongsTo(Learner::class);
     }
 
-    public function electionPosition()
+    /** @return BelongsTo<StudentElectionPosition, $this> */
+    public function electionPosition(): BelongsTo
     {
         return $this->belongsTo(StudentElectionPosition::class);
     }

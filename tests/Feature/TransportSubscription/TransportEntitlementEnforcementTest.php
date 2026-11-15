@@ -24,6 +24,8 @@ use Tests\Support\TransportSubscriptionFixture;
 
 class TransportEntitlementEnforcementTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_transport_permission_without_entitlement_cannot_write_in_service_or_http(): void
     {
         $f = $this->bare();
@@ -38,9 +40,9 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
     public function test_future_period_is_not_early_access_and_start_is_inclusive(): void
     {
         $f = $this->bare();
-        TransportSubscriptionFixture::activate($f['school']->id, '2026-11-11T02:00:00Z', '2026-11-10T02:00:00Z');
+        TransportSubscriptionFixture::activate($f['school']->id, $this->transportFixtureDate('2026-11-11T02:00:00Z'), $this->transportFixtureDate('2026-11-10T02:00:00Z'));
         $this->denied(fn () => $this->createVehicle($f), 403);
-        CarbonImmutable::setTestNow('2026-11-10T02:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-10T02:00:00Z'));
         $this->assertNotEmpty($this->createVehicle($f)['id']);
     }
 
@@ -73,7 +75,7 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $f = $this->journey();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
         DB::table('school_subscriptions')->where('school_id', $f['school']->id)
-            ->update(['expiry_date' => '2026-11-08', 'status' => 'LOCKED']);
+            ->update(['expiry_date' => $this->transportFixtureDate('2026-11-08'), 'status' => 'LOCKED']);
         $this->denied(fn () => $this->createVehicle($f), 403);
         $this->assertSame('at_school', $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver'])['state']);
     }
@@ -171,10 +173,10 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $this->expire();
         $service = app(TransportHandoverAuthorizationService::class);
         $data = ['assignment_id' => $f['assignment']['id'], 'kind' => 'school_receiver',
-            'staff_user_id' => $f['receiver']->id, 'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'staff_user_id' => $f['receiver']->id, 'valid_from' => $this->transportFixtureDate('2026-11-09'), 'valid_to' => $this->transportFixtureDate('2026-11-09'),
             'reason' => 'Replacement receiver for the learner already onboard.'];
         $grant = $service->create($f['actor'], $data);
-        $this->denied(fn () => $service->create($f['actor'], [...$data, 'valid_to' => '2026-11-10']), 403);
+        $this->denied(fn () => $service->create($f['actor'], [...$data, 'valid_to' => $this->transportFixtureDate('2026-11-10')]), 403);
         $this->denied(fn () => $service->create($f['actor'], [...$data, 'kind' => 'school_releaser']), 403);
         $service->revoke($f['actor'], $grant['id'], ['expected_version' => $grant['version'], 'reason' => 'Use the original verified school receiver instead.']);
         $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver']);
@@ -189,7 +191,7 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $current = $this->events()->show($f['actor'], $f['roster']);
         $service->recordOutcome($f['actor'], $f['roster'], ['expected_version' => $current['version'],
             'outcome' => 'cancelled', 'reason' => 'No pickup occurred; recorded as a non-travel cancellation.']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T06:00:00Z'));
         $before = $service->showTrip($f['actor'], $this->tripId($f));
         $done = $service->completeTrip($f['actor'], $this->tripId($f), ['expected_version' => $before['version'],
             'reason' => 'Reconciled captured roster without inventing any delivery.']);
@@ -199,12 +201,12 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
 
     public function test_preexisting_service_report_submission_and_independent_review_survive_expiry(): void
     {
-        $this->transportAddonEndsAt = '2026-11-09T04:31:00Z';
+        $this->transportAddonEndsAt = $this->transportFixtureDate('2026-11-09T04:31:00Z');
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
         $reviewer = $this->reviewer($f);
         $this->grant($f['actor'], 'review_transport_daily_reports');
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T06:00:00Z'));
         $result = $this->submitDaily($f);
         $saved = $result['submissions'][0];
         $this->assertSame(1, $saved['snapshot']['totals']['on_board']);
@@ -242,8 +244,8 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $this->denied(fn () => $this->events()->record($f['receiver'], $f['roster'], [...$input,
             'expected_version' => str_repeat('0', 64)]), 409);
         $this->denied(fn () => $this->events()->record($f['receiver'], $f['roster'], [...$input,
-            'occurred_at' => '2026-11-09T04:00:00Z']), 422);
-        CarbonImmutable::setTestNow('2026-11-10T04:31:00Z');
+            'occurred_at' => $this->transportFixtureDate('2026-11-09T04:00:00Z')]), 422);
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-10T04:31:00Z'));
         $this->denied(fn () => $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver']), 422);
         $this->assertSame('on_board', $this->events()->show($f['actor'], $f['roster'])['state']);
     }
@@ -252,7 +254,7 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
     {
         $a = $this->expiringJourney();
         $this->recordEvent($a, 'pickup', $a['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T02:00:00Z'));
         $b = $this->expiringJourney();
         $this->recordEvent($b, 'pickup', $b['guardianGrant']['id']);
         $this->expire();
@@ -298,7 +300,7 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
     {
         $f = $this->expiringJourney();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T06:00:00Z'));
         $service = app(TransportAttendanceService::class);
         $before = $service->showTrip($f['actor'], $this->tripId($f));
         $result = $service->completeTrip($f['actor'], $this->tripId($f), [
@@ -313,10 +315,10 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $f = $this->bare();
         TransportSubscriptionFixture::activate($f['school']->id);
         DB::table('school_subscriptions')->where('school_id', $f['school']->id)->update([
-            'status' => 'GRACE_PERIOD', 'expiry_date' => '2026-11-08', 'grace_end_date' => '2026-11-09',
+            'status' => 'GRACE_PERIOD', 'expiry_date' => $this->transportFixtureDate('2026-11-08'), 'grace_end_date' => $this->transportFixtureDate('2026-11-09'),
         ]);
         $this->assertNotEmpty($this->createVehicle($f)['id']);
-        CarbonImmutable::setTestNow('2026-11-09T21:00:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T21:00:00Z'));
         $this->denied(fn () => $this->createVehicle($f), 403);
     }
 
@@ -340,14 +342,14 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
         $renewal['id'] = (string) Str::uuid();
         $renewal['request_id'] = (string) Str::uuid();
         $renewal['previous_id'] = $original->id;
-        $renewal['starts_at'] = '2026-11-09T04:31:00+00:00';
-        $renewal['ends_at'] = '2026-11-09T04:33:00+00:00';
+        $renewal['starts_at'] = $this->transportFixtureDate('2026-11-09T04:31:00+00:00');
+        $renewal['ends_at'] = $this->transportFixtureDate('2026-11-09T04:33:00+00:00');
         $renewal['evidence_reference'] = 'TEST-ADJACENT-'.Str::upper(Str::random(12));
         $renewal['request_fingerprint'] = hash('sha256', $renewal['id']);
         DB::table('transport_addon_periods')->insert($renewal);
-        CarbonImmutable::setTestNow('2026-11-09T04:31:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T04:31:00Z'));
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T04:33:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T04:33:00Z'));
         $this->assertSame('at_school', $this->recordEvent($f, 'school_arrival', $f['schoolGrant']['id'], $f['receiver'])['state']);
         $this->assertSame(2, DB::table('transport_addon_periods')->where('school_id', $f['school']->id)->count());
     }
@@ -367,14 +369,14 @@ class TransportEntitlementEnforcementTest extends TransportHttpTestCase
 
     private function expiringJourney(string $direction = 'to_school'): array
     {
-        $this->transportAddonEndsAt = '2026-11-09T04:31:00Z';
+        $this->transportAddonEndsAt = $this->transportFixtureDate('2026-11-09T04:31:00Z');
 
         return $this->journey($direction);
     }
 
     private function expire(): void
     {
-        CarbonImmutable::setTestNow('2026-11-09T04:31:00Z');
+        CarbonImmutable::setTestNow($this->transportFixtureDate('2026-11-09T04:31:00Z'));
     }
 
     private function bare(): array

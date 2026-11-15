@@ -18,6 +18,7 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Tests\Support\TransportFixtureClock;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 
@@ -69,12 +70,17 @@ try {
         throw new RuntimeException('Unexpected actual database.');
     }
 
+    if (! isset($payload['fixture_shift_days']) || ! is_int($payload['fixture_shift_days'])) {
+        throw new RuntimeException('Missing parent Transport fixture week.');
+    }
+    TransportFixtureClock::adopt($payload['fixture_shift_days']);
+
     DB::statement("SET lock_timeout = '10s'");
     DB::statement("SET statement_timeout = '15s'");
 
     transportJourneyWorkerMessage(['event' => 'ready', 'pid' => (int) $actual->pid]);
 
-    CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+    CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
 
     DB::beginTransaction();
 
@@ -93,7 +99,7 @@ try {
             DB::listen(static function ($query): void {
                 $sql = strtolower($query->sql);
                 if (str_contains($sql, '"school_subscriptions"') && str_contains($sql, 'for share')) {
-                    CarbonImmutable::setTestNow('2026-11-09T04:31:00Z');
+                    CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:31:00Z'));
                 }
             });
         }
@@ -251,14 +257,14 @@ try {
         DB::table('transport_trip_completions')->insert($row);
         $result = ['id' => $row['id']];
     } elseif ($payload['operation'] === 'daily_submit') {
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $actor = User::withoutGlobalScopes()->where('school_id', $payload['school_id'])->findOrFail($payload['actor_id']);
         auth()->guard()->setUser($actor);
         $report = app(TransportDailyReportService::class)->submit($actor, $payload['obligation_id'], $payload['input']);
         $last = $report['submissions'][array_key_last($report['submissions'])];
         $result = ['id' => $last['id']];
     } elseif ($payload['operation'] === 'daily_review') {
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $actor = User::withoutGlobalScopes()->where('school_id', $payload['school_id'])->findOrFail($payload['actor_id']);
         auth()->guard()->setUser($actor);
         $report = app(TransportDailyReportService::class)->review($actor, $payload['submission_id'], $payload['input']);

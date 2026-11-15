@@ -1,0 +1,21 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    squashedMigrationsPath:
+        - tools/phpstan/schema
+    paths:
+        - app/Services/StudentElection
+        - app/Services/StudentElectionSubscription
+        - app/Http/Controllers/Api/StudentElectionAdminController.php
+        - app/Http/Controllers/Api/StudentElectionLearnerController.php
+        - app/Http/Controllers/Api/StudentElectionApplicationController.php
+        - app/Http/Controllers/Api/StudentElectionCancellationController.php
+        - app/Http/Controllers/Api/StudentElectionDeclarationController.php
+        - app/Http/Controllers/Api/StudentElectionPhotoController.php
+        - app/Http/Controllers/Api/StudentElectionRoundController.php
+        - app/Http/Controllers/Api/StudentElectionStationController.php
+        - app/Http/Resources/StudentElection
+        - app/Http/Middleware/StudentElectionStationBoundary.php
+        - config/student_election_stations.php

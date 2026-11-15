@@ -26,6 +26,7 @@ use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportJourneyConcurrencyRunner;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
@@ -42,7 +43,7 @@ class TransportJourneyConcurrencyTest extends TestCase
     {
         parent::setUp();
         $this->assertIsolatedDatabase();
-        CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
     }
 
     protected function tearDown(): void
@@ -59,11 +60,11 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_addon_expiry_is_rechecked_after_waiting_for_the_main_subscription_lock(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
         $auditCount = DB::table('audit_logs')->where('school_id', $f['school'])->count();
         $first = ['operation' => 'addon_main_lock', 'school_id' => $f['school']];
-        $second = $this->addonNormalPayload($f, '2026-11-09T04:30:00Z');
+        $second = $this->addonNormalPayload($f, TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
         $second['expire_after_main_lock'] = true;
         $result = $this->race($first, $second);
         $this->assertSame('finished', $result['first']['event']);
@@ -75,10 +76,10 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_waiting_normal_operation_is_denied_at_exact_addon_expiry(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
-        $result = $this->race($this->addonNormalPayload($f, '2026-11-09T04:30:00Z'),
-            $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $result = $this->race($this->addonNormalPayload($f, TransportFixtureClock::shift('2026-11-09T04:30:00Z')),
+            $this->addonNormalPayload($f, TransportFixtureClock::shift('2026-11-09T04:31:00Z')));
         $this->assertSame('finished', $result['first']['event']);
         $this->assertSame('rejected', $result['second']['event']);
         $this->assertSame(403, $result['second']['http_status']);
@@ -87,9 +88,9 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_waiting_normal_operation_observes_committed_adjacent_renewal(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
-        $result = $this->race($this->addonRenewalPayload($f), $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $result = $this->race($this->addonRenewalPayload($f), $this->addonNormalPayload($f, TransportFixtureClock::shift('2026-11-09T04:31:00Z')));
         $this->assertSame('finished', $result['first']['event']);
         $this->assertSame('finished', $result['second']['event']);
         $this->assertSame($result['first']['result']['id'], $result['second']['result']['id']);
@@ -99,11 +100,11 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_rolled_back_renewal_does_not_extend_waiting_operational_access(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
         $first = $this->addonRenewalPayload($f);
         $first['rollback'] = true;
-        $result = $this->race($first, $this->addonNormalPayload($f, '2026-11-09T04:31:00Z'));
+        $result = $this->race($first, $this->addonNormalPayload($f, TransportFixtureClock::shift('2026-11-09T04:31:00Z')));
         $this->assertSame('finished', $result['first']['event']);
         $this->assertTrue($result['first']['result']['rolled_back']);
         $this->assertSame('rejected', $result['second']['event']);
@@ -114,7 +115,7 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_competing_identical_renewal_retries_append_one_period_and_audit(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
         $payload = $this->addonRenewalPayload($f);
         $result = $this->race($payload, $payload);
@@ -128,7 +129,7 @@ class TransportJourneyConcurrencyTest extends TestCase
 
     public function test_competing_distinct_renewals_reject_stale_history(): void
     {
-        $this->addonFixtureEndsAt = '2026-11-09T04:31:00Z';
+        $this->addonFixtureEndsAt = TransportFixtureClock::shift('2026-11-09T04:31:00Z');
         $f = $this->fixture();
         $first = $this->addonRenewalPayload($f);
         $second = $first;
@@ -163,7 +164,7 @@ class TransportJourneyConcurrencyTest extends TestCase
         return ['operation' => 'addon_renew', 'school_id' => $f['school'], 'actor_id' => (string) $owner->id,
             'input' => ['request_id' => (string) Str::uuid(),
                 'expected_version' => hash('sha256', 'transport-addon:'.$f['school'].':1:'.$period->id),
-                'starts_at' => '2026-11-09T04:31:00+00:00', 'ends_at' => '2026-12-09T04:31:00+00:00',
+                'starts_at' => TransportFixtureClock::shift('2026-11-09T04:31:00+00:00'), 'ends_at' => TransportFixtureClock::shift('2026-12-09T04:31:00+00:00'),
                 'commercial_timezone' => 'UTC', 'evidence_reference' => 'RACE-'.Str::upper(Str::random(12)),
                 'reason' => 'Explicit isolated concurrent renewal evidence attestation.']];
     }
@@ -205,8 +206,8 @@ class TransportJourneyConcurrencyTest extends TestCase
         $f = $this->journeyFixture();
         $actor = User::withoutGlobalScopes()->findOrFail($f['actor']);
         app(TransportReportingObligationService::class)->createPolicy($actor, [
-            'schedule_id' => $f['schedule'], 'effective_from' => '2026-11-09',
-            'effective_to' => '2026-11-30', 'weekday_mask' => 127,
+            'schedule_id' => $f['schedule'], 'effective_from' => TransportFixtureClock::shift('2026-11-09'),
+            'effective_to' => TransportFixtureClock::shift('2026-11-30'), 'weekday_mask' => 127,
             'deadline_time' => '17:00', 'deadline_day_offset' => 0, 'grace_minutes' => 30,
         ]);
 
@@ -305,8 +306,8 @@ class TransportJourneyConcurrencyTest extends TestCase
         $actor = User::withoutGlobalScopes()->findOrFail($f['actor']);
         $policyService = app(TransportReportingObligationService::class);
         $policy = $policyService->createPolicy($actor, [
-            'schedule_id' => $f['schedule'], 'effective_from' => '2026-11-09',
-            'effective_to' => '2026-11-30', 'weekday_mask' => 127,
+            'schedule_id' => $f['schedule'], 'effective_from' => TransportFixtureClock::shift('2026-11-09'),
+            'effective_to' => TransportFixtureClock::shift('2026-11-30'), 'weekday_mask' => 127,
             'deadline_time' => '17:00', 'deadline_day_offset' => 0, 'grace_minutes' => 30,
         ]);
         $f['obligation_id'] = $policyService->materialize($actor, $policy['id'])['id'];
@@ -315,7 +316,7 @@ class TransportJourneyConcurrencyTest extends TestCase
         $current = $reports->show($driver, $f['obligation_id']);
         $f['daily_version'] = $current['version'];
         if ($submit) {
-            CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+            CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
             $submitted = $reports->submit($driver, $f['obligation_id'], $this->dailySubmitPayload($f)['input']);
             $f['submission'] = $submitted['submissions'][0];
         }
@@ -585,7 +586,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'boundary' => 'pickup',
                 'outcome' => 'failed',
                 'crew_user_id' => $f['driver_a'],
-                'occurred_at' => '2026-11-09T04:30:00Z',
+                'occurred_at' => TransportFixtureClock::shift('2026-11-09T04:30:00Z'),
                 'receipt_method' => 'none',
                 'failure_reason' => 'person_unavailable',
                 'follow_up' => 'Learner has not entered transport custody; contact school.',
@@ -896,8 +897,8 @@ class TransportJourneyConcurrencyTest extends TestCase
                     'assignment_id' => $trip->assignment_id,
                     'kind' => 'school_receiver',
                     'staff_user_id' => $f['driver_b'],
-                    'valid_from' => '2026-11-09',
-                    'valid_to' => '2026-11-09',
+                    'valid_from' => TransportFixtureClock::shift('2026-11-09'),
+                    'valid_to' => TransportFixtureClock::shift('2026-11-09'),
                     'reason' => 'School receiver for completion contention fixture.',
                 ]);
 
@@ -1034,7 +1035,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'outcome' => 'recorded',
                 'crew_user_id' => $f['driver_a'],
                 'authorization_id' => $f['grant']['id'],
-                'occurred_at' => '2026-11-09T04:30:00Z',
+                'occurred_at' => TransportFixtureClock::shift('2026-11-09T04:30:00Z'),
                 'verification_method' => 'known_person_in_person',
                 'verification_note' => 'Releasing guardian verified in person.',
                 'receipt_method' => 'authenticated_receiver',
@@ -1070,7 +1071,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'outcome' => 'recorded',
                 'crew_user_id' => $f['driver_a'],
                 'authorization_id' => $f['grant']['id'],
-                'occurred_at' => '2026-11-09T04:30:00Z',
+                'occurred_at' => TransportFixtureClock::shift('2026-11-09T04:30:00Z'),
                 'verification_method' => 'known_person_in_person',
                 'verification_note' => 'Database contender verified releasing guardian.',
                 'receipt_method' => 'authenticated_receiver',
@@ -1197,7 +1198,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 TransportAssignmentService::class
             )->create($actor, [
                 'schedule_id' => $f['schedule'],
-                'service_date' => '2026-11-09',
+                'service_date' => TransportFixtureClock::shift('2026-11-09'),
                 'vehicle_id' => $f['vehicle_a'],
                 'driver_id' => $f['driver_a'],
             ]);
@@ -1229,7 +1230,7 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'kind' => 'guardian_recipient',
                 'learner_id' => $learner->id, 'stop_id' => $stop,
                 'guardian_id' => $guardian, 'guardian_link_id' => $link,
-                'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+                'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
                 'reason' => 'Concrete-run contention-test authority.',
             ]);
 
@@ -1315,8 +1316,8 @@ class TransportJourneyConcurrencyTest extends TestCase
                 'route_id' => $route, 'service_code' => 'S-'.Str::random(12),
                 'direction' => 'to_school', 'timezone' => 'Africa/Nairobi',
                 'weekday_mask' => 127,
-                'effective_from' => '2026-11-01',
-                'effective_to' => '2026-12-31',
+                'effective_from' => TransportFixtureClock::shift('2026-11-01'),
+                'effective_to' => TransportFixtureClock::shift('2026-12-31'),
                 'departure_time' => '07:00', 'completion_time' => '08:00',
                 'turnaround_minutes' => 15,
                 'created_by' => $actor->id, 'updated_by' => $actor->id,

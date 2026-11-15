@@ -1,5 +1,6 @@
 <?php
 
+use App\Core\Response\ApiResponder;
 use App\Http\Controllers\Api\AcademicWeekController;
 use App\Http\Controllers\Api\AcademicYearController;
 use App\Http\Controllers\Api\AdministratorOperationsController;
@@ -95,7 +96,13 @@ use App\Http\Controllers\Api\SmartTimetableAutomationController;
 use App\Http\Controllers\Api\SmartTimetableController;
 use App\Http\Controllers\Api\StreamController;
 use App\Http\Controllers\Api\StudentElectionAdminController;
+use App\Http\Controllers\Api\StudentElectionApplicationController;
+use App\Http\Controllers\Api\StudentElectionCancellationController;
+use App\Http\Controllers\Api\StudentElectionDeclarationController;
 use App\Http\Controllers\Api\StudentElectionLearnerController;
+use App\Http\Controllers\Api\StudentElectionPhotoController;
+use App\Http\Controllers\Api\StudentElectionRoundController;
+use App\Http\Controllers\Api\StudentElectionStationController;
 use App\Http\Controllers\Api\TeacherAssignmentController;
 use App\Http\Controllers\Api\TeacherAvailabilityController;
 use App\Http\Controllers\Api\TeacherConstraintController;
@@ -126,7 +133,9 @@ use App\Http\Controllers\Api\TransportHandoverController;
 use App\Http\Controllers\Api\TransportReportingController;
 use App\Http\Controllers\Api\TransportTripController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Middleware\StudentElectionStationBoundary;
 use App\Http\Middleware\TeacherAcademicScope;
+use App\Services\StudentElection\StudentElectionReconciliationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -1428,12 +1437,12 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::post('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'bookmark']);
     Route::delete('/resources/{resource}/bookmark', [LearningResourceLearnerController::class, 'unbookmark']);
     Route::put('/resources/{resource}/rating', [LearningResourceLearnerController::class, 'rate']);
-    Route::get('/elections', [StudentElectionLearnerController::class, 'index']);
-    Route::get('/elections/{election}', [StudentElectionLearnerController::class, 'show']);
-    Route::get('/elections/{election}/positions/{position}/candidates', [StudentElectionLearnerController::class, 'candidates']);
-    Route::post('/elections/{election}/positions/{position}/vote', [StudentElectionLearnerController::class, 'vote']);
-    Route::get('/elections/{election}/results', [StudentElectionLearnerController::class, 'results']);
-    Route::get('/student-leaders', [StudentElectionLearnerController::class, 'leaders']);
+    Route::get('/elections', [StudentElectionLearnerController::class, 'index'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:view_student_elections']);
+    Route::get('/elections/{election}', [StudentElectionLearnerController::class, 'show'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:view_student_elections']);
+    Route::get('/elections/{election}/positions/{position}/candidates', [StudentElectionLearnerController::class, 'candidates'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:view_student_elections']);
+    Route::post('/elections/{election}/positions/{position}/vote', [StudentElectionLearnerController::class, 'vote'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:vote_in_student_elections']);
+    Route::get('/elections/{election}/results', [StudentElectionLearnerController::class, 'results'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:view_published_election_results']);
+    Route::get('/student-leaders', [StudentElectionLearnerController::class, 'leaders'])->withoutMiddleware('module.permission')->middleware(['permission:access_student_elections', 'permission:view_student_leaders']);
     Route::get('/me', [LearnerPortalController::class, 'me'])->middleware('permission:access_learner_portal_phase_two');
     Route::get('/dashboard', [LearnerPortalPhaseTwoController::class, 'dashboard'])->middleware('permission:access_learner_portal_phase_two');
     Route::get('/tasks', [LearnerPortalPhaseTwoController::class, 'tasks'])->middleware('permission:access_learner_portal_phase_two');
@@ -1540,12 +1549,12 @@ Route::prefix('student-elections')->middleware($secure)->group(function () {
     Route::post('/', [StudentElectionAdminController::class, 'create']);
     Route::get('/{election}', [StudentElectionAdminController::class, 'show']);
     Route::post('/{election}/positions', [StudentElectionAdminController::class, 'attach']);
-    Route::post('/{election}/generate-voters', [StudentElectionAdminController::class, 'voters']);
+    Route::post('/{election}/generate-voters', [StudentElectionAdminController::class, 'voters'])->middleware('permission:manage_election_voters');
     foreach (['nominations_open' => 'open-nominations', 'nominations_closed' => 'close-nominations', 'voting_open' => 'open-voting', 'voting_closed' => 'close-voting', 'cancelled' => 'cancel'] as $status => $path) {
         Route::post('/{election}/'.$path, fn (Request $r, string $election) => app(StudentElectionAdminController::class)->transition($r, $election, $status));
-    }Route::post('/{election}/tally', [StudentElectionAdminController::class, 'tally']);
-    Route::post('/{election}/publish', [StudentElectionAdminController::class, 'publish']);
-    Route::get('/{election}/results', [StudentElectionAdminController::class, 'results']);
+    }Route::post('/{election}/tally', [StudentElectionAdminController::class, 'tally'])->middleware('permission:tally_student_elections');
+    Route::post('/{election}/publish', [StudentElectionAdminController::class, 'publish'])->middleware('permission:publish_student_election_results');
+    Route::get('/{election}/results', [StudentElectionAdminController::class, 'results'])->middleware('permission:tally_student_elections');
 });
 Route::prefix('student-leadership-positions')->middleware($secure)->group(function () {
     Route::get('/', [StudentElectionAdminController::class, 'positions']);
@@ -3100,3 +3109,87 @@ Route::prefix('transport')->middleware(['jwt', 'tenant'])->group(function (): vo
         ->name('transport.reporting.review');
 
 });
+
+Route::get('student-elections/{election}/reconciliation', function (Request $request, string $election) {
+    return ApiResponder::success(
+        app(StudentElectionReconciliationService::class)
+            ->inspect($request->user(), $election)
+    );
+})->whereUuid('election')->middleware(['jwt', 'tenant', 'module.permission', 'permission:tally_student_elections']);
+
+Route::get('student-elections/{election}/declaration-checks', [StudentElectionDeclarationController::class, 'checks'])
+    ->whereUuid('election')->middleware(['jwt', 'tenant', 'module.permission', 'permission:publish_student_election_results']);
+
+// Linked resolution administration only; no station or learner casting route.
+Route::prefix('student-elections/{election}/rounds')
+    ->middleware(['jwt', 'tenant', 'module.permission'])->group(function () {
+        Route::get('/', [StudentElectionRoundController::class, 'index'])
+            ->whereUuid('election')->middleware('permission:tally_student_elections');
+        Route::post('/', [StudentElectionRoundController::class, 'create'])
+            ->whereUuid('election')->middleware('permission:manage_election_voters');
+        Route::post('{round}/phase/{phase}', [StudentElectionRoundController::class, 'transition'])
+            ->whereUuid('round')->whereIn('phase', ['open', 'closed'])->whereUuid('election')->middleware('permission:manage_election_voters');
+        Route::post('{round}/tally', [StudentElectionRoundController::class, 'tally'])
+            ->whereUuid('round')->whereUuid('election')->middleware('permission:tally_student_elections');
+    });
+
+// Explicit teacher permission plus dated class responsibility; no broad module
+// management permission is granted to class teachers by these routes.
+Route::prefix('student-elections/{election}/stations')->middleware([StudentElectionStationBoundary::class.':teacher', 'jwt', 'tenant'])->group(function () {
+    Route::post('/', [StudentElectionStationController::class, 'register'])
+        ->whereUuid('election')->middleware('permission:manage_student_elections');
+    Route::post('{station}/revoke', [StudentElectionStationController::class, 'revoke'])
+        ->whereUuid(['election', 'station'])->middleware('permission:manage_student_elections');
+    Route::get('classrooms/{assignment}', [StudentElectionStationController::class, 'queue'])
+        ->whereUuid(['election', 'assignment'])->middleware('permission:operate_student_election_stations');
+    Route::post('{station}/pair', [StudentElectionStationController::class, 'pair'])
+        ->whereUuid(['election', 'station'])->middleware(['permission:operate_student_election_stations', 'throttle:10,1']);
+    Route::post('{station}/sessions/{session}/decision', [StudentElectionStationController::class, 'decide'])
+        ->whereUuid(['election', 'station', 'session'])->middleware('permission:operate_student_election_stations');
+    Route::post('{station}/reset', [StudentElectionStationController::class, 'reset'])
+        ->whereUuid(['election', 'station'])->middleware('permission:operate_student_election_stations');
+});
+
+// Cookie-authenticated, same-origin classroom browser. The ordinary learner
+// JWT vote route remains disabled; no learner can self-approve a request.
+Route::prefix('election-station')->middleware([StudentElectionStationBoundary::class])->group(function () {
+    Route::post('activate', [StudentElectionStationController::class, 'activate']);
+    Route::post('request', [StudentElectionStationController::class, 'requestVote']);
+    Route::get('state', [StudentElectionStationController::class, 'state']);
+    Route::post('submit', [StudentElectionStationController::class, 'submit']);
+});
+
+// Mixed learner/guardian/officer domain: service authorization replaces generic
+// module-level permissions, which cannot express exact child/version authority.
+Route::prefix('student-election-applications/{election}')->whereUuid('election')
+    ->middleware(['jwt', 'tenant', 'throttle:60,1'])->group(function () {
+        $controller = StudentElectionApplicationController::class;
+        Route::get('/policy', [$controller, 'publishedPolicy']);
+        Route::post('/policy', [$controller, 'policy']);
+        Route::post('/', [$controller, 'submit']);
+        Route::post('/learners/{learner}/guardian', [$controller, 'guardian'])->whereUuid('learner');
+        Route::get('/{application}', [$controller, 'view'])->whereUuid('application');
+        foreach (['consent', 'review', 'appeal', 'withdraw'] as $action) {
+            Route::post('/{application}/'.$action, [$controller, $action])->whereUuid('application');
+        }
+    });
+
+// Election photos are private versioned assets; domain services enforce ownership.
+Route::prefix('student-election-photos')->middleware(['jwt', 'tenant', 'throttle:30,1'])->group(function () {
+    $photos = StudentElectionPhotoController::class;
+    Route::post('/learners/{learner}', [$photos, 'upload'])->whereUuid('learner');
+    Route::get('/learners/{learner}', [$photos, 'profile'])->whereUuid('learner');
+    Route::get('/learners/{learner}/image', [$photos, 'profileImage'])->whereUuid('learner');
+    Route::get('/applications/{election}/{application}/image', [$photos, 'applicationImage'])->whereUuid(['election', 'application']);
+    Route::get('/campaign/{election}/{position}/{candidate}/image', [$photos, 'campaignImage'])->whereUuid(['election', 'position', 'candidate']);
+});
+
+// Independent cancellation review; services recheck fresh actor and tenant scope.
+Route::prefix('student-election-cancellations/{election}')->whereUuid('election')
+    ->middleware(['jwt', 'tenant', 'throttle:20,1'])->group(function () {
+        $controller = StudentElectionCancellationController::class;
+        Route::get('/', [$controller, 'history']);
+        Route::post('/proposals', [$controller, 'propose']);
+        Route::post('/proposals/{proposal}/decision', [$controller, 'decide'])->whereUuid('proposal');
+        Route::post('/fresh-election', [$controller, 'fresh']);
+    });

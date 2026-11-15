@@ -3,68 +3,45 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseApiController;
-use App\Models\StudentElection;
-use App\Models\StudentElectionCandidate;
-use App\Models\StudentElectionResult;
-use App\Models\StudentLeadershipTerm;
-use App\Services\LearnerPortal\LearnerPortalAccessService;
-use App\Services\StudentElection\StudentElectionVotingService;
-use Illuminate\Http\Request;
+use App\Http\Resources\StudentElection\StudentElectionCandidateResource;
+use App\Http\Resources\StudentElection\StudentElectionLeaderResource;
+use App\Http\Resources\StudentElection\StudentElectionResource;
+use App\Http\Resources\StudentElection\StudentElectionResultResource;
+use App\Services\StudentElection\StudentElectionReadService;
 
 class StudentElectionLearnerController extends BaseApiController
 {
-    public function __construct(private readonly LearnerPortalAccessService $a, private readonly StudentElectionVotingService $v) {}
-
-    private function u()
-    {
-        return auth()->user();
-    }
+    public function __construct(private readonly StudentElectionReadService $reads) {}
 
     public function index()
     {
-        $u = $this->u();
-        $this->a->learner($u);
-
-        return $this->success(StudentElection::current()->where('school_id', $u->school_id)->whereIn('status', ['nominations_open', 'nominations_closed', 'campaigning', 'voting_open', 'voting_closed', 'published'])->get());
+        return $this->success(StudentElectionResource::collection($this->reads->index(auth()->user())));
     }
 
     public function show(string $election)
     {
-        $u = $this->u();
-        $this->a->learner($u);
-
-        return $this->success(StudentElection::current()->whereKey($election)->where('school_id', $u->school_id)->with('electionPositions.position')->firstOrFail());
+        return $this->success(new StudentElectionResource($this->reads->show(auth()->user(), $election)));
     }
 
     public function candidates(string $election, string $position)
     {
-        $u = $this->u();
-        $this->a->learner($u);
-
-        return $this->success(StudentElectionCandidate::where('school_id', $u->school_id)->where('election_position_id', $position)->where('status', 'approved')->where('is_deleted', false)->with('learner')->get());
+        return $this->success(StudentElectionCandidateResource::collection(
+            $this->reads->candidates(auth()->user(), $election, $position)
+        ));
     }
 
-    public function vote(string $election, string $position, Request $r)
+    public function vote()
     {
-        $v = $r->validate(['candidate_id' => 'required|uuid']);
-
-        return $this->success($this->v->vote($this->u(), $election, $position, $v['candidate_id']), 'Vote recorded.');
+        abort(403, 'Voting requires an authorised classroom station.');
     }
 
     public function results(string $election)
     {
-        $u = $this->u();
-        $this->a->learner($u);
-        $e = StudentElection::current()->whereKey($election)->where('school_id', $u->school_id)->where('status', 'published')->firstOrFail();
-
-        return $this->success(StudentElectionResult::where('election_id', $e->id)->whereIn('result_status', ['winner', 'not_elected', 'tied'])->get());
+        return $this->success(StudentElectionResultResource::collection($this->reads->results(auth()->user(), $election)));
     }
 
     public function leaders()
     {
-        $u = $this->u();
-        $this->a->learner($u);
-
-        return $this->success(StudentLeadershipTerm::current()->where('school_id', $u->school_id)->where('status', 'active')->with('learner', 'position')->get());
+        return $this->success(StudentElectionLeaderResource::collection($this->reads->leaders(auth()->user())));
     }
 }

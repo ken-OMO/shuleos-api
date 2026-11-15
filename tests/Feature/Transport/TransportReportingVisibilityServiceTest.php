@@ -26,6 +26,7 @@ use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -48,7 +49,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
             throw new \RuntimeException('Exact isolated Transport database required.');
         }
 
-        CarbonImmutable::setTestNow('2026-11-09T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T02:00:00Z'));
         $this->mock(SchoolSetupReadinessService::class)
             ->shouldReceive('isReady')->andReturn(true);
     }
@@ -101,17 +102,17 @@ class TransportReportingVisibilityServiceTest extends TestCase
     {
         $f = $this->fixture();
         $this->policy($f);
-        CarbonImmutable::setTestNow('2026-11-09T14:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:00:00Z'));
         $row = $this->visibility()->listing($f['actor'])['data'][0];
         $this->assertFalse($row['deadline_passed']);
         $this->assertFalse($row['overdue']);
-        CarbonImmutable::setTestNow('2026-11-09T14:00:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:00:01Z'));
         $row = $this->visibility()->listing($f['actor'])['data'][0];
         $this->assertTrue($row['deadline_passed']);
         $this->assertFalse($row['overdue']);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:00Z'));
         $this->assertFalse($this->visibility()->listing($f['actor'])['data'][0]['overdue']);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $late = $this->visibility()->listing($f['actor'], ['overdue' => true]);
         $this->assertSame(1, $late['meta']['total']);
         $this->assertTrue($late['data'][0]['overdue']);
@@ -122,9 +123,9 @@ class TransportReportingVisibilityServiceTest extends TestCase
     public function test_submitted_and_accepted_reports_are_not_counted_as_outstanding_overdue(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T14:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:00:00Z'));
         $submission = $this->submitDaily($f)['submissions'][0];
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $row = $this->visibility()->listing($f['actor'])['data'][0];
         $this->assertSame('submitted', $row['report_state']);
         $this->assertFalse($row['overdue']);
@@ -145,13 +146,13 @@ class TransportReportingVisibilityServiceTest extends TestCase
     public function test_changes_requested_are_outstanding_without_rewriting_first_submission_timing(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T14:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:00:00Z'));
         $first = $this->submitDaily($f)['submissions'][0];
         $this->daily()->review($this->reviewer($f), $first['id'], [
             'expected_version' => $first['review_version'], 'decision' => 'changes_requested',
             'note' => 'Clarify the outstanding service and handover account.',
         ]);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $row = $this->visibility()->listing($f['actor'], ['overdue' => true])['data'][0];
         $this->assertSame('changes_requested', $row['report_state']);
         $this->assertFalse($row['first_submission_late']);
@@ -168,7 +169,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
     public function test_late_first_submission_remains_late_after_review(): void
     {
         $f = $this->dailyFixture();
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
         $submission = $this->submitDaily($f)['submissions'][0];
         $this->daily()->review($this->reviewer($f), $submission['id'], [
             'expected_version' => $submission['review_version'], 'decision' => 'accepted',
@@ -206,8 +207,8 @@ class TransportReportingVisibilityServiceTest extends TestCase
         foreach ([
             ['active' => false],
             ['is_deleted' => true],
-            ['suspended_at' => '2026-11-09 01:00:00+00'],
-            ['account_locked_until' => '2026-11-10 01:00:00+00'],
+            ['suspended_at' => TransportFixtureClock::shift('2026-11-09 01:00:00+00')],
+            ['account_locked_until' => TransportFixtureClock::shift('2026-11-10 01:00:00+00')],
         ] as $attributes) {
             DB::table('users')->where('id', $f['actor']->id)->update([
                 'active' => true, 'is_deleted' => false, 'suspended_at' => null,
@@ -269,12 +270,12 @@ class TransportReportingVisibilityServiceTest extends TestCase
     {
         $f = $this->fixture();
         $this->policy($f, ['weekday_mask' => 2]); // Tuesday; fixture date is Monday.
-        $result = $this->visibility()->listing($f['actor'], ['date_from' => '2026-11-09', 'date_to' => '2026-11-10']);
+        $result = $this->visibility()->listing($f['actor'], ['date_from' => TransportFixtureClock::shift('2026-11-09'), 'date_to' => TransportFixtureClock::shift('2026-11-10')]);
         $this->assertSame(0, $result['meta']['total']);
-        CarbonImmutable::setTestNow('2026-11-10T04:00:00Z');
-        $result = $this->visibility()->listing($f['actor'], ['date_from' => '2026-11-09', 'date_to' => '2026-11-11']);
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-10T04:00:00Z'));
+        $result = $this->visibility()->listing($f['actor'], ['date_from' => TransportFixtureClock::shift('2026-11-09'), 'date_to' => TransportFixtureClock::shift('2026-11-11')]);
         $this->assertSame(1, $result['meta']['total']);
-        $this->assertSame('2026-11-10', $result['data'][0]['service_date']);
+        $this->assertSame(TransportFixtureClock::shift('2026-11-10'), $result['data'][0]['service_date']);
         $this->assertSame('pending', $result['data'][0]['materialization_state']);
         $this->assertSame(0, DB::table('transport_reporting_obligations')->where('school_id', $f['school']->id)->count());
     }
@@ -283,8 +284,8 @@ class TransportReportingVisibilityServiceTest extends TestCase
     {
         $f = $this->fixture();
         foreach ([
-            ['date_from' => '2026-11-01', 'date_to' => '2026-12-02'],
-            ['date_from' => '2026-11-10', 'date_to' => '2026-11-09'],
+            ['date_from' => TransportFixtureClock::shift('2026-11-01'), 'date_to' => TransportFixtureClock::shift('2026-12-02')],
+            ['date_from' => TransportFixtureClock::shift('2026-11-10'), 'date_to' => TransportFixtureClock::shift('2026-11-09')],
             ['limit' => 101], ['offset' => -1], ['overdue' => 'maybe'],
             ['report_state' => 'complete'], ['school_id' => $f['school']->id],
         ] as $input) {
@@ -296,7 +297,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
     {
         $f = $this->dailyFixture();
         $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
-        CarbonImmutable::setTestNow('2026-11-09T06:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T06:00:00Z'));
         $this->submitDaily($f);
         $before = $this->evidenceCounts($f);
         $result = $this->visibility()->listing($f['actor']);
@@ -313,11 +314,11 @@ class TransportReportingVisibilityServiceTest extends TestCase
     {
         $f = $this->fixture();
         $this->policy($f, ['schedule_id' => $this->emptySchedule($f)]);
-        CarbonImmutable::setTestNow('2026-11-10T04:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-10T04:00:00Z'));
         $before = $this->evidenceCounts($f);
-        $result = $this->visibility()->listing($f['actor'], ['date_from' => '2026-11-09', 'date_to' => '2026-11-10']);
+        $result = $this->visibility()->listing($f['actor'], ['date_from' => TransportFixtureClock::shift('2026-11-09'), 'date_to' => TransportFixtureClock::shift('2026-11-10')]);
         $this->assertSame(2, $result['meta']['total']);
-        $history = array_values(array_filter($result['data'], fn ($row) => $row['service_date'] === '2026-11-09'))[0];
+        $history = array_values(array_filter($result['data'], fn ($row) => $row['service_date'] === TransportFixtureClock::shift('2026-11-09')))[0];
         $this->assertSame('historical_materialization_not_supported', $history['materialization_blocker']);
         $this->assertSame('missing', $history['report_state']);
         $this->assertTrue($history['overdue']);
@@ -331,17 +332,17 @@ class TransportReportingVisibilityServiceTest extends TestCase
         $schedule = $this->emptySchedule($f, ['timezone' => 'America/Los_Angeles']);
         $policy = $this->policy($f, ['schedule_id' => $schedule]);
         // Nairobi is already on November 10; this service is still on November 9.
-        CarbonImmutable::setTestNow('2026-11-09T22:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T22:00:00Z'));
         $obligation = $this->reporting()->materialize($f['actor'], $policy['id']);
         $result = $this->visibility()->listing($f['actor'], [
-            'date_from' => '2026-11-09', 'date_to' => '2026-11-10',
+            'date_from' => TransportFixtureClock::shift('2026-11-09'), 'date_to' => TransportFixtureClock::shift('2026-11-10'),
         ]);
         $this->assertSame(1, $result['meta']['total']);
         $row = $result['data'][0];
-        $this->assertSame('2026-11-09', $row['service_date']);
+        $this->assertSame(TransportFixtureClock::shift('2026-11-09'), $row['service_date']);
         $this->assertSame('America/Los_Angeles', $row['timezone']);
         $this->assertSame($obligation['id'], $row['obligation_id']);
-        $this->assertTrue(CarbonImmutable::parse($row['deadline_at'])->equalTo(CarbonImmutable::parse('2026-11-10T01:00:00Z')));
+        $this->assertTrue(CarbonImmutable::parse($row['deadline_at'])->equalTo(CarbonImmutable::parse(TransportFixtureClock::shift('2026-11-10T01:00:00Z'))));
         $this->assertFalse($row['deadline_passed']);
     }
 
@@ -351,14 +352,14 @@ class TransportReportingVisibilityServiceTest extends TestCase
         $this->reporting()->materialize($f['actor'], $this->policy($f, [
             'deadline_time' => '01:00', 'deadline_day_offset' => 1,
         ])['id']);
-        CarbonImmutable::setTestNow('2026-11-09T14:30:01Z');
-        $filter = ['date_from' => '2026-11-09', 'date_to' => '2026-11-09'];
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T14:30:01Z'));
+        $filter = ['date_from' => TransportFixtureClock::shift('2026-11-09'), 'date_to' => TransportFixtureClock::shift('2026-11-09')];
         $row = $this->visibility()->listing($f['actor'], $filter)['data'][0];
         $this->assertFalse($row['overdue']);
         $this->assertFalse($row['deadline_passed']);
-        CarbonImmutable::setTestNow('2026-11-09T22:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T22:30:00Z'));
         $this->assertFalse($this->visibility()->listing($f['actor'], $filter)['data'][0]['overdue']);
-        CarbonImmutable::setTestNow('2026-11-09T22:30:01Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T22:30:01Z'));
         $this->assertTrue($this->visibility()->listing($f['actor'], $filter)['data'][0]['overdue']);
     }
 
@@ -464,7 +465,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
 
         return $this->reporting()->createPolicy($f['actor'], [
             'schedule_id' => $schedule,
-            'effective_from' => '2026-11-09', 'effective_to' => '2026-11-30',
+            'effective_from' => TransportFixtureClock::shift('2026-11-09'), 'effective_to' => TransportFixtureClock::shift('2026-11-30'),
             'weekday_mask' => 127,
             'deadline_time' => '17:00', 'deadline_day_offset' => 0,
             'grace_minutes' => 30,
@@ -509,7 +510,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
     private function journey(string $direction = 'to_school'): array
     {
         $f = $this->fixture($direction);
-        CarbonImmutable::setTestNow('2026-11-09T04:30:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T04:30:00Z'));
 
         $permission = DB::table('permissions')
             ->where('permission_name', 'authorize_transport_handover')->value('id');
@@ -541,7 +542,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
             'kind' => 'guardian_recipient',
             'learner_id' => $f['learner']->id, 'stop_id' => $f['stop'],
             'guardian_id' => $guardian, 'guardian_link_id' => $link,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Approved concrete-run handover arrangement.',
         ]);
         $receiver = User::withoutGlobalScopes()->findOrFail($f['unassigned']->id);
@@ -549,7 +550,7 @@ class TransportReportingVisibilityServiceTest extends TestCase
             'assignment_id' => $f['assignment']['id'],
             'kind' => $direction === 'to_school' ? 'school_receiver' : 'school_releaser',
             'staff_user_id' => $receiver->id,
-            'valid_from' => '2026-11-09', 'valid_to' => '2026-11-09',
+            'valid_from' => TransportFixtureClock::shift('2026-11-09'), 'valid_to' => TransportFixtureClock::shift('2026-11-09'),
             'reason' => 'Assigned school handover counterpart.',
         ]);
         $trip = app(TransportTripService::class)->capture($f['actor'], [
@@ -631,13 +632,13 @@ class TransportReportingVisibilityServiceTest extends TestCase
             'id' => $schedule, 'school_id' => $school->id, 'route_id' => $route,
             'service_code' => 'S-'.Str::random(12), 'direction' => $direction,
             'timezone' => 'Africa/Nairobi', 'weekday_mask' => 127,
-            'effective_from' => '2026-11-01', 'effective_to' => '2026-12-31',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'), 'effective_to' => TransportFixtureClock::shift('2026-12-31'),
             'departure_time' => '07:00', 'completion_time' => '08:00',
             'created_by' => $actor->id, 'updated_by' => $actor->id,
         ]);
 
         $assignment = app(TransportAssignmentService::class)->create($actor, [
-            'schedule_id' => $schedule, 'service_date' => '2026-11-09',
+            'schedule_id' => $schedule, 'service_date' => TransportFixtureClock::shift('2026-11-09'),
             'vehicle_id' => $vehicle, 'driver_id' => $actor->id,
         ]);
         $reservation = app(TransportLearnerReservationService::class)->create($actor, [

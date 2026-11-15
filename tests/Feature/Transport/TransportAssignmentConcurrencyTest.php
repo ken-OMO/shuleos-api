@@ -22,6 +22,7 @@ use Tests\Support\Database\StreamBuilder;
 use Tests\Support\Database\TermBuilder;
 use Tests\Support\Database\UserBuilder;
 use Tests\Support\TransportConcurrencyRunner;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportSubscriptionFixture;
 use Tests\TestCase;
 
@@ -113,7 +114,7 @@ class TransportAssignmentConcurrencyTest extends TestCase
             'actor_id' => $f['actor'],
             'input' => [
                 'schedule_id' => $f['schedule'],
-                'service_date' => '2026-11-09',
+                'service_date' => TransportFixtureClock::shift('2026-11-09'),
                 'vehicle_id' => $f['vehicle_a'],
                 'driver_id' => $f['driver_a'],
             ],
@@ -226,7 +227,7 @@ class TransportAssignmentConcurrencyTest extends TestCase
         ]);
 
         $this->assertSame('to_school', $row['direction']);
-        $this->assertSame('2026-11-09', $row['service_date']);
+        $this->assertSame(TransportFixtureClock::shift('2026-11-09'), $row['service_date']);
         $this->assertDatabaseHas('learners', [
             'id' => $f['learner_a'], 'mode_of_study' => 'day_scholar',
         ]);
@@ -388,7 +389,7 @@ class TransportAssignmentConcurrencyTest extends TestCase
             $actor = User::withoutGlobalScopes()->findOrFail($f['actor']);
             $assignment = app(TransportAssignmentService::class)
                 ->create($actor, [
-                    'schedule_id' => $f['schedule'], 'service_date' => '2026-11-09',
+                    'schedule_id' => $f['schedule'], 'service_date' => TransportFixtureClock::shift('2026-11-09'),
                     'vehicle_id' => $f['vehicle_a'], 'driver_id' => $f['driver_a'],
                 ]);
 
@@ -466,7 +467,7 @@ class TransportAssignmentConcurrencyTest extends TestCase
                 'id' => (string) Str::uuid(),
                 'school_id' => $f['school'],
                 'schedule_id' => $f['schedule'],
-                'service_date' => '2026-11-09',
+                'service_date' => TransportFixtureClock::shift('2026-11-09'),
                 'run_number' => $run,
                 'vehicle_id' => $vehicle,
                 'driver_id' => $driver,
@@ -543,8 +544,8 @@ class TransportAssignmentConcurrencyTest extends TestCase
                 'route_id' => $route, 'service_code' => 'S-'.Str::random(12),
                 'direction' => 'to_school', 'timezone' => 'Africa/Nairobi',
                 'weekday_mask' => 127,
-                'effective_from' => '2026-11-01',
-                'effective_to' => '2026-12-31',
+                'effective_from' => TransportFixtureClock::shift('2026-11-01'),
+                'effective_to' => TransportFixtureClock::shift('2026-12-31'),
                 'departure_time' => '07:00', 'completion_time' => '08:00',
                 'turnaround_minutes' => 15,
                 'created_by' => $actor->id, 'updated_by' => $actor->id,

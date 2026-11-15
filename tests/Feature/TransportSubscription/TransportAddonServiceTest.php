@@ -18,10 +18,13 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\Support\TransportHttpTestCase;
 
 class TransportAddonServiceTest extends TransportHttpTestCase
 {
+    protected bool $useRelativeTransportFixtureDates = true;
+
     public function test_permissions_exist_without_automatic_school_grants(): void
     {
         $f = $this->fixture();
@@ -59,8 +62,8 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         ]);
         DB::table('school_subscriptions')->insert([
             'id' => (string) Str::uuid(), 'school_id' => $f['school']->id,
-            'package_id' => $package, 'start_date' => '2026-11-01',
-            'expiry_date' => '2026-12-31', 'status' => 'ACTIVE',
+            'package_id' => $package, 'start_date' => TransportFixtureClock::shift('2026-11-01'),
+            'expiry_date' => TransportFixtureClock::shift('2026-12-31'), 'status' => 'ACTIVE',
         ]);
         $before = $this->commercialSnapshot($f['school']->id);
         $permissions = DB::table('role_permissions')->orderBy('id')->get()->toJson();
@@ -79,14 +82,14 @@ class TransportAddonServiceTest extends TransportHttpTestCase
     {
         $f = $this->fixture();
         $owner = $this->owner();
-        $input = $this->activation($owner, $f, ['starts_at' => '2026-11-10T00:00:00+03:00', 'ends_at' => '2026-11-11T00:00:00+03:00']);
+        $input = $this->activation($owner, $f, ['starts_at' => TransportFixtureClock::shift('2026-11-10T00:00:00+03:00'), 'ends_at' => TransportFixtureClock::shift('2026-11-11T00:00:00+03:00')]);
         $this->service()->issue($owner, $f['school']->id, $input);
         $this->assertFalse($this->service()->platformStatus($owner, $f['school']->id)['period_active']);
-        CarbonImmutable::setTestNow('2026-11-09T21:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-09T21:00:00Z'));
         $this->assertTrue($this->service()->platformStatus($owner, $f['school']->id)['period_active']);
-        CarbonImmutable::setTestNow('2026-11-10T20:59:59Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-10T20:59:59Z'));
         $this->assertTrue($this->service()->platformStatus($owner, $f['school']->id)['period_active']);
-        CarbonImmutable::setTestNow('2026-11-10T21:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-10T21:00:00Z'));
         $this->assertFalse($this->service()->platformStatus($owner, $f['school']->id)['period_active']);
     }
 
@@ -96,10 +99,10 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         $owner = $this->owner();
         $first = $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f));
         $second = $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f, [
-            'starts_at' => '2026-12-09T02:00:00+00:00', 'ends_at' => '2027-01-09T02:00:00+00:00',
+            'starts_at' => TransportFixtureClock::shift('2026-12-09T02:00:00+00:00'), 'ends_at' => TransportFixtureClock::shift('2027-01-09T02:00:00+00:00'),
         ]));
         $this->assertSame($first['period']['id'], $second['previous_id']);
-        CarbonImmutable::setTestNow('2026-12-09T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-12-09T02:00:00Z'));
         $status = $this->service()->platformStatus($owner, $f['school']->id);
         $this->assertTrue($status['period_active']);
         $this->assertSame($second['period']['id'], $status['current_period']['id']);
@@ -113,7 +116,7 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         $input = $this->activation($owner, $f);
         $first = $this->service()->issue($owner, $f['school']->id, $input);
         $count = DB::table('audit_logs')->where('school_id', $f['school']->id)->count();
-        CarbonImmutable::setTestNow('2026-11-10T02:00:00Z');
+        CarbonImmutable::setTestNow(TransportFixtureClock::shift('2026-11-10T02:00:00Z'));
         $again = $this->service()->issue($owner, $f['school']->id, $input);
         $this->assertTrue($again['replayed']);
         $this->assertSame($first['period'], $again['period']);
@@ -148,7 +151,7 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f, ['evidence_reference' => ' verified-ref-123 ']));
         $this->assertStatus(409, fn () => $this->service()->issue($owner, $f['school']->id,
             $this->activation($owner, $f, ['evidence_reference' => 'VERIFIED-REF-123',
-                'starts_at' => '2026-12-09T02:00:00+00:00', 'ends_at' => '2027-01-09T02:00:00+00:00'])));
+                'starts_at' => TransportFixtureClock::shift('2026-12-09T02:00:00+00:00'), 'ends_at' => TransportFixtureClock::shift('2027-01-09T02:00:00+00:00')])));
     }
 
     public function test_school_cannot_activate_itself_or_another_school_even_with_new_permission(): void
@@ -209,7 +212,7 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         $f = $this->fixture();
         $owner = $this->owner();
         $this->assertStatus(422, fn () => $this->service()->issue($owner, $f['school']->id,
-            $this->activation($owner, $f, ['starts_at' => '2026-11-08T02:00:00+00:00'])));
+            $this->activation($owner, $f, ['starts_at' => TransportFixtureClock::shift('2026-11-08T02:00:00+00:00')])));
         $this->assertStatus(422, fn () => $this->service()->issue($owner, $f['school']->id,
             $this->activation($owner, $f, ['ends_at' => '2028-11-09T02:00:00+00:00'])));
         foreach (['school_id', 'activated_by', 'amount_paid', 'package_id', 'status', 'evidence_source'] as $key) {
@@ -324,7 +327,7 @@ class TransportAddonServiceTest extends TransportHttpTestCase
         return [
             'request_id' => (string) Str::uuid(),
             'expected_version' => $this->service()->platformStatus($owner, $f['school']->id)['version'],
-            'starts_at' => '2026-11-09T02:00:00+00:00', 'ends_at' => '2026-12-09T02:00:00+00:00',
+            'starts_at' => TransportFixtureClock::shift('2026-11-09T02:00:00+00:00'), 'ends_at' => TransportFixtureClock::shift('2026-12-09T02:00:00+00:00'),
             'commercial_timezone' => 'Africa/Nairobi',
             'evidence_reference' => 'TEST-ATTESTATION-'.Str::upper(Str::random(12)),
             'reason' => 'Test-only platform attestation of previously checked evidence.',

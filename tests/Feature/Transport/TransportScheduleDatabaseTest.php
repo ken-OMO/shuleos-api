@@ -11,6 +11,7 @@ use Illuminate\Support\Str;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\UserBuilder;
+use Tests\Support\TransportFixtureClock;
 use Tests\TestCase;
 
 class TransportScheduleDatabaseTest extends TestCase
@@ -61,7 +62,7 @@ class TransportScheduleDatabaseTest extends TestCase
         foreach ([
             ['weekday_mask' => 0],
             ['weekday_mask' => 128],
-            ['effective_to' => '2026-10-31'],
+            ['effective_to' => TransportFixtureClock::shift('2026-10-31')],
             ['effective_from' => 'infinity'],
             ['timezone' => 'Invalid/Timezone'],
             ['direction' => 'unknown'],
@@ -125,7 +126,7 @@ class TransportScheduleDatabaseTest extends TestCase
             ['departure_time' => '07:15'],
             ['weekday_mask' => 127],
             ['timezone' => 'UTC'],
-            ['effective_to' => '2026-12-31'],
+            ['effective_to' => TransportFixtureClock::shift('2026-12-31')],
             ['school_id' => (string) Str::uuid()],
         ] as $override) {
             $this->rejected(
@@ -263,7 +264,7 @@ class TransportScheduleDatabaseTest extends TestCase
             'direction' => 'to_school',
             'timezone' => 'Africa/Nairobi',
             'weekday_mask' => 31,
-            'effective_from' => '2026-11-01',
+            'effective_from' => TransportFixtureClock::shift('2026-11-01'),
             'departure_time' => '07:00',
             'completion_time' => '08:00',
             'created_by' => $f['user']->id,
