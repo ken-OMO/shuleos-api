@@ -1,15 +1,16 @@
 <?php
 
-// CLI-only CI probe; no HTTP route and no production fixture data.
-require __DIR__.'/../../vendor/autoload.php';
-$app = require __DIR__.'/../../bootstrap/app.php';
-$app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-
+use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Database\RoleBuilder;
 use Tests\Support\Database\SchoolBuilder;
 use Tests\Support\Database\UserBuilder;
+
+// CLI-only CI probe; no HTTP route and no production fixture data.
+require __DIR__.'/../../vendor/autoload.php';
+$app = require __DIR__.'/../../bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
 
 if (! app()->environment('testing') || config('database.default') !== 'pgsql'
     || config('database.connections.pgsql.database') !== 'shuleos_assessment_fk_test'
