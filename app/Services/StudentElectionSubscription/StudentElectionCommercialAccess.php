@@ -8,27 +8,17 @@ use App\Models\StudentElection;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use LogicException;
 
 /** Transaction-scoped commercial gate; domain authentication and permissions remain mandatory. */
 final class StudentElectionCommercialAccess
 {
     private function context(string $school): array
     {
-        if (DB::transactionLevel() < 1) {
-            throw new LogicException('Commercial checks must share the domain transaction.');
-        }
-        $s = DB::table('schools')->where('id', $school)->sharedLock()->first();
+        $c = app(StudentElectionCommercialEvaluator::class)->context($school);
+        $s = $c['s'];
         abort_unless($s !== null && $s->active && ! $s->is_deleted && ! in_array($s->lifecycle_state, ['suspended', 'locked', 'archived'], true), 403);
-        $base = DB::table('school_subscriptions')->where('school_id', $school)->orderByDesc('created_at')->orderByDesc('id')->sharedLock()->first();
-        $at = CarbonImmutable::now('UTC');
-        $date = $at->setTimezone($s->timezone ?: config('app.timezone', 'UTC'))->toDateString();
-        $end = $base !== null && $base->status === 'GRACE_PERIOD' ? $base->grace_end_date : ($base->expiry_date ?? null);
-        $main = $s->lifecycle_state === 'active' && $base !== null && $base->package_id !== null && $base->start_date !== null
-            && $base->start_date <= $date && $base->expiry_date !== null && in_array($base->status, ['ACTIVE', 'GRACE_PERIOD'], true) && $end !== null && $end >= $date;
-        $period = DB::table('student_election_addon_periods')->where('school_id', $school)->where('starts_at', '<=', $at->toIso8601String())->where('ends_at', '>', $at->toIso8601String())->first();
 
-        return compact('s', 'base', 'at', 'main', 'period');
+        return $c;
     }
 
     public function normal(string $school): array

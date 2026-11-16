@@ -443,4 +443,22 @@ class StudentElectionPhotoVersionTest extends TestCase
         $this->login('user2');
         $this->getJson('/api/student-election-photos/learners/'.$this->id['learner'])->assertForbidden();
     }
+
+    public function test_real_profile_metadata_and_image_reads_share_the_learner_lock(): void
+    {
+        $this->upload();
+        $locks = [];
+        DB::listen(function ($query) use (&$locks): void {
+            if (str_contains($query->sql, 'from "learners"') && str_contains($query->sql, 'for ')) {
+                $locks[] = $query->sql;
+            }
+        });
+        $this->photos()->profile(F::user($this->id, 'user'), $this->id['learner']);
+        $this->photos()->profileImage(F::user($this->id, 'user'), $this->id['learner']);
+        $this->assertCount(2, $locks);
+        foreach ($locks as $sql) {
+            $this->assertStringContainsString('for share', $sql);
+            $this->assertStringNotContainsString('for update', $sql);
+        }
+    }
 }

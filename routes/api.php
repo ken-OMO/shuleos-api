@@ -1544,7 +1544,7 @@ Route::prefix('learning-resource-categories')->middleware(['jwt', 'tenant'])->gr
     Route::delete('/{category}', [LearningResourceCategoryController::class, 'destroy'])->middleware('permission:manage_learning_resource_categories');
 });
 
-Route::prefix('student-elections')->middleware($secure)->group(function () {
+Route::prefix('student-elections')->whereUuid('election')->middleware($secure)->group(function () {
     Route::get('/', [StudentElectionAdminController::class, 'index']);
     Route::post('/', [StudentElectionAdminController::class, 'create']);
     Route::get('/{election}', [StudentElectionAdminController::class, 'show']);
@@ -1560,7 +1560,7 @@ Route::prefix('student-leadership-positions')->middleware($secure)->group(functi
     Route::get('/', [StudentElectionAdminController::class, 'positions']);
     Route::post('/', [StudentElectionAdminController::class, 'createPosition']);
 });
-Route::prefix('student-election-candidates')->middleware($secure)->group(function () {
+Route::prefix('student-election-candidates')->whereUuid('candidate')->middleware($secure)->group(function () {
     Route::patch('/{candidate}/approve', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'approved'));
     Route::patch('/{candidate}/reject', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'rejected'));
     Route::patch('/{candidate}/disqualify', fn (Request $r, string $candidate) => app(StudentElectionAdminController::class)->review($r, $candidate, 'disqualified'));
@@ -3135,7 +3135,7 @@ Route::prefix('student-elections/{election}/rounds')
 
 // Explicit teacher permission plus dated class responsibility; no broad module
 // management permission is granted to class teachers by these routes.
-Route::prefix('student-elections/{election}/stations')->middleware([StudentElectionStationBoundary::class.':teacher', 'jwt', 'tenant'])->group(function () {
+Route::prefix('student-elections/{election}/stations')->middleware(['jwt', 'tenant', StudentElectionStationBoundary::class.':teacher'])->group(function () {
     Route::post('/', [StudentElectionStationController::class, 'register'])
         ->whereUuid('election')->middleware('permission:manage_student_elections');
     Route::post('{station}/revoke', [StudentElectionStationController::class, 'revoke'])

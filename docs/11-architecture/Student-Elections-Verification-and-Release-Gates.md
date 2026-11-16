@@ -1,10 +1,12 @@
 # Student Elections verification and release gates
 
-> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Voting extension and certificates/PDFs remain undelivered requirements.
+> Current Elections follow-up — 16 November 2026: HTTP boundaries, shared photo-read locks, shared commercial evaluation and unsupported-setting validation are locally verified. Full backend: 2,537 tests/35,422 assertions; both scoped analyses and remaining checks passed. Final source review completed. This follow-up is uncommitted and has no CI result; real-school Elections use remains blocked. See [current verification](Elections-Transport-Audit-Repairs.md) and [photo/commercial/settings contract](Student-Elections-Photo-Locks-and-Settings.md).
 
-Verified locally on 15 November 2026. Release remains blocked for real-school use.
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. PR #89 merged at 7a718e3dde1317af5250b2c8566399188daa3b27; all ten PR checks passed. Not deployed. Real-school Elections use remains blocked. Voting extension and certificates/PDFs remain undelivered requirements.
 
-## Verified local evidence
+Current follow-up verified locally on 16 November 2026: Elections features 390 tests/1,841 assertions, units 28 tests/756 assertions, full backend 2,537 tests/35,422 assertions; 20 minutes 42.378 seconds and 654 MB. Both scoped analyses, formatting, Composer checks and diff checks passed. Exact targeted results and test limitations are in the linked current verification record. Release remains blocked for real-school use.
+
+## Historical local evidence — 15 November 2026
 
 All tests ran against shuleos_assessment_fk_test with process environment settings
 restored afterward. The full run used PHP 8.2.12 and Laravel 12.71.0.
@@ -21,10 +23,7 @@ restored afterward. The full run used PHP 8.2.12 and Laravel 12.71.0.
 | Composer validation and security audit | Passed; no advisories reported |
 | Diff whitespace check | Passed |
 
-These are the results of the completed local run before the final CI,
-documentation, Composer minimum-version and worker-autoload cleanup. The final
-cleanup has its own verification output; it must not be described as verified
-until that output passes. Local execution does not establish GitHub CI success.
+The table above is historical evidence from the earlier implementation, before its final CI/documentation/autoload cleanup. It is superseded for this follow-up by the 16 November verification record linked above. Local execution does not establish GitHub CI success for the current uncommitted changes.
 
 phpstan-elections.neon covers the two Elections service directories, the listed
 HTTP controllers, Elections Resources, the station boundary middleware and station

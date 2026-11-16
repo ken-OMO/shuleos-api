@@ -1,8 +1,10 @@
 # Transport operations contract
 
-> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Commercial Transport HTTP activation remains deferred; school counterpart authorization requires authorize_transport_handover.
+> Subsequent Elections follow-up — 16 November 2026: locally verified with full backend 2,537 tests/35,422 assertions and clean Elections/Transport scoped analyses. No Transport production code, migrations or dependencies change in that follow-up. Its commit/CI preparation remains pending; see [current verification](Elections-Transport-Audit-Repairs.md).
 
-Status: local implementation verified for the bounded scope in section 15; CI and final commit preparation pending.
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. PR #89 merged at 7a718e3dde1317af5250b2c8566399188daa3b27; all ten PR checks passed. Not deployed. Real-school Elections use remains blocked. Commercial Transport HTTP activation remains deferred; school counterpart authorization requires authorize_transport_handover.
+
+Status: bounded Transport implementation merged; PR #89 follow-up merged at 7a718e3 with all ten PR checks passed. Not deployed. Section 15 and dated slice evidence below are historical implementation records.
 Baseline: 801b5518184198e34077a51807fde5d69aa8adbe.
 Date: 3 November 2026.
 
@@ -398,7 +400,4 @@ No actor or permission is selected automatically. OS scheduler activation,
 historical backfill, reminders, parent visibility, Finance integration and
 production deployment are outside this delivery.
 
-The backend CI job now requests a 1 GB PHP limit, and Transport has a separate
-baseline-free static-analysis gate. These configuration changes do not establish
-that remote CI has passed. Nothing is committed, pushed, merged or deployed by
-this documentation update.
+The backend CI job requests a 1 GB PHP limit, and Transport has a separate baseline-free static-analysis gate. PR #89 subsequently passed its remote checks and merged, as recorded above. The current Elections follow-up remains uncommitted and has no CI result. This documentation update does not commit, push, merge, deploy or activate a scheduler.

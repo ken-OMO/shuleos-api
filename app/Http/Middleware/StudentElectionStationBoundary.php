@@ -29,8 +29,15 @@ class StudentElectionStationBoundary
                 : explode('.', (string) $request->cookie('shuleos_election_device', ''))[0]);
         abort_unless(Str::isUuid($id), 401);
         $table = $mode === 'teacher' ? 'student_elections' : 'student_election_stations';
-        $school = DB::table($table)->where('id', $id)->value('school_id');
-        abort_unless($school, 401);
+        $query = DB::table($table)->where('id', $id);
+        if ($mode === 'teacher') {
+            $tenant = (string) $request->attributes->get('tenant_school_id', '');
+            abort_unless(Str::isUuid($tenant) && $request->user() !== null
+                && (string) $request->user()->getAttribute('school_id') === $tenant, 403);
+            $query->where('school_id', $tenant);
+        }
+        $school = $query->value('school_id');
+        abort_unless($school, $mode === 'teacher' ? 404 : 401);
         $networks = config('student_election_stations.school_networks.'.$school, []);
         abort_unless(is_array($networks) && $networks !== [] && IpUtils::checkIp((string) $request->ip(), $networks), 403, 'Trusted school network required.');
         $origin = rtrim((string) config('student_election_stations.origin'), '/');

@@ -16,6 +16,7 @@ class StudentElectionService
     public function create(string $s, array $d, string $u): StudentElection
     {
         return DB::transaction(function () use ($s, $d, $u) {
+            app(StudentElectionSettingsPolicy::class)->validate($d);
             app(StudentElectionCommercialAccess::class)->normal($s);
             if (! DB::table('academic_years')->where('id', $d['academic_year_id'])->where('school_id', $s)->exists()) {
                 throw ValidationException::withMessages(['academic_year_id' => 'Academic year does not belong to this school.']);

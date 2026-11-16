@@ -47,10 +47,12 @@ class StudentElectionPhotoService
         return $actor;
     }
 
-    private function owner(User $actor, string $learner): object
+    private function owner(User $actor, string $learner, bool $writing = false): object
     {
-        $row = DB::table('learners')->where('id', $learner)->where('school_id', $actor->school_id)
-            ->where('active', true)->where('is_deleted', false)->lockForUpdate()->first();
+        $query = DB::table('learners')->where('id', $learner)->where('school_id', $actor->school_id)
+            ->where('active', true)->where('is_deleted', false);
+        // Readers share ownership protection; uploads serialize version/head changes.
+        $row = ($writing ? $query->lockForUpdate() : $query->sharedLock())->first();
         abort_unless($row !== null, 404);
         if ($row->user_id === $actor->id) {
             app(StudentElectionLearnerAccess::class)->assertLearner($actor, $learner);
@@ -110,7 +112,7 @@ class StudentElectionPhotoService
                 $school = DB::table('schools')->where('id', $actor->school_id)->sharedLock()->firstOrFail();
                 abort_if(in_array($school->lifecycle_state, ['read_only', 'suspended', 'locked', 'archived'], true), 403);
                 app(StudentElectionCommercialAccess::class)->normal($actor->school_id);
-                $this->owner($actor, $learner);
+                $this->owner($actor, $learner, true);
                 $head = DB::table('student_election_profile_photos')->where('school_id', $actor->school_id)->where('learner_id', $learner)->first();
                 abort_unless($head?->version_id === $expected, 409, 'Profile photo changed. Refresh before uploading.');
                 $quarantineId = $this->quarantine->quarantine($file, $this->hash->calculateUploadedFile($file));
