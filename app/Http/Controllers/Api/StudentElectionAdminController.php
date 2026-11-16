@@ -12,6 +12,7 @@ use App\Models\StudentElection;
 use App\Models\StudentLeadershipPosition;
 use App\Services\StudentElection\StudentElectionResultService;
 use App\Services\StudentElection\StudentElectionService;
+use App\Services\StudentElection\StudentElectionSettingsPolicy;
 use Illuminate\Http\Request;
 
 class StudentElectionAdminController extends BaseApiController
@@ -37,7 +38,8 @@ class StudentElectionAdminController extends BaseApiController
 
     public function create(Request $r)
     {
-        $v = $r->validate(['academic_year_id' => 'required|uuid', 'term_id' => 'nullable|uuid', 'title' => 'required|string', 'voting_opens_at' => 'required|date', 'voting_closes_at' => 'required|date|after:voting_opens_at', 'results_visibility' => 'sometimes|in:hidden,after_close,after_approval,live_turnout_only', 'tie_break_rule' => 'sometimes|in:manual_runoff']);
+        app(StudentElectionSettingsPolicy::class)->validate($r->all());
+        $v = $r->validate(['academic_year_id' => 'required|uuid', 'term_id' => 'nullable|uuid', 'title' => 'required|string', 'voting_opens_at' => 'required|date', 'voting_closes_at' => 'required|date|after:voting_opens_at', 'results_visibility' => 'sometimes|in:hidden', 'tie_break_rule' => 'sometimes|in:manual_runoff']);
 
         return $this->created(new StudentElectionResource($this->s->create($this->school($r), $v, auth()->id())));
     }

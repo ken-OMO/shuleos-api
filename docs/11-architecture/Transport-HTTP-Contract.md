@@ -1,6 +1,8 @@
 # Transport HTTP contract
 
-> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Commercial Transport HTTP activation remains deferred; school counterpart authorization requires authorize_transport_handover.
+> Subsequent Elections follow-up — 16 November 2026: locally verified with full backend 2,537 tests/35,422 assertions and clean Elections/Transport scoped analyses. No Transport production code, migrations or dependencies change in that follow-up. Its commit/CI preparation remains pending; see [current verification](Elections-Transport-Audit-Repairs.md).
+
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. PR #89 merged at 7a718e3dde1317af5250b2c8566399188daa3b27; all ten PR checks passed. Not deployed. Real-school Elections use remains blocked. Commercial Transport HTTP activation remains deferred; school counterpart authorization requires authorize_transport_handover.
 
 All paths below have the `/api/transport` prefix. Routes require the existing JWT
 and tenant middleware. Services independently recheck current actors, ownership,
@@ -113,8 +115,7 @@ application regression subsequently passed with 2,021 tests and 32,047 assertion
 on shuleos_assessment_fk_test after the migration function rebuild fix.
 
 The operations contract section 15 records the delivery limits and evidence.
-The final persistent Transport static-analysis configuration and remote CI remain
-separate checks; these local results do not claim deployment or scheduler activation.
+These dated local results are historical; PR #89 subsequently passed its remote checks and merged, as recorded above. The current uncommitted Elections follow-up has separate local verification and no CI result. Neither record claims deployment or scheduler activation.
 
 
 ## Transport add-on enforcement

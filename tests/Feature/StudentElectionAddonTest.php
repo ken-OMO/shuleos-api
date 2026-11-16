@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\StudentElectionSubscription\StudentElectionAddonService;
+use App\Services\StudentElectionSubscription\StudentElectionCommercialAccess;
 use App\Services\StudentElectionSubscription\StudentElectionEntitlementService;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -325,5 +326,50 @@ class StudentElectionAddonTest extends TransportHttpTestCase
             $this->assertSame('Deliberate audit failure', $e->getMessage());
         }
         $this->assertSame(0, DB::table('student_election_addon_periods')->where('school_id', $f['school']->id)->count());
+    }
+
+    public function test_shared_evaluator_preserves_both_public_contracts_at_period_boundaries(): void
+    {
+        $f = $this->fixture();
+        $this->base($f);
+        $owner = $this->owner();
+        $p = $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f));
+        $start = CarbonImmutable::parse($p['period']['starts_at']);
+        $end = CarbonImmutable::parse($p['period']['ends_at']);
+        // Keep the main subscription eligible so these cases isolate the add-on boundary.
+        DB::table('school_subscriptions')->where('school_id', $f['school']->id)->update(['expiry_date' => $end->addDay()->toDateString()]);
+        foreach ([[$start->subSecond(), false], [$start, true], [$end->subSecond(), true], [$end, false]] as [$at, $eligible]) {
+            CarbonImmutable::setTestNow($at);
+            $basis = $this->normal($f);
+            $this->assertSame($eligible, $basis !== null);
+            if ($eligible) {
+                $operational = app(StudentElectionCommercialAccess::class)->normal($f['school']->id);
+                $this->assertSame($basis['period_id'], $operational['period_id']);
+                $this->assertSame($basis['main_subscription_id'], $operational['main_subscription_id']);
+                $this->assertSame($basis['checked_at'], $operational['checked_at']);
+                $this->assertSame('normal', $basis['mode']);
+                $this->assertArrayHasKey('ends_at', $basis);
+                $this->assertSame(['period_id', 'main_subscription_id', 'checked_at'], array_keys($operational));
+            } else {
+                $this->annualDenied(403, fn () => app(StudentElectionCommercialAccess::class)->normal($f['school']->id));
+            }
+        }
+    }
+
+    public function test_shared_evaluator_preserves_main_subscription_and_school_denials(): void
+    {
+        $f = $this->fixture();
+        $base = $this->base($f);
+        $owner = $this->owner();
+        $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f));
+        DB::table('school_subscriptions')->where('id', $base)->update(['expiry_date' => CarbonImmutable::now()->subDay()->toDateString()]);
+        $this->assertNull($this->normal($f));
+        $this->annualDenied(403, fn () => app(StudentElectionCommercialAccess::class)->normal($f['school']->id));
+        DB::table('school_subscriptions')->where('id', $base)->update(['status' => 'GRACE_PERIOD', 'grace_end_date' => CarbonImmutable::now()->addDay()->toDateString()]);
+        $this->assertNotNull($this->normal($f));
+        $this->assertNotEmpty(app(StudentElectionCommercialAccess::class)->normal($f['school']->id));
+        DB::table('schools')->where('id', $f['school']->id)->update(['lifecycle_state' => 'read_only']);
+        $this->assertNull($this->normal($f));
+        $this->annualDenied(403, fn () => app(StudentElectionCommercialAccess::class)->normal($f['school']->id));
     }
 }

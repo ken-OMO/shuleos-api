@@ -1,6 +1,6 @@
 # Elections and Transport audit repairs — 16 November 2026
 
-Status: locally verified against baseline 785d86adffe14ad8d143ae5e2832a597a095dcd8. Final source review completed; this follow-up is not staged, committed, pushed, merged or deployed. CI for this follow-up has not run. Real-school Elections use remains blocked.
+Status: merged into main through PR #89 at 7a718e3dde1317af5250b2c8566399188daa3b27 on 16 November 2026. All ten PR checks passed. Not deployed; real-school Elections use remains blocked. The separate HTTP, photo-lock and commercial/settings follow-up below is locally verified and final source review is complete; it is not yet committed or CI-verified.
 
 ## Ordered repair scope
 
@@ -29,7 +29,7 @@ Transport commercial activation/renewal HTTP and provider payment verification r
 
 Absence of Transport Eloquent models/global scopes is not itself a vulnerability. Explicit school filters, actor authorization, database constraints and bidirectional tenant tests remain required. These repairs do not claim PostgreSQL row-level security or cryptographic ballot anonymity.
 
-## Verification
+## PR #89 historical verification
 
 Verification completed locally on the isolated PostgreSQL database `shuleos_assessment_fk_test` with classroom rollout and both reporting schedulers disabled. Process environment settings were restored afterward.
 
@@ -54,3 +54,41 @@ An earlier full regression reported five portal-permission failures. The later m
 The reviewed selection contains 33 changed/new files and introduces no migrations or dependency updates. Final documentation cleanup changes five Markdown files only; verified PHP source and configuration remain byte-for-byte unchanged. Local verification does not establish CI success, production configuration readiness or release approval.
 
 No real-school activation, deployment, payment collection or scheduler activation. Elections remains blocked for real-school use.
+
+## Subsequent HTTP, photo-lock and commercial/settings follow-up — 16 November 2026
+
+Branch: hardening/elections-http-boundaries. Baseline: 7a718e3dde1317af5250b2c8566399188daa3b27. Final source review found no blocking findings in the reviewed selection. Local checks passed; no CI result exists for this uncommitted follow-up. Nothing staged, committed, pushed, merged or deployed by this documentation update. Real-school Elections use remains blocked.
+
+Admin election and legacy candidate-review path IDs now have UUID constraints and malformed-ID/no-domain-query HTTP tests. Body UUID validation remains separate. Teacher station requests establish JWT identity and tenant context before the network boundary; its election lookup is restricted to that tenant. Device routes retain cookie-based authentication and existing trusted origin/network/session checks, independently of teacher JWTs. No learner voting endpoint is enabled.
+
+Profile metadata/image reads now take shared learner ownership locks; uploads retain exclusive locks. Separate-session PostgreSQL tests prove overlapping metadata reads, reader blocking behind the exclusive ownership lock, revocation waiting for an existing read, and post-wait access revalidation. Real image/metadata tests confirm shared query locks. The writer probe acquires upload's ownership lock; it is not a concurrent scanned-file upload benchmark. File preparation remains inside the authorized transaction; an already-authorized response is not instantly revocable.
+
+StudentElectionCommercialEvaluator now supplies shared school/main-subscription facts and samples commercial time after the subscription lock wait. StudentElectionEntitlementService retains actor validation and nullable/mode/ends_at output. StudentElectionCommercialAccess retains normal denials, opening receipts and bounded continuation/completion behavior. Parity tests cover inclusive start/exclusive end, eligible grace and denied main-expiry/read-only cases; the existing entitlement contention and device suites also passed.
+
+Creation accepts results_visibility omitted or hidden only; declaration still controls publication. Legacy allow_self_nomination, require_candidate_approval and show_live_turnout inputs are rejected explicitly, including null/default-looking values, at HTTP and service boundaries. Existing stored rows and schema are retained. This does not make guardian consent/review optional or enable live candidate tallies. See [photo locking, commercial evaluation and settings](Student-Elections-Photo-Locks-and-Settings.md).
+
+### Current local verification
+
+All checks ran against shuleos_assessment_fk_test with classroom rollout and reporting schedulers disabled; the process environment was restored afterward.
+
+| Check | Passed result |
+| --- | --- |
+| Photo-read PostgreSQL contention | 4 tests, 11 assertions |
+| Real photo-version/privacy suite | 33 tests, 73 assertions |
+| Add-on suite including commercial parity | 24 tests, 168 assertions |
+| Unsupported-settings HTTP/service tests | 2 tests, 24 assertions |
+| Settings policy unit tests | 2 tests, 15 assertions |
+| Elections features, including existing contention/device enforcement | 390 tests, 1,841 assertions |
+| Elections units | 28 tests, 756 assertions |
+| Full backend regression | 2,537 tests, 35,422 assertions |
+| Full regression elapsed time / peak memory | 20 minutes 42.378 seconds / 654 MB |
+| Elections and Transport scoped PHPStan level 5 | No errors in either scope |
+| Repository formatting | 1,478 files passed |
+| Composer strict validation, locked security audit and optimized strict PSR-4 autoload | Passed; no advisories at verification time; 8,353 classes |
+| Diff checks | Passed |
+
+Targeted tests are included in the Elections/full counts; do not add them together. The earlier HTTP slice separately passed 2 route-boundary tests/55 assertions and 19 station HTTP tests/56 assertions; those tests remain included in the current full regression. Local passing results are not remote CI or production-release evidence.
+
+The final reviewed selection contains 23 changed/new files and no migrations or dependency changes. This final documentation correction changes six Markdown files only. The verified PHP, routes and middleware remain byte-for-byte unchanged; a second full regression is not required for these prose-only corrections. Staging must use the new final reviewed-state hashes.
+
+Certificates/PDFs, voting extension and Transport commercial HTTP activation/payment-provider verification remain deferred. Classroom rollout, real-school activation, payment collection, scheduler activation and deployment are not included.

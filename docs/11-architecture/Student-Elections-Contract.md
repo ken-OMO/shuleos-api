@@ -1,14 +1,16 @@
 # Student Elections Module Contract
 
-> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Voting extension and certificates/PDFs remain undelivered requirements.
+> Current Elections follow-up — 16 November 2026: HTTP boundaries, shared photo-read locks, shared commercial evaluation and unsupported-setting validation are locally verified. Full backend: 2,537 tests/35,422 assertions; both scoped analyses and remaining checks passed. Final source review completed. This follow-up is uncommitted and has no CI result; real-school Elections use remains blocked. See [current verification](Elections-Transport-Audit-Repairs.md) and [photo/commercial/settings contract](Student-Elections-Photo-Locks-and-Settings.md).
 
-## Current verification — 15 November 2026
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. PR #89 merged at 7a718e3dde1317af5250b2c8566399188daa3b27; all ten PR checks passed. Not deployed. Real-school Elections use remains blocked. Voting extension and certificates/PDFs remain undelivered requirements.
+
+## Current verification — 16 November 2026
 
 Local Elections and full backend checks passed. See
 [Student-Elections-Verification-and-Release-Gates.md](Student-Elections-Verification-and-Release-Gates.md) for exact results, current delivery limits and release gates.
 Dated slice notes below describe earlier implementation stages; their pending
 verification statements are historical and do not override the current record.
-Classroom rollout remains disabled. CI success and production readiness are not claimed.
+Classroom rollout remains disabled. This uncommitted follow-up has no CI result and does not establish production readiness; PR #89 CI evidence above is historical.
 
 Version: 1.0
 Date: 8 November 2026

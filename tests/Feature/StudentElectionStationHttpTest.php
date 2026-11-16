@@ -195,4 +195,34 @@ class StudentElectionStationHttpTest extends TestCase
         }
         $this->postJson('/api/election-station/request', ['admission_no' => 'not-a-classroom-learner'])->assertStatus(429);
     }
+
+    public function test_teacher_authentication_precedes_boundary_lookup_even_when_rollout_is_disabled(): void
+    {
+        config(['student_election_stations.enabled' => false]);
+        $lookups = [];
+        DB::listen(function ($query) use (&$lookups): void {
+            if (str_contains($query->sql, 'from "student_elections"') || str_contains($query->sql, 'from "student_election_stations"')) {
+                $lookups[] = $query->sql;
+            }
+        });
+        foreach (['', 'Bearer invalid-station-teacher-token'] as $header) {
+            Auth::forgetGuards();
+            $this->withHeader('Authorization', $header)->getJson('/api/student-elections/'.$this->id['election'].'/stations/classrooms/'.$this->id['assignment'])->assertUnauthorized();
+        }
+        $this->assertSame([], $lookups);
+    }
+
+    public function test_teacher_boundary_does_not_use_another_schools_election_network(): void
+    {
+        $other = F::create();
+        config(['student_election_stations.school_networks' => [$this->id['school'] => ['127.0.0.1/32']]]);
+        $this->teacher();
+        $this->getJson('/api/student-elections/'.$other['election'].'/stations/classrooms/'.$this->id['assignment'])->assertNotFound();
+    }
+
+    public function test_device_cookie_authentication_does_not_depend_on_a_teacher_jwt(): void
+    {
+        $this->device();
+        $this->withHeader('Authorization', 'Bearer invalid-teacher-jwt')->getJson('/api/election-station/state')->assertOk();
+    }
 }

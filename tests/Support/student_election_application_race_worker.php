@@ -6,12 +6,14 @@ use App\Models\StudentElection;
 use App\Models\User;
 use App\Services\StudentElection\StudentElectionApplicationService;
 use App\Services\StudentElection\StudentElectionCancellationService;
+use App\Services\StudentElection\StudentElectionPhotoService;
 use App\Services\StudentElection\StudentElectionService;
 use App\Services\StudentElection\StudentElectionStationService;
 use App\Services\StudentElection\StudentElectionVotingService;
 use App\Services\StudentElectionSubscription\StudentElectionCommercialAccess;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
@@ -87,6 +89,15 @@ try {
     auth()->guard()->setUser($actor);
     $service = app(StudentElectionApplicationService::class);
     switch ($job['operation']) {
+        case 'photo_profile_read':
+            app(StudentElectionPhotoService::class)->profile($actor, $job['learner']);
+            break;
+        case 'photo_learner_write':
+            DB::table('learners')->where('school_id', $job['school'])->where('id', $job['learner'])->lockForUpdate()->firstOrFail();
+            break;
+        case 'photo_learner_revoke':
+            DB::table('learners')->where('school_id', $job['school'])->where('id', $job['learner'])->update(['portal_enabled' => false]);
+            break;
         case 'cancel_propose':
             app(StudentElectionCancellationService::class)->propose($actor, $job['election'], 'Independently documented cancellation incident.', true);
             break;
@@ -154,7 +165,7 @@ try {
     }
     electionApplicationRaceMessage(['event' => 'outcome',
         'status' => $error instanceof StudentElectionApplicationRaceRollback ? 'rolled_back'
-            : (($error instanceof ValidationException || $error instanceof HttpException) ? 'rejected' : 'error'),
+            : (($error instanceof ValidationException || $error instanceof HttpException || $error instanceof AuthorizationException) ? 'rejected' : 'error'),
         'fields' => $error instanceof ValidationException ? array_keys($error->errors()) : [],
         'http_status' => $error instanceof HttpException ? $error->getStatusCode() : null,
         'error_class' => get_class($error)]);
