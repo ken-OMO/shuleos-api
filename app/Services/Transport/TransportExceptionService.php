@@ -50,9 +50,17 @@ class TransportExceptionService
 
         try {
             return DB::transaction(function () use ($authenticated, $failureId, $data): array {
+                // Reject actors without any applicable action permission before identifier lookup.
+                $preflight = $this->access->actor($authenticated);
+                $canAuthorize = $this->auth->hasPermission($preflight, 'authorize_transport_handover');
+                $needsAuthorization = $data['action'] === 'resolve' || array_key_exists('assigned_to', $data);
+                abort_unless($canAuthorize || (! $needsAuthorization && $this->auth->hasPermission($preflight, 'record_transport_journeys')), 403);
                 $actor = $this->access->exceptionActor($authenticated, $failureId);
                 $school = (string) $actor->school_id;
                 $failure = $this->failure($school, $failureId);
+
+                DB::table('transport_trips')->where('school_id', $school)
+                    ->where('id', $failure->trip_id)->lockForUpdate()->firstOrFail();
 
                 DB::table('learners')->where('school_id', $school)
                     ->where('id', $failure->learner_id)->lockForUpdate()->first();
@@ -147,6 +155,9 @@ class TransportExceptionService
             });
         } catch (QueryException $exception) {
             $state = $exception->errorInfo[0] ?? null;
+            if ($state === '40P01') {
+                abort(409, 'Concurrent Transport operation rolled back; refresh before retrying.');
+            }
             if (in_array($state, ['23P01', '23505'], true)) {
                 abort(409, 'Exception or journey evidence changed.');
             }

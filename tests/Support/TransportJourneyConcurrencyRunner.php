@@ -74,6 +74,19 @@ final class TransportJourneyConcurrencyRunner
                 throw new RuntimeException('The competing operation did not wait on the transport reservation or school lock.');
             }
 
+            // A third session must still acquire the learner while the event waits
+            // for its trip. This fails with 55P03 under learner-before-trip order.
+            $learnerProbe = false;
+            if (isset($second['probe_learner_id'])) {
+                DB::beginTransaction();
+                try {
+                    DB::table('learners')->where('school_id', $second['school_id'])
+                        ->where('id', $second['probe_learner_id'])->lock('for update nowait')->firstOrFail();
+                    $learnerProbe = true;
+                } finally {
+                    DB::rollBack();
+                }
+            }
             $this->workers[$a]['input']->write("release\n");
             $this->workers[$a]['input']->close();
 
@@ -114,6 +127,7 @@ final class TransportJourneyConcurrencyRunner
                 'first' => $this->finish($a),
                 'second' => $this->finish($b),
                 'contention_verified' => true,
+                'learner_probe_verified' => $learnerProbe,
             ];
         } finally {
             foreach ($this->workers as $worker) {

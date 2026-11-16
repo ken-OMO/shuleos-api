@@ -479,4 +479,18 @@ class TransportExceptionServiceTest extends TestCase
             'route', 'stop', 'vehicle', 'assignment', 'reservation'
         );
     }
+
+    public function test_no_action_permission_cannot_distinguish_existing_and_missing_failure(): void
+    {
+        $f = $this->failedJourney();
+        $current = $this->exceptions()->show($f['actor'], $f['failure']);
+        $permissionIds = DB::table('permissions')->whereIn('permission_name', ['record_transport_journeys', 'authorize_transport_handover'])->pluck('id');
+        DB::table('role_permissions')->where('role_id', $f['actor']->role_id)->whereIn('permission_id', $permissionIds)->delete();
+        $input = ['expected_version' => $current['version'], 'expected_journey_version' => $current['journey_version'],
+            'action' => 'follow_up', 'note' => 'Unprivileged attempt.'];
+        foreach ([$f['failure'], (string) Str::uuid()] as $id) {
+            $this->denied(fn () => $this->exceptions()->append($f['actor'], $id, $input), 403);
+        }
+        $this->assertSame(0, DB::table('transport_exception_follow_ups')->where('failure_event_id', $f['failure'])->count());
+    }
 }

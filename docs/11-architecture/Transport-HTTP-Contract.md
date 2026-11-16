@@ -1,5 +1,7 @@
 # Transport HTTP contract
 
+> Audit follow-up — 16 November 2026: [verified repairs and current delivery limits](Elections-Transport-Audit-Repairs.md). Local full regression passed 2,521 tests/35,273 assertions; both scoped analyses and remaining checks passed. This follow-up is not committed or deployed and has no CI result yet. Real-school Elections use remains blocked. Commercial Transport HTTP activation remains deferred; school counterpart authorization requires authorize_transport_handover.
+
 All paths below have the `/api/transport` prefix. Routes require the existing JWT
 and tenant middleware. Services independently recheck current actors, ownership,
 permissions, lifecycle, school mode, setup and concrete dated responsibility.

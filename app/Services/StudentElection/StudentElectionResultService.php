@@ -440,6 +440,18 @@ class StudentElectionResultService
                 || StudentLeadershipTerm::withoutGlobalScopes()->where('election_id', $id)->exists()) {
                 $this->reject('declaration', 'Existing appointment evidence requires review.');
             }
+            if ((string) $snapshot->created_by === (string) $actor->id) {
+                $this->reject('declaration', 'Declaration requires an officer independent of every tally.');
+            }
+            foreach ($snapshot->payload['round_chain'] ?? [] as $entry) {
+                $receipts = DB::table('student_election_audit_logs')->where('school_id', $school)
+                    ->where('election_id', $id)->where('entity_id', $entry['round_id'])
+                    ->where('action', 'round_tallied')->get();
+                if ($receipts->count() !== 1 || $receipts->first()->actor_user_id === null
+                    || (string) $receipts->first()->actor_user_id === (string) $actor->id) {
+                    $this->reject('declaration', 'Linked tally requires an independent officer and complete audit evidence.');
+                }
+            }
             $terms = [];
             $startsAt = now($snapshot->payload['outcome']['timezone'])->toDateString();
             foreach ($snapshot->payload['outcome']['positions'] as $position) {

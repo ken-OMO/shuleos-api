@@ -8,11 +8,13 @@ use App\Models\AuditLog;
 use App\Models\User;
 use App\Services\SchoolSetupReadinessService;
 use App\Services\Transport\TransportAssignmentService;
+use App\Services\Transport\TransportAuditService;
 use App\Services\Transport\TransportHandoverAuthorizationService;
 use App\Services\Transport\TransportJourneyEventService;
 use App\Services\Transport\TransportLearnerReservationService;
 use App\Services\Transport\TransportTripService;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\DeadlockException;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
@@ -424,5 +426,18 @@ class TransportJourneyEventServiceTest extends TestCase
             'school', 'actor', 'unassigned', 'learner', 'other',
             'route', 'stop', 'vehicle', 'assignment', 'reservation'
         );
+    }
+
+    public function test_nested_deadlock_propagates_to_the_outer_transaction_owner(): void
+    {
+        $f = $this->journey();
+        $pdo = new \PDOException('deadlock detected');
+        $pdo->errorInfo = ['40P01', 7, 'Synthetic nested deadlock for transaction-owner verification.'];
+        $exception = new QueryException('pgsql', 'synthetic audit statement', [], $pdo);
+        $this->mock(TransportAuditService::class)->shouldReceive('record')->once()->andThrow($exception);
+        // DatabaseTransactions owns the outer transaction. Do not turn this
+        // framework wrapper into an HTTP response before that owner aborts.
+        $this->expectException(DeadlockException::class);
+        $this->recordEvent($f, 'pickup', $f['guardianGrant']['id']);
     }
 }

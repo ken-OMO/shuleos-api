@@ -54,7 +54,7 @@ class StudentElectionResultConcurrencyTest extends TestCase
     private function job(string $operation): array
     {
         return ['operation' => $operation, 'school' => $this->id['school'],
-            'election' => $this->id['election'], 'actor' => $this->id['admin']];
+            'election' => $this->id['election'], 'actor' => $this->id[$operation === 'publish' ? 'publisher' : 'admin']];
     }
 
     private function verifyRace(array $race): void
@@ -71,7 +71,7 @@ class StudentElectionResultConcurrencyTest extends TestCase
         $this->verifyRace($race);
         $this->assertSame(1, DB::table('student_election_tally_snapshots')->where('election_id', $this->id['election'])->count());
         $this->assertSame(2, DB::table('student_election_results')->where('election_id', $this->id['election'])->count());
-        $this->assertSame(1, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->where('action', '<>', 'commercial_opening_recorded')->count());
+        $this->assertSame(1, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->whereIn('action', ['tallied', 'declared'])->count());
     }
 
     public function test_competing_declarations_create_one_set_of_appointments(): void
@@ -81,7 +81,7 @@ class StudentElectionResultConcurrencyTest extends TestCase
         $this->verifyRace($race);
         $this->assertSame(1, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
         $this->assertSame(1, DB::table('student_election_declarations')->where('election_id', $this->id['election'])->count());
-        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->where('action', '<>', 'commercial_opening_recorded')->count());
+        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->whereIn('action', ['tallied', 'declared'])->count());
     }
 
     public function test_declaration_waits_for_the_tally_to_commit(): void

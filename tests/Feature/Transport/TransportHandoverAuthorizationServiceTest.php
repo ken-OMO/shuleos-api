@@ -91,6 +91,7 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
     public function test_school_counterpart_is_direction_scoped_and_distinct_from_crew(): void
     {
         $f = $this->fixture();
+        $this->grant($f);
         $input = [
             'assignment_id' => $f['assignment']['id'],
             'kind' => 'school_receiver',
@@ -248,6 +249,7 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
     public function test_ineligible_school_counterparts_are_rejected(): void
     {
         $f = $this->fixture();
+        $this->grant($f);
         $input = [
             'assignment_id' => $f['assignment']['id'],
             'kind' => 'school_receiver',
@@ -411,5 +413,17 @@ class TransportHandoverAuthorizationServiceTest extends TestCase
         } catch (HttpExceptionInterface $exception) {
             $this->assertSame($status, $exception->getStatusCode());
         }
+    }
+
+    public function test_management_alone_cannot_designate_a_school_receiver(): void
+    {
+        $f = $this->fixture();
+        $input = ['assignment_id' => $f['assignment']['id'], 'kind' => 'school_receiver',
+            'staff_user_id' => $f['unassigned']->id, 'valid_from' => TransportFixtureClock::shift('2026-11-09'),
+            'valid_to' => TransportFixtureClock::shift('2026-11-09'), 'reason' => 'Explicit receiver authorization.'];
+        $this->denied(fn () => $this->service()->create($f['actor'], $input), 403);
+        $this->grant($f);
+        $issued = $this->service()->create($f['actor'], $input);
+        $this->assertSame($f['unassigned']->id, $issued['identity']['user_id']);
     }
 }

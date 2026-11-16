@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Services\Transport\TransportAccessService;
 use App\Services\Transport\TransportAssignmentService;
 use App\Services\Transport\TransportAttendanceService;
+use App\Services\Transport\TransportAuditService;
 use App\Services\Transport\TransportDailyReportService;
 use App\Services\Transport\TransportExceptionService;
 use App\Services\Transport\TransportHandoverAuthorizationService;
@@ -84,7 +85,10 @@ try {
 
     DB::beginTransaction();
 
-    if ($payload['operation'] === 'addon_main_lock') {
+    if ($payload['operation'] === 'hold_trip') {
+        $row = DB::table('transport_trips')->where('school_id', $payload['school_id'])->where('id', $payload['trip_id'])->lockForUpdate()->firstOrFail();
+        $result = ['id' => $row->id];
+    } elseif ($payload['operation'] === 'addon_main_lock') {
         $row = DB::table('school_subscriptions')->where('school_id', $payload['school_id'])
             ->lockForUpdate()->first();
         if ($row === null) {
@@ -142,6 +146,26 @@ try {
 
         $result = app(TransportAssignmentService::class)
             ->create($actor, $payload['input']);
+    } elseif ($payload['operation'] === 'standalone_journey_deadlock') {
+        // The normal worker owns an outer transaction; discard that empty
+        // wrapper so the service itself owns the transaction being tested.
+        if (DB::transactionLevel() !== 1) {
+            throw new RuntimeException('One empty worker transaction required.');
+        }
+        DB::rollBack();
+        $actor = User::withoutGlobalScopes()->where('school_id', $payload['school_id'])->findOrFail($payload['actor_id']);
+        auth()->guard()->setUser($actor);
+        $app->instance(TransportAuditService::class, new class extends TransportAuditService
+        {
+            public function record(User $actor, string $action, string $table, string $id, array $old = [], array $new = []): void
+            {
+                $cause = new PDOException('deadlock detected');
+                $cause->errorInfo = ['40P01', 7, 'Synthetic top-level deadlock for rollback verification.'];
+                throw new QueryException('pgsql', 'synthetic audit statement', [], $cause);
+            }
+        });
+        app(TransportJourneyEventService::class)->record($actor, $payload['roster_id'], $payload['input']);
+        throw new RuntimeException('Synthetic deadlock unexpectedly committed.');
     } elseif ($payload['operation'] === 'journey_event') {
         $actor = User::withoutGlobalScopes()
             ->where('school_id', $payload['school_id'])

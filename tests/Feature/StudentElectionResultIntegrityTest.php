@@ -62,7 +62,7 @@ class StudentElectionResultIntegrityTest extends TestCase
 
     private function declareFixture()
     {
-        return $this->electionService()->publish($this->id['school'], $this->id['election'], $this->id['admin']);
+        return $this->electionService()->publish($this->id['school'], $this->id['election'], $this->id['publisher']);
     }
 
     private function clearWinner(): void
@@ -158,7 +158,7 @@ class StudentElectionResultIntegrityTest extends TestCase
         $this->assertSame(1, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
         $this->assertSame($this->id['learner'], DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->value('learner_id'));
         $this->assertSame(1, DB::table('student_election_declarations')->where('election_id', $this->id['election'])->count());
-        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->where('action', '<>', 'commercial_opening_recorded')->count());
+        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->whereIn('action', ['tallied', 'declared'])->count());
     }
 
     public function test_retries_do_not_rewrite_tally_or_duplicate_appointments_and_audit(): void
@@ -170,7 +170,7 @@ class StudentElectionResultIntegrityTest extends TestCase
         $this->declareFixture();
         $this->declareFixture();
         $this->assertSame(1, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
-        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->where('action', '<>', 'commercial_opening_recorded')->count());
+        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->whereIn('action', ['tallied', 'declared'])->count());
     }
 
     public function test_extra_winner_flag_is_rejected_before_any_appointment(): void
@@ -395,6 +395,16 @@ class StudentElectionResultIntegrityTest extends TestCase
         $this->declareFixture();
         DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->delete();
         $this->assertFixtureDenied(fn () => $this->declareFixture(), 'declaration');
-        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->where('action', '<>', 'commercial_opening_recorded')->count());
+        $this->assertSame(2, DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])->whereIn('action', ['tallied', 'declared'])->count());
+    }
+
+    public function test_tally_officer_cannot_declare_even_with_both_permissions(): void
+    {
+        $this->clearWinner();
+        $this->assertFixtureDenied(fn () => $this->electionService()->publish($this->id['school'], $this->id['election'], $this->id['admin']), 'declaration');
+        $this->assertSame('tallied', $this->electionPhase());
+        $this->assertSame(0, DB::table('student_leadership_terms')->where('election_id', $this->id['election'])->count());
+        $this->declareFixture();
+        $this->assertSame('published', $this->electionPhase());
     }
 }

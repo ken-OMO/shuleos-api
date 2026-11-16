@@ -113,6 +113,11 @@ final class StudentElectionConcurrencyFixture
             $user['role_id'] = $id['admin_role'];
             DB::table('users')->insert($user);
 
+            $id['publisher'] = (string) Str::uuid();
+            $user['id'] = $id['publisher'];
+            $user['username'] = 'election-publisher-'.Str::random(12);
+            DB::table('users')->insert($user);
+
             StudentElectionSubscriptionFixture::activate($id['school']);
 
             return $id;

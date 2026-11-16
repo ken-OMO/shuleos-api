@@ -139,4 +139,26 @@ class StudentElectionConcurrencyTest extends TestCase
         $this->assertContains('candidate', $race['second']['fields']);
         $this->assertSame('approved', DB::table('student_election_candidates')->where('id', $this->id['candidate'])->value('status'));
     }
+
+    public function test_competing_voter_generation_is_idempotent_and_audited(): void
+    {
+        DB::table('student_elections')->where('id', $this->id['election'])->update(['status' => 'draft']);
+        DB::table('student_election_voters')->where('election_id', $this->id['election'])->delete();
+        $job = [...$this->job(), 'operation' => 'generate_voters', 'actor' => $this->id['admin']];
+        $race = (new StudentElectionConcurrencyRunner)->run($job, $job);
+        $this->evidence($race, 'committed', 'committed');
+        $this->assertSame(2, DB::table('student_election_voters')->where('election_id', $this->id['election'])->count());
+        $counts = DB::table('student_election_audit_logs')->where('election_id', $this->id['election'])
+            ->where('action', 'voters_generated')->get()->map(fn ($row) => json_decode($row->metadata, true)['inserted'])->sort()->values()->all();
+        $this->assertSame([0, 2], $counts);
+    }
+
+    public function test_competing_position_creation_commits_only_one_position(): void
+    {
+        $job = [...$this->job(), 'operation' => 'create_position', 'actor' => $this->id['admin']];
+        $race = (new StudentElectionConcurrencyRunner)->run($job, $job);
+        $this->evidence($race, 'committed', 'rejected');
+        $this->assertSame(1, DB::table('student_leadership_positions')->where('school_id', $this->id['school'])->where('name', 'Race position')->count());
+        $this->assertSame(1, DB::table('student_election_audit_logs')->where('school_id', $this->id['school'])->where('action', 'position_created')->count());
+    }
 }

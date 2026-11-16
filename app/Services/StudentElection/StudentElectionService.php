@@ -29,6 +29,11 @@ class StudentElectionService
 
             app(StudentElectionCommercialAccess::class)->normal($s);
 
+            if (! $created->exists) {
+                throw new \RuntimeException('Election administrative persistence failed.');
+            }
+            app(StudentElectionLifecycleAudit::class)->record($s, (string) $created->id, $u, 'created', 'student_elections', (string) $created->id);
+
             return $created;
         });
     }
@@ -36,7 +41,10 @@ class StudentElectionService
     public function position(string $s, array $d, string $u): StudentLeadershipPosition
     {
         return DB::transaction(function () use ($s, $d, $u) {
+            // Serialize duplicate checks before taking commercial-row locks.
+            DB::table('schools')->where('id', $s)->lockForUpdate()->firstOrFail();
             app(StudentElectionCommercialAccess::class)->normal($s);
+            $d['code'] = isset($d['code']) && trim($d['code']) !== '' ? trim($d['code']) : null;
             foreach (['grade_id', 'stream_id', 'minimum_grade_id', 'maximum_grade_id'] as $f) {
                 if (! empty($d[$f])) {
                     $table = $f === 'stream_id' ? 'streams' : 'grades';
@@ -44,7 +52,12 @@ class StudentElectionService
                         throw ValidationException::withMessages([$f => 'Scope does not belong to this school.']);
                     }
                 }
-            }if (StudentLeadershipPosition::current()->where('school_id', $s)->where('scope', $d['scope'])->where(fn ($q) => $q->where('name', $d['name'])->orWhere('code', $d['code'] ?? null))->exists()) {
+            }if (StudentLeadershipPosition::current()->where('school_id', $s)->where('scope', $d['scope'])->where(function ($q) use ($d) {
+                $q->where('name', $d['name']);
+                if ($d['code'] !== null) {
+                    $q->orWhere('code', $d['code']);
+                }
+            })->exists()) {
                 throw ValidationException::withMessages(['name' => 'Position already exists in this scope.']);
             }
 
@@ -52,13 +65,18 @@ class StudentElectionService
 
             app(StudentElectionCommercialAccess::class)->normal($s);
 
+            if (! $created->exists) {
+                throw new \RuntimeException('Election administrative persistence failed.');
+            }
+            app(StudentElectionLifecycleAudit::class)->record($s, null, $u, 'position_created', 'student_leadership_positions', (string) $created->id);
+
             return $created;
         });
     }
 
-    public function attach(string $s, string $e, string $p, array $d = []): StudentElectionPosition
+    public function attach(string $s, string $e, string $p, array $d = [], ?string $u = null): StudentElectionPosition
     {
-        return DB::transaction(function () use ($s, $e, $p, $d) {
+        return DB::transaction(function () use ($s, $e, $p, $d, $u) {
             $election = StudentElection::whereKey($e)->where('school_id', $s)->where('status', 'draft')->lockForUpdate()->firstOrFail();
             app(StudentElectionCommercialAccess::class)->normal($s);
             $position = StudentLeadershipPosition::current()->whereKey($p)->where('school_id', $s)->firstOrFail();
@@ -70,31 +88,45 @@ class StudentElectionService
 
             app(StudentElectionCommercialAccess::class)->normal($s);
 
+            if (! $created->exists) {
+                throw new \RuntimeException('Election administrative persistence failed.');
+            }
+            app(StudentElectionLifecycleAudit::class)->record($s, $e, $u ?? auth()->id(), 'position_attached', 'student_election_positions', (string) $created->id, ['position_id' => $p]);
+
             return $created;
         });
     }
 
-    public function generateVoters(string $s, string $e): int
+    public function generateVoters(string $s, string $e, ?string $u = null): int
     {
-        return DB::transaction(function () use ($s, $e) {
+        return DB::transaction(function () use ($s, $e, $u) {
             $election = StudentElection::current()->whereKey($e)->where('school_id', $s)->whereIn('status', ['draft', 'nominations_open', 'nominations_closed', 'campaigning'])->lockForUpdate()->firstOrFail();
             app(StudentElectionCommercialAccess::class)->normal($s);
             $count = 0;
-            foreach ($election->electionPositions()->where('active', true)->with('position')->get() as $ep) {
+            foreach ($election->electionPositions()->where('school_id', $s)->where('active', true)
+                ->whereHas('position', fn ($q) => $q->where('school_id', $s)->where('is_deleted', false))
+                ->with('position')->get() as $ep) {
                 $q = DB::table('learners')->where('school_id', $s)->where('active', true)->where('portal_enabled', true)->where('is_deleted', false);
                 if ($ep->position->grade_id) {
                     $q->where('grade_id', $ep->position->grade_id);
-                }if ($ep->position->stream_id) {
-                    $q->where('stream_id', $ep->position->stream_id);
-                }foreach ($q->pluck('id') as $l) {
-                    if (! DB::table('student_election_voters')->where('election_position_id', $ep->id)->where('learner_id', $l)->exists()) {
-                        DB::table('student_election_voters')->insert(['id' => (string) Str::uuid(), 'school_id' => $s, 'election_id' => $e, 'election_position_id' => $ep->id, 'learner_id' => $l, 'eligible' => true, 'has_voted' => false, 'created_at' => now(), 'updated_at' => now()]);
-                    }
-                    $count++;
                 }
+                if ($ep->position->stream_id) {
+                    $q->where('stream_id', $ep->position->stream_id);
+                }
+                // Bound memory and SQL bindings; keep existing eligibility/participation unchanged.
+                $q->select('id')->chunkById(500, function ($learners) use ($s, $e, $ep, &$count): void {
+                    $rows = [];
+                    $at = now();
+                    foreach ($learners as $learner) {
+                        $rows[] = ['id' => (string) Str::uuid(), 'school_id' => $s, 'election_id' => $e,
+                            'election_position_id' => $ep->id, 'learner_id' => $learner->id,
+                            'eligible' => true, 'has_voted' => false, 'created_at' => $at, 'updated_at' => $at];
+                    }
+                    $count += DB::table('student_election_voters')->insertOrIgnore($rows);
+                });
             }
-
             app(StudentElectionCommercialAccess::class)->normal($s);
+            app(StudentElectionLifecycleAudit::class)->record($s, $e, $u ?? auth()->id(), 'voters_generated', 'student_elections', $e, ['inserted' => $count]);
 
             return $count;
         });
@@ -160,9 +192,12 @@ class StudentElectionService
                 app(StudentElectionRoundService::class)->freeze($x);
                 app(StudentElectionCommercialAccess::class)->opened($x, $u);
             }
+            $from = (string) $x->status;
             if (! $x->update(['status' => $to])) {
                 throw new \RuntimeException('Election transition persistence failed.');
             }
+
+            app(StudentElectionLifecycleAudit::class)->record($s, $e, $u, 'transitioned', 'student_elections', $e, ['from' => $from, 'to' => $to]);
 
             return $x;
         });
@@ -196,6 +231,8 @@ class StudentElectionService
             }
 
             app(StudentElectionCommercialAccess::class)->normal($s);
+
+            app(StudentElectionLifecycleAudit::class)->record($s, (string) $election->id, $u, 'legacy_candidate_reviewed', 'student_election_candidates', $c, ['status' => $status]);
 
             return $candidate;
         });
