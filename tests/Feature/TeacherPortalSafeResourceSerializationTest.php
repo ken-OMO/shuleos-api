@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Http\Resources\TeacherPortalSafeResource;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Tests\TestCase;
@@ -57,7 +58,7 @@ class TeacherPortalSafeResourceSerializationTest extends TestCase
         ];
         $data = (new TeacherPortalSafeResource([
             'items' => collect([$value, null, 0, false]),
-            'time' => \Carbon\CarbonImmutable::parse('2026-01-01T00:00:00Z'),
+            'time' => CarbonImmutable::parse('2026-01-01T00:00:00Z'),
         ]))->toArray(Request::create('/'));
 
         $this->assertSame([

@@ -17,9 +17,13 @@ class PlatformDashboardReadTest extends TestCase
     use DatabaseTransactions;
 
     private User $owner;
+
     private User $otherOwner;
+
     private User $admin;
+
     private object $school;
+
     private object $otherSchool;
 
     protected function setUp(): void

@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Http\Resources\SchoolResource;
+use App\Mail\SchoolAdminInvitationMail;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
+use App\Services\Auth\SchoolAdminActivationService;
+use App\Services\Platform\SchoolAdminInvitationDelivery;
 use App\Services\School\SchoolSettingsProvisioningService;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use RuntimeException;
@@ -1037,7 +1042,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
     public function test_invitation_waits_for_commit_and_is_discarded_on_rollback(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $level = DB::transactionLevel();
         DB::beginTransaction();
@@ -1047,19 +1052,19 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
                 '/api/admin/platform/schools',
                 $this->validPayload(),
             )->assertCreated()->assertJsonPath('data.invitation.status', 'pending');
-            \Illuminate\Support\Facades\Mail::assertNothingSent();
+            Mail::assertNothingSent();
         } finally {
             while (DB::transactionLevel() > $level) {
                 DB::rollBack();
             }
         }
 
-        \Illuminate\Support\Facades\Mail::assertNothingSent();
+        Mail::assertNothingSent();
     }
 
     public function test_invitation_is_sent_when_explicit_outer_transaction_commits(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $level = DB::transactionLevel();
         DB::beginTransaction();
@@ -1069,10 +1074,10 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
                 '/api/admin/platform/schools',
                 $this->validPayload(),
             )->assertCreated()->assertJsonPath('data.invitation.status', 'pending');
-            \Illuminate\Support\Facades\Mail::assertNothingSent();
+            Mail::assertNothingSent();
             DB::commit();
-            \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\SchoolAdminInvitationMail::class);
-            \Illuminate\Support\Facades\Mail::assertSentCount(1);
+            Mail::assertSent(SchoolAdminInvitationMail::class);
+            Mail::assertSentCount(1);
         } finally {
             while (DB::transactionLevel() > $level) {
                 DB::rollBack();
@@ -1082,7 +1087,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
     public function test_reinvitation_rotates_credentials_and_invalidates_old_challenges_without_creating_records(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools', $this->validPayload(),
@@ -1093,8 +1098,8 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $generation = $admin->invitation_generation;
         $authGeneration = $admin->auth_generation;
         $oldPassword = $created['initial_admin']['temporary_password'];
-        $challenge = app(\App\Services\Auth\SchoolAdminActivationService::class)->begin(
-            $admin, \Illuminate\Http\Request::create('/api/auth/login', 'POST'),
+        $challenge = app(SchoolAdminActivationService::class)->begin(
+            $admin, Request::create('/api/auth/login', 'POST'),
         );
         $schools = DB::table('schools')->count();
         $users = DB::table('users')->count();
@@ -1115,14 +1120,14 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $this->assertNotNull(DB::table('authentication_challenges')->where('id', $challenge['challenge_id'])->value('consumed_at'));
         $this->assertSame($schools, DB::table('schools')->count());
         $this->assertSame($users, DB::table('users')->count());
-        \Illuminate\Support\Facades\Mail::assertSent(\App\Mail\SchoolAdminInvitationMail::class, function ($mail) use ($fresh) {
+        Mail::assertSent(SchoolAdminInvitationMail::class, function ($mail) use ($fresh) {
             return $mail->hasTo($fresh->email) && Hash::check($mail->temporaryPassword, $fresh->password_hash);
         });
     }
 
     public function test_reinvitation_rejects_activated_accounts_without_resetting_passwords(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools', $this->validPayload(),
@@ -1139,7 +1144,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
     public function test_reinvitation_cooldown_and_school_identity_mismatch_do_not_rotate_credentials(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools', $this->validPayload(),
@@ -1168,7 +1173,7 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
 
     public function test_failed_reinvitation_can_be_recovered_without_duplicate_school_or_admin(): void
     {
-        \Illuminate\Support\Facades\Mail::fake();
+        Mail::fake();
         $owner = $this->platformOwner();
         $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
             '/api/admin/platform/schools', $this->validPayload(),
@@ -1178,13 +1183,13 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
         $schools = DB::table('schools')->count();
         $users = DB::table('users')->count();
         $this->travel(61)->seconds();
-        $mock = \Mockery::mock(\App\Services\Platform\SchoolAdminInvitationDelivery::class);
+        $mock = \Mockery::mock(SchoolAdminInvitationDelivery::class);
         $mock->shouldReceive('send')->once()->andReturn('failed');
-        $this->app->instance(\App\Services\Platform\SchoolAdminInvitationDelivery::class, $mock);
+        $this->app->instance(SchoolAdminInvitationDelivery::class, $mock);
         $this->withToken(JWTAuth::fromUser($owner))->postJson($path)
             ->assertOk()->assertJsonPath('data.invitation.status', 'failed');
         $failedHash = $admin->fresh()->password_hash;
-        $this->app->forgetInstance(\App\Services\Platform\SchoolAdminInvitationDelivery::class);
+        $this->app->forgetInstance(SchoolAdminInvitationDelivery::class);
         $this->travel(61)->seconds();
         $this->withToken(JWTAuth::fromUser($owner))->postJson($path)
             ->assertOk()->assertJsonPath('data.invitation.status', 'accepted');
