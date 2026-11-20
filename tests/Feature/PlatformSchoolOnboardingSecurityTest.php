@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Http\Resources\SchoolResource;
+use App\Mail\SchoolAdminInvitationMail;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
+use App\Services\Auth\SchoolAdminActivationService;
+use App\Services\Platform\SchoolAdminInvitationDelivery;
 use App\Services\School\SchoolSettingsProvisioningService;
 use App\Services\TeacherDuty\TeacherDutyOccurrenceCategoryProvisioningService;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 use RuntimeException;
@@ -1033,6 +1038,164 @@ class PlatformSchoolOnboardingSecurityTest extends TestCase
             $before,
             (array) DB::table('schools')->where('id', $schoolId)->first()
         );
+    }
+
+    public function test_invitation_waits_for_commit_and_is_discarded_on_rollback(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $level = DB::transactionLevel();
+        DB::beginTransaction();
+
+        try {
+            $this->withToken(JWTAuth::fromUser($owner))->postJson(
+                '/api/admin/platform/schools',
+                $this->validPayload(),
+            )->assertCreated()->assertJsonPath('data.invitation.status', 'pending');
+            Mail::assertNothingSent();
+        } finally {
+            while (DB::transactionLevel() > $level) {
+                DB::rollBack();
+            }
+        }
+
+        Mail::assertNothingSent();
+    }
+
+    public function test_invitation_is_sent_when_explicit_outer_transaction_commits(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $level = DB::transactionLevel();
+        DB::beginTransaction();
+
+        try {
+            $this->withToken(JWTAuth::fromUser($owner))->postJson(
+                '/api/admin/platform/schools',
+                $this->validPayload(),
+            )->assertCreated()->assertJsonPath('data.invitation.status', 'pending');
+            Mail::assertNothingSent();
+            DB::commit();
+            Mail::assertSent(SchoolAdminInvitationMail::class);
+            Mail::assertSentCount(1);
+        } finally {
+            while (DB::transactionLevel() > $level) {
+                DB::rollBack();
+            }
+        }
+    }
+
+    public function test_reinvitation_rotates_credentials_and_invalidates_old_challenges_without_creating_records(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools', $this->validPayload(),
+        )->assertCreated()->json('data');
+        $schoolId = $created['school']['id'];
+        $userId = $created['initial_admin']['id'];
+        $admin = User::findOrFail($userId);
+        $generation = $admin->invitation_generation;
+        $authGeneration = $admin->auth_generation;
+        $oldPassword = $created['initial_admin']['temporary_password'];
+        $challenge = app(SchoolAdminActivationService::class)->begin(
+            $admin, Request::create('/api/auth/login', 'POST'),
+        );
+        $schools = DB::table('schools')->count();
+        $users = DB::table('users')->count();
+        $this->travel(25)->hours();
+
+        $response = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            "/api/admin/platform/schools/{$schoolId}/administrators/{$userId}/invitation",
+        )->assertOk();
+        $response->assertJsonPath('data.school_id', $schoolId)
+            ->assertJsonPath('data.user_id', $userId)
+            ->assertJsonPath('data.invitation_generation', $generation + 1);
+        $this->assertArrayNotHasKey('temporary_password', $response->json('data'));
+        $fresh = $admin->fresh();
+        $this->assertFalse(Hash::check($oldPassword, $fresh->password_hash));
+        $this->assertSame($authGeneration + 1, $fresh->auth_generation);
+        $this->assertTrue($fresh->temporary_password_expires_at->isFuture());
+        $this->assertNull($fresh->activated_at);
+        $this->assertNotNull(DB::table('authentication_challenges')->where('id', $challenge['challenge_id'])->value('consumed_at'));
+        $this->assertSame($schools, DB::table('schools')->count());
+        $this->assertSame($users, DB::table('users')->count());
+        Mail::assertSent(SchoolAdminInvitationMail::class, function ($mail) use ($fresh) {
+            return $mail->hasTo($fresh->email) && Hash::check($mail->temporaryPassword, $fresh->password_hash);
+        });
+    }
+
+    public function test_reinvitation_rejects_activated_accounts_without_resetting_passwords(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools', $this->validPayload(),
+        )->assertCreated()->json('data');
+        $admin = User::findOrFail($created['initial_admin']['id']);
+        $admin->forceFill(['activated_at' => now(), 'first_login' => false, 'temporary_password' => false])->save();
+        $hash = $admin->password_hash;
+        $this->travel(61)->seconds();
+        $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            "/api/admin/platform/schools/{$admin->school_id}/administrators/{$admin->id}/invitation",
+        )->assertStatus(409);
+        $this->assertSame($hash, $admin->fresh()->password_hash);
+    }
+
+    public function test_reinvitation_cooldown_and_school_identity_mismatch_do_not_rotate_credentials(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools', $this->validPayload(),
+        )->assertCreated()->json('data');
+        $admin = User::findOrFail($created['initial_admin']['id']);
+        $hash = $admin->password_hash;
+        $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            "/api/admin/platform/schools/{$admin->school_id}/administrators/{$admin->id}/invitation",
+        )->assertStatus(429);
+        $other = $this->school();
+        $this->travel(61)->seconds();
+        $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            "/api/admin/platform/schools/{$other}/administrators/{$admin->id}/invitation",
+        )->assertNotFound();
+        $this->assertSame($hash, $admin->fresh()->password_hash);
+    }
+
+    public function test_reinvitation_rejects_anonymous_and_school_actors(): void
+    {
+        $schoolId = $this->school();
+        $admin = $this->schoolAdmin($schoolId);
+        $path = "/api/admin/platform/schools/{$schoolId}/administrators/{$admin->id}/invitation";
+        $this->postJson($path)->assertUnauthorized();
+        $this->withToken(JWTAuth::fromUser($admin))->postJson($path)->assertForbidden();
+    }
+
+    public function test_failed_reinvitation_can_be_recovered_without_duplicate_school_or_admin(): void
+    {
+        Mail::fake();
+        $owner = $this->platformOwner();
+        $created = $this->withToken(JWTAuth::fromUser($owner))->postJson(
+            '/api/admin/platform/schools', $this->validPayload(),
+        )->assertCreated()->json('data');
+        $admin = User::findOrFail($created['initial_admin']['id']);
+        $path = "/api/admin/platform/schools/{$admin->school_id}/administrators/{$admin->id}/invitation";
+        $schools = DB::table('schools')->count();
+        $users = DB::table('users')->count();
+        $this->travel(61)->seconds();
+        $mock = \Mockery::mock(SchoolAdminInvitationDelivery::class);
+        $mock->shouldReceive('send')->once()->andReturn('failed');
+        $this->app->instance(SchoolAdminInvitationDelivery::class, $mock);
+        $this->withToken(JWTAuth::fromUser($owner))->postJson($path)
+            ->assertOk()->assertJsonPath('data.invitation.status', 'failed');
+        $failedHash = $admin->fresh()->password_hash;
+        $this->app->forgetInstance(SchoolAdminInvitationDelivery::class);
+        $this->travel(61)->seconds();
+        $this->withToken(JWTAuth::fromUser($owner))->postJson($path)
+            ->assertOk()->assertJsonPath('data.invitation.status', 'accepted');
+        $this->assertNotSame($failedHash, $admin->fresh()->password_hash);
+        $this->assertSame($schools, DB::table('schools')->count());
+        $this->assertSame($users, DB::table('users')->count());
     }
 
     private function validPayload(): array

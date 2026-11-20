@@ -83,6 +83,7 @@ use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\PaymentPlanController;
 use App\Http\Controllers\Api\PlatformAuthController;
+use App\Http\Controllers\Api\PlatformDashboardReadController;
 use App\Http\Controllers\Api\RecordOfWorkController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportCardPdfController;
@@ -91,6 +92,7 @@ use App\Http\Controllers\Api\RoomController;
 use App\Http\Controllers\Api\RoomTypeController;
 use App\Http\Controllers\Api\SchemeLessonController;
 use App\Http\Controllers\Api\SchemeOfWorkController;
+use App\Http\Controllers\Api\SchoolAdminInvitationRecoveryController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\SmartTimetableAutomationController;
 use App\Http\Controllers\Api\SmartTimetableController;
@@ -210,6 +212,11 @@ Route::prefix('admin')
                 'permission:view_platform_dashboard',
             ])
             ->name('admin.dashboard.platform');
+        Route::get('/platform/tasks', [PlatformDashboardReadController::class, 'tasks'])
+            ->middleware(['permission:access_platform_administration', 'permission:view_admin_tasks']);
+        Route::get('/platform/alerts', [PlatformDashboardReadController::class, 'alerts'])
+            ->middleware(['permission:access_platform_administration', 'permission:view_admin_alerts']);
+
         Route::get(
             '/platform/subscriptions',
             [AdministratorPortalController::class, 'subscription']
@@ -245,6 +252,15 @@ Route::prefix('admin')
                 'permission:access_platform_administration',
                 'permission:onboard_schools',
             ]);
+
+        Route::post(
+            '/platform/schools/{school}/administrators/{user}/invitation',
+            SchoolAdminInvitationRecoveryController::class
+        )->whereUuid(['school', 'user'])->middleware([
+            'permission:access_platform_administration',
+            'permission:onboard_schools',
+            'throttle:5,1',
+        ]);
 
         Route::get(
             '/platform/schools/{school}',

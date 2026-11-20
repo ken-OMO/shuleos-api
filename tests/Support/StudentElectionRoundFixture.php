@@ -99,10 +99,23 @@ final class StudentElectionRoundFixture
         return $id;
     }
 
+    /** @return array{CarbonImmutable, CarbonImmutable} */
+    public static function window(CarbonImmutable $now): array
+    {
+        $opens = $now->setTimezone('Africa/Nairobi')->addSeconds(2);
+        // Round windows are half-open: midnight itself is a valid closing bound.
+        $midnight = $opens->startOfDay()->addDay();
+        $closes = $opens->addMinutes(20)->min($midnight);
+
+        return [$opens, $closes];
+    }
+
     public static function schedule(array $id): array
     {
+        [$opens, $closes] = self::window(CarbonImmutable::now('Africa/Nairobi'));
+
         return app(StudentElectionRoundService::class)->create(self::user($id), $id['election'], $id['ep'],
-            now()->addSeconds(2)->toIso8601String(), now()->addMinutes(20)->toIso8601String());
+            $opens->toIso8601String(), $closes->toIso8601String());
     }
 
     public static function open(array $id, array $round): void
