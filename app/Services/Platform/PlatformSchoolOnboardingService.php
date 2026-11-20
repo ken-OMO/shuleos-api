@@ -63,7 +63,7 @@ class PlatformSchoolOnboardingService
             );
         }
 
-        return DB::transaction(
+        $result = DB::transaction(
             function () use (
                 $actor,
                 $data,
@@ -226,6 +226,16 @@ class PlatformSchoolOnboardingService
                 ];
             }
         );
+
+        $result['invitation'] = ['status' => 'pending'];
+
+        // Defer delivery until the outermost transaction commits. A rollback
+        // discards the callback, so an invitation cannot reference rolled-back data.
+        DB::afterCommit(function () use (&$result) {
+            $result['invitation']['status'] = app(SchoolAdminInvitationDelivery::class)->send($result);
+        });
+
+        return $result;
     }
 
     private function schoolCode(): string

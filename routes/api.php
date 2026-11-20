@@ -210,6 +210,11 @@ Route::prefix('admin')
                 'permission:view_platform_dashboard',
             ])
             ->name('admin.dashboard.platform');
+        Route::get('/platform/tasks', [\App\Http\Controllers\Api\PlatformDashboardReadController::class, 'tasks'])
+            ->middleware(['permission:access_platform_administration', 'permission:view_admin_tasks']);
+        Route::get('/platform/alerts', [\App\Http\Controllers\Api\PlatformDashboardReadController::class, 'alerts'])
+            ->middleware(['permission:access_platform_administration', 'permission:view_admin_alerts']);
+
         Route::get(
             '/platform/subscriptions',
             [AdministratorPortalController::class, 'subscription']
@@ -245,6 +250,15 @@ Route::prefix('admin')
                 'permission:access_platform_administration',
                 'permission:onboard_schools',
             ]);
+
+        Route::post(
+            '/platform/schools/{school}/administrators/{user}/invitation',
+            \App\Http\Controllers\Api\SchoolAdminInvitationRecoveryController::class
+        )->whereUuid(['school', 'user'])->middleware([
+            'permission:access_platform_administration',
+            'permission:onboard_schools',
+            'throttle:5,1',
+        ]);
 
         Route::get(
             '/platform/schools/{school}',
