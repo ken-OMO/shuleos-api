@@ -12,6 +12,7 @@ use App\Services\Administrator\AdministratorUserService;
 use App\Services\Administrator\SchoolBrandingAdministrationService;
 use App\Services\Administrator\SchoolLifecycleAdministrationService;
 use App\Services\Platform\PlatformSchoolOnboardingService;
+use App\Services\SchoolReadinessSummaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -60,6 +61,13 @@ class AdministratorPortalController extends BaseApiController
                 )
             )
         );
+    }
+
+    public function readinessSummary(SchoolReadinessSummaryService $summary)
+    {
+        $school = $this->access->school($this->user());
+
+        return $this->success($summary->summary((string) $school->id));
     }
 
     public function completeness()

@@ -360,6 +360,9 @@ class SchoolAdminInitialSetupTest extends TestCase
                 '/api/admin/school/setup'
             )
             ->assertForbidden();
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/admin/school/readiness')->assertForbidden();
     }
 
     public function test_school_admin_cannot_choose_another_school_for_setup_status(): void
@@ -435,6 +438,39 @@ class SchoolAdminInitialSetupTest extends TestCase
                 $payload
             );
         }
+    }
+
+    public function test_readiness_summary_uses_authenticated_school_despite_spoofed_scope(): void
+    {
+        [$school, $role] = $this->schoolFixture();
+        [$other] = $this->schoolFixture();
+        $token = JWTAuth::fromUser($this->schoolAdmin($school, $role));
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->withHeader('X-School-Id', $other->id)
+            ->getJson('/api/admin/school/readiness?school_id='.$other->id)
+            ->assertOk()->assertJsonPath('data.school_id', $school->id)
+            ->assertJsonPath('data.initial_setup.complete', false)
+            ->assertJsonPath('data.academic_configuration.complete', false)
+            ->assertJsonPath('data.teaching_coverage.complete', false);
+
+        $this->assertStringNotContainsString($other->id, $response->getContent());
+    }
+
+    public function test_readiness_summary_requires_authentication(): void
+    {
+        $this->getJson('/api/admin/school/readiness')->assertUnauthorized();
+    }
+
+    public function test_school_teacher_cannot_read_administrator_readiness(): void
+    {
+        [$school] = $this->schoolFixture();
+        $role = Role::query()->where('role_name', 'Teacher')->whereNull('school_id')
+            ->where('system_role', true)->where('active', true)->firstOrFail();
+        $token = JWTAuth::fromUser($this->schoolAdmin($school, $role));
+
+        $this->withHeader('Authorization', 'Bearer '.$token)
+            ->getJson('/api/admin/school/readiness')->assertForbidden();
     }
 
     private function schoolFixture(): array
