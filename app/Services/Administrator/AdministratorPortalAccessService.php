@@ -17,6 +17,8 @@ class AdministratorPortalAccessService
     ];
 
     private const ADMIN_ROLES = [
+        'director',
+        'school_owner',
         'school_admin',
         'administrator',
         'principal',
@@ -45,9 +47,9 @@ class AdministratorPortalAccessService
             );
         }
 
-        $role = $this->normalize(
-            $user->role?->role_name
-        );
+        $names = $this->authContext->resolve($user)['roles'];
+        $roleName = collect(self::ADMIN_ROLES)->map(fn ($key) => collect($names)->first(fn ($name) => $this->normalize($name) === $key))->first(fn ($name) => $name !== null);
+        $role = $this->normalize($roleName);
 
         if (
             ! in_array($role, self::ADMIN_ROLES, true)
@@ -95,7 +97,7 @@ class AdministratorPortalAccessService
             return [
                 'scope' => 'platform',
                 'school_id' => null,
-                'role' => $user->role?->role_name,
+                'role' => $roleName,
                 'role_key' => $role,
                 'platform' => true,
                 'support' => false,
@@ -158,7 +160,7 @@ class AdministratorPortalAccessService
                 ),
 
             'school_id' => $user->school_id,
-            'role' => $user->role?->role_name,
+            'role' => $roleName,
             'role_key' => $role,
             'platform' => false,
             'support' => $role === 'support_administrator',
