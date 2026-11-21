@@ -94,6 +94,7 @@ use App\Http\Controllers\Api\SchemeLessonController;
 use App\Http\Controllers\Api\SchemeOfWorkController;
 use App\Http\Controllers\Api\SchoolAdminInvitationRecoveryController;
 use App\Http\Controllers\Api\SchoolController;
+use App\Http\Controllers\Api\SchoolRegistrationRequestController;
 use App\Http\Controllers\Api\SmartTimetableAutomationController;
 use App\Http\Controllers\Api\SmartTimetableController;
 use App\Http\Controllers\Api\StreamController;
@@ -166,14 +167,14 @@ Route::post(
         AuthController::class,
         'verifyFirstLoginOtp',
     ]
-)->middleware('throttle:10,1');
+)->middleware('throttle:10,1,school-first-login-otp:');
 Route::post(
     '/auth/first-login/activate',
     [
         AuthController::class,
         'activateFirstLogin',
     ]
-)->middleware('throttle:5,1');
+)->middleware('throttle:5,1,school-first-login-activation:');
 Route::prefix('platform/auth')->group(function () {
     Route::post(
         '/login',
@@ -181,7 +182,7 @@ Route::prefix('platform/auth')->group(function () {
             PlatformAuthController::class,
             'login',
         ]
-    )->middleware('throttle:5,1');
+    )->middleware('throttle:5,1,platform-login:');
 
     Route::post(
         '/verify-otp',
@@ -189,7 +190,7 @@ Route::prefix('platform/auth')->group(function () {
             PlatformAuthController::class,
             'verifyOtp',
         ]
-    )->middleware('throttle:10,1');
+    )->middleware('throttle:10,1,platform-otp:');
 
     Route::post(
         '/activate',
@@ -197,7 +198,7 @@ Route::prefix('platform/auth')->group(function () {
             PlatformAuthController::class,
             'activate',
         ]
-    )->middleware('throttle:5,1');
+    )->middleware('throttle:5,1,platform-activation:');
 });
 
 Route::prefix('admin')
@@ -299,6 +300,15 @@ Route::prefix('admin')
             ]);
         }
     });
+Route::post('/school-registration-requests', [SchoolRegistrationRequestController::class, 'store'])->middleware('throttle:5,60,public-school-registration:');
+Route::prefix('admin/platform/school-registration-requests')->middleware([
+    ...$authenticated, 'permission:access_platform_administration', 'permission:onboard_schools',
+])->group(function () {
+    Route::get('/', [SchoolRegistrationRequestController::class, 'index']);
+    Route::post('/{registration}/approve', [SchoolRegistrationRequestController::class, 'approve'])->whereUuid('registration')->middleware('throttle:10,1');
+    Route::post('/{registration}/reject', [SchoolRegistrationRequestController::class, 'reject'])->whereUuid('registration')->middleware('throttle:10,1');
+});
+
 Route::prefix('admin')->middleware($secure)->group(function () {
     Route::get('/dashboard', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
     Route::get('/dashboard/school', [AdministratorPortalController::class, 'dashboard'])->middleware('permission:view_admin_dashboard');
@@ -942,7 +952,7 @@ Route::prefix('terms')->middleware($secure)->group(function () {
 Route::prefix('auth')->group(function () {
 
     Route::post('/login', [AuthController::class, 'login'])
-        ->middleware('throttle:5,1');
+        ->middleware('throttle:5,1,school-login:');
 
     Route::middleware('jwt')->group(function () {
 
