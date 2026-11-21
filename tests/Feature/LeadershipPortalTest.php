@@ -241,7 +241,16 @@ class LeadershipPortalTest extends TestCase
                 'payment_status' => 'reversed',
             ],
         ]);
-        $f = app(LeadershipPortalService::class)->finance($this->u('principal'));
+        $financeUser = $this->u('principal');
+        $financeRoleId = DB::table('roles')->whereNull('school_id')->where('role_name', 'Finance Officer')->value('id');
+        $this->assertNotNull($financeRoleId);
+        $financePermissionId = DB::table('permissions')->where('permission_name', 'view_school_finance_summary')->value('id');
+        $this->assertNotNull($financePermissionId);
+        if (! DB::table('role_permissions')->where('role_id', $financeRoleId)->where('permission_id', $financePermissionId)->exists()) {
+            DB::table('role_permissions')->insert(['id' => (string) Str::uuid(), 'role_id' => $financeRoleId, 'permission_id' => $financePermissionId]);
+        }
+        $financeUser->update(['role_id' => $financeRoleId]);
+        $f = app(LeadershipPortalService::class)->finance($financeUser->fresh());
         $this->assertSame(100.0, $f['invoiced']);
         $this->assertSame(20.0, $f['collection_today']);
     }

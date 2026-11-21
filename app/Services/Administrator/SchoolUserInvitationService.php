@@ -30,7 +30,7 @@ class SchoolUserInvitationService
     {
         $scope = $this->access->require($actor, 'create_school_users');
         $this->access->require($actor, 'activate_school_users');
-        if ($scope['platform'] || ! $scope['school_id'] || ! in_array($scope['role_key'], ['school_admin', 'administrator', 'principal', 'headteacher'], true)) {
+        if ($scope['platform'] || ! $scope['school_id'] || ! in_array($scope['role_key'], ['school_admin', 'administrator', 'director', 'school_owner'], true)) {
             throw new AuthorizationException('A school administrator is required for invitations.');
         }
 

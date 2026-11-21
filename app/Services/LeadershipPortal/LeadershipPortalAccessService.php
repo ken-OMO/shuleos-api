@@ -28,7 +28,11 @@ class LeadershipPortalAccessService
     public function scope(User $user): array
     {
         abort_unless($user->active && ! $user->is_deleted && $user->school_id, 403, 'Active school tenant required.');
-        $roleName = $user->role?->role_name;
+        $names = $this->authContext->resolve($user)['roles'];
+        // The broadest authorized leadership assignment wins; never widen HOD alone.
+        $roleName = collect(['Principal', 'Headteacher', 'Deputy Principal', 'Deputy Headteacher'])
+            ->first(fn ($name) => in_array($name, $names, true))
+            ?? collect($names)->first(fn ($name) => in_array($this->normalizeRole($name), self::LEADERSHIP_ROLES, true));
         $role = $this->normalizeRole($roleName);
         if ($role === 'platform_owner') {
             throw new AuthorizationException('Platform Owner must use platform administration scope.');
@@ -82,7 +86,7 @@ class LeadershipPortalAccessService
             'executive_summary_only' => in_array($role, self::EXECUTIVE_ROLES, true),
             'learning_area_ids' => $learningAreas,
             'teacher_ids' => $teachers,
-            'finance' => $this->hasAny($user, ['view_finance_oversight', 'view_school_finance_summary']),
+            'finance' => ! array_intersect($names, ['Headteacher', 'Principal']) && $this->hasAny($user, ['view_finance_oversight', 'view_school_finance_summary']),
             'attendance' => $this->hasAny($user, ['view_attendance_intelligence', 'view_school_attendance_summary']),
             'curriculum' => $this->hasAny($user, ['view_hod_department_analytics', 'view_school_curriculum_summary']),
             'workload' => $this->has($user, 'view_teacher_workload'),

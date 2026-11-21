@@ -261,9 +261,10 @@ class AuthContextService
                 'role_permissions.role_id',
                 $roleIds
             )
-            ->pluck(
-                'permissions.permission_name'
-            )
+            ->join('roles', 'roles.id', '=', 'role_permissions.role_id')
+            ->get(['roles.role_name', 'permissions.permission_name'])
+            ->filter(fn ($grant) => SchoolStaffRolePolicy::allows($grant->role_name, $grant->permission_name))
+            ->pluck('permission_name')
             ->filter()
             ->unique()
             ->sort(

@@ -5,6 +5,7 @@ namespace App\Services\Administrator;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
+use App\Services\Auth\SchoolStaffRolePolicy;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -198,7 +199,7 @@ class AdministratorUserService
     {
         $scope = $this->access->require($actor, 'create_school_users');
         $this->access->require($actor, 'activate_school_users');
-        if ($scope['platform'] || ! in_array($scope['role_key'], ['school_admin', 'administrator', 'principal', 'headteacher'], true)) {
+        if ($scope['platform'] || ! in_array($scope['role_key'], ['school_admin', 'administrator', 'director', 'school_owner'], true)) {
             throw new AuthorizationException('School administrator invitation authority is required.');
         }
 
@@ -212,6 +213,18 @@ class AdministratorUserService
         $platform = in_array($this->access->normalize($role->role_name), ['platform_owner', 'platform_super_administrator'], true);
         if ($platform && ! $scope['platform']) {
             throw new AuthorizationException('School administrators cannot assign platform roles.');
+        }
+        if ($invitation && $role->school_id === null && $role->system_role
+            && in_array($role->role_name, ['Headteacher', 'School Secretary'], true)) {
+            $approved = $role->role_name === 'Headteacher'
+                ? array_merge(SchoolStaffRolePolicy::HEADTEACHER, $this->authContext->permissionNames($actor)->all())
+                : SchoolStaffRolePolicy::OFFICE;
+            $grants = DB::table('role_permissions')->join('permissions', 'permissions.id', '=', 'role_permissions.permission_id')
+                ->where('role_id', $role->id)->pluck('permission_name')->filter(fn ($name) => SchoolStaffRolePolicy::allows($role->role_name, $name))->all();
+            if (array_diff($grants, $approved) === []) {
+                return $role;
+            }
+            throw new AuthorizationException('Unreviewed staff preset permissions cannot be delegated.');
         }
         $actorPermissionNames = $this->authContext
             ->permissionNames($actor)
@@ -272,10 +285,10 @@ class AdministratorUserService
 
     private function assertNotLastAdministrator(User $actor, User $target): void
     {
-        if (! in_array($this->access->normalize($target->role?->role_name), ['school_admin', 'administrator', 'principal', 'headteacher'], true)) {
+        if (! in_array($this->access->normalize($target->role?->role_name), ['school_admin', 'administrator', 'director', 'school_owner'], true)) {
             return;
         }
-        $count = User::where('school_id', $actor->school_id)->where('active', true)->where('is_deleted', false)->whereHas('role', fn ($q) => $q->whereIn('role_name', ['School Admin', 'Administrator', 'Principal', 'Headteacher']))->count();
+        $count = User::where('school_id', $actor->school_id)->where('active', true)->where('is_deleted', false)->whereHas('role', fn ($q) => $q->where('active', true)->whereIn('role_name', ['School Admin', 'Administrator', 'Director', 'School Owner']))->count();
         abort_if($count <= 1, 409, 'The last active school administrator cannot be suspended.');
     }
 
