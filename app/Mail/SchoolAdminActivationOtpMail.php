@@ -16,6 +16,8 @@ class SchoolAdminActivationOtpMail extends Mailable
     public function __construct(
         public readonly string $otp,
         public readonly int $expiresInMinutes = 10,
+        public readonly ?string $schoolName = null,
+        public readonly ?string $schoolCode = null,
     ) {}
 
     public function envelope(): Envelope

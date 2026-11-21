@@ -47,6 +47,8 @@ class User extends Authenticatable implements JWTSubject
         'temporary_password',
         'temporary_password_expires_at',
         'invitation_generation',
+        'requires_school_code',
+        'invitation_last_sent_at',
         'activated_at',
 
         'auth_generation',
@@ -66,6 +68,8 @@ class User extends Authenticatable implements JWTSubject
         'first_login' => 'boolean',
 
         'temporary_password' => 'boolean',
+        'requires_school_code' => 'boolean',
+        'invitation_last_sent_at' => 'datetime',
 
         'mfa_enabled' => 'boolean',
         'is_deleted' => 'boolean',

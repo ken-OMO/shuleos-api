@@ -26,6 +26,11 @@ class JwtMiddleware
                 ], 404);
             }
 
+            $tokenSchool = JWTAuth::parseToken()->getPayload()->get('school_id');
+            if ($tokenSchool !== $user->school_id) {
+                throw new AuthenticationException('Unauthenticated.');
+            }
+
             $generation = (int) (JWTAuth::parseToken()->getPayload()->get('auth_generation') ?? 1);
             if ($generation !== (int) ($user->auth_generation ?: 1)) {
                 throw new AuthenticationException('Unauthenticated.');

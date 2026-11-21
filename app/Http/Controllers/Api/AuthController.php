@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\Auth\AuthContextService;
 use App\Services\Auth\AuthenticationAuditService;
 use App\Services\Auth\SchoolAdminActivationService;
+use App\Services\Auth\SchoolLoginIdentityService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +30,8 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'username' => ['required', 'string', 'max:100'],
             'password' => ['required', 'string', 'max:4096'],
+            'school_code' => ['nullable', 'string', 'max:100'],
+            'school_id' => ['prohibited'],
         ]);
 
         if ($validator->fails()) {
@@ -39,7 +42,9 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $user = User::query()->where('username', $request->string('username')->toString())->first();
+        $user = app(SchoolLoginIdentityService::class)->find(
+            $request->string('username')->toString(), $request->input('school_code')
+        );
         if (! $this->canAttemptLogin($user) || ! Hash::check($request->string('password')->toString(), $user->password_hash)) {
             if ($user && $this->canAttemptLogin($user)) {
                 $this->recordFailedAttempt($user);

@@ -68,6 +68,10 @@ class AdministratorUserService
     {
         $this->access->require($actor, 'update_school_users');
         $target = $this->access->user($actor, $id);
+        if ($target->requires_school_code && (array_key_exists('email', $data) || array_key_exists('username', $data))) {
+            throw ValidationException::withMessages(['identity' => 'Invited email identities cannot be changed through profile updates.']);
+        }
+
         if (isset($data['role_id'])) {
             $this->role($actor, $data['role_id']);
         }
@@ -190,7 +194,18 @@ class AdministratorUserService
         });
     }
 
-    private function role(User $actor, string $roleId): Role
+    public function invitationRole(User $actor, string $roleId): Role
+    {
+        $scope = $this->access->require($actor, 'create_school_users');
+        $this->access->require($actor, 'activate_school_users');
+        if ($scope['platform'] || ! in_array($scope['role_key'], ['school_admin', 'administrator', 'principal', 'headteacher'], true)) {
+            throw new AuthorizationException('School administrator invitation authority is required.');
+        }
+
+        return $this->role($actor, $roleId, true);
+    }
+
+    private function role(User $actor, string $roleId, bool $invitation = false): Role
     {
         $scope = $this->access->scope($actor);
         $role = Role::whereKey($roleId)->where('active', true)->where(fn ($q) => $q->whereNull('school_id')->orWhere('school_id', $scope['school_id']))->firstOrFail();
@@ -201,6 +216,39 @@ class AdministratorUserService
         $actorPermissionNames = $this->authContext
             ->permissionNames($actor)
             ->all();
+
+        // Delegating the reviewed global Teacher preset is distinct from personally
+        // holding teaching permissions. This exception applies only to invitations.
+        // An unreviewed extra permission still fails the existing subset check below.
+        if ($invitation && $role->school_id === null && $role->system_role && $role->role_name === 'Teacher') {
+            $actorPermissionNames = array_merge($actorPermissionNames, [
+                'access_teacher_portal',
+                'submit_teacher_duty_reports',
+                'view_own_teacher_assignments',
+                'view_teacher_analytics',
+                'view_teacher_classes',
+                'view_teacher_dashboard',
+                'view_teacher_learners',
+                'submit_own_schemes',
+                'withdraw_own_scheme_submission',
+                'submit_own_lesson_plans',
+                'withdraw_own_lesson_plan_submission',
+                'submit_own_lesson_notes',
+                'withdraw_own_lesson_note_submission',
+                'submit_own_records_of_work',
+                'withdraw_own_record_of_work_submission',
+                'view_own_workflow_history',
+                'submit_mark_entry_batches',
+                'request_mark_corrections',
+                'use_teacher_offline_sync',
+                'resolve_own_sync_conflicts',
+                'upload_teacher_portal_files',
+                'download_teacher_portal_files',
+                'manage_own_profile_image',
+                'manage_own_push_devices',
+                'view_own_push_delivery_status',
+            ]);
+        }
 
         $outside = DB::table('role_permissions')
             ->join(

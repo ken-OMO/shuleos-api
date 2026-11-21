@@ -95,6 +95,7 @@ use App\Http\Controllers\Api\SchemeOfWorkController;
 use App\Http\Controllers\Api\SchoolAdminInvitationRecoveryController;
 use App\Http\Controllers\Api\SchoolController;
 use App\Http\Controllers\Api\SchoolRegistrationRequestController;
+use App\Http\Controllers\Api\SchoolUserInvitationController;
 use App\Http\Controllers\Api\SmartTimetableAutomationController;
 use App\Http\Controllers\Api\SmartTimetableController;
 use App\Http\Controllers\Api\StreamController;
@@ -307,6 +308,13 @@ Route::prefix('admin/platform/school-registration-requests')->middleware([
     Route::get('/', [SchoolRegistrationRequestController::class, 'index']);
     Route::post('/{registration}/approve', [SchoolRegistrationRequestController::class, 'approve'])->whereUuid('registration')->middleware('throttle:10,1');
     Route::post('/{registration}/reject', [SchoolRegistrationRequestController::class, 'reject'])->whereUuid('registration')->middleware('throttle:10,1');
+});
+
+Route::prefix('admin/school/user-invitations')->middleware([...$authenticated, 'tenant', 'permission:access_administrator_portal', 'permission:create_school_users', 'permission:activate_school_users'])->group(function () {
+    Route::get('/', [SchoolUserInvitationController::class, 'index']);
+    Route::get('/roles', [SchoolUserInvitationController::class, 'roles']);
+    Route::post('/', [SchoolUserInvitationController::class, 'store'])->middleware('throttle:10,1,school-user-invite:');
+    Route::post('/{user}/resend', [SchoolUserInvitationController::class, 'resend'])->whereUuid('user')->middleware('throttle:5,1,school-user-reinvite:');
 });
 
 Route::prefix('admin')->middleware($secure)->group(function () {
