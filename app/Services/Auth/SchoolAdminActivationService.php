@@ -5,6 +5,7 @@ namespace App\Services\Auth;
 use App\Mail\SchoolAdminActivationOtpMail;
 use App\Models\AuthenticationChallenge;
 use App\Models\User;
+use App\Services\School\SchoolBusinessWriteAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -20,7 +21,32 @@ class SchoolAdminActivationService
 
     private const OTP_MAX_ATTEMPTS = 5;
 
-    public function begin(
+    public function begin(User $user, Request $request): array
+    {
+        if ($user->requires_school_code) {
+            return app(SchoolBusinessWriteAccess::class)->run($user->school_id, function () use ($user, $request) {
+                // Login checked credentials before obtaining the school lock. A resend may
+                // have rotated them while login waited; never create a challenge from that snapshot.
+                $current = User::query()->whereKey($user->id)->where('school_id', $user->school_id)
+                    ->where('requires_school_code', true)->lockForUpdate()->first();
+                $password = $request->input('password');
+                if (! $current || ! $current->active || $current->is_deleted || $current->suspended_at
+                    || $current->account_locked_until?->isFuture() || $current->temporaryPasswordExpired()
+                    || ! $current->requiresPasswordReset()
+                    || (int) $current->invitation_generation !== (int) $user->invitation_generation
+                    || (int) $current->auth_generation !== (int) $user->auth_generation
+                    || ! is_string($password) || ! Hash::check($password, $current->password_hash)) {
+                    throw new \RuntimeException('Activation failed.');
+                }
+
+                return $this->beginInternal($current, $request);
+            });
+        }
+
+        return $this->beginInternal($user, $request);
+    }
+
+    private function beginInternal(
         User $user,
         Request $request
     ): array {
@@ -107,7 +133,9 @@ class SchoolAdminActivationService
             )->send(
                 new SchoolAdminActivationOtpMail(
                     $otp,
-                    self::CHALLENGE_TTL_MINUTES
+                    self::CHALLENGE_TTL_MINUTES,
+                    $user->school?->school_name,
+                    $user->school?->school_code,
                 )
             );
         } catch (\Throwable $exception) {
@@ -127,6 +155,7 @@ class SchoolAdminActivationService
 
         return [
             'authenticated' => false,
+            'school_id' => (string) $user->school_id,
 
             'activation_required' => true,
 
@@ -153,6 +182,7 @@ class SchoolAdminActivationService
                 $otp,
                 $request
             ) {
+                $this->lockInvitedSchool($challengeId);
                 $challenge = AuthenticationChallenge::query()
                     ->whereKey($challengeId)
                     ->lockForUpdate()
@@ -165,6 +195,7 @@ class SchoolAdminActivationService
                 if (
                     ! $challenge
                     || $challenge->school_id === null
+                    || ($request->filled('school_id') && $request->input('school_id') !== $challenge->school_id)
                     || $challenge->purpose !== 'first_login'
                     || $challenge->isConsumed()
                     || $challenge->isExpired()
@@ -221,6 +252,9 @@ class SchoolAdminActivationService
                     || ! $user->active
                     || $user->is_deleted
                     || ! $user->requiresPasswordReset()
+                    || $user->suspended_at
+                    || ($user->account_locked_until && $user->account_locked_until->isFuture())
+                    || $user->temporaryPasswordExpired()
                 ) {
                     throw new \RuntimeException(
                         'Verification failed.'
@@ -293,6 +327,7 @@ class SchoolAdminActivationService
 
                 return [
                     'authenticated' => false,
+                    'school_id' => (string) $user->school_id,
 
                     'activation_required' => true,
 
@@ -327,6 +362,7 @@ class SchoolAdminActivationService
                 $newPassword,
                 $request
             ) {
+                $this->lockInvitedSchool($challengeId);
                 $challenge = AuthenticationChallenge::query()
                     ->whereKey($challengeId)
                     ->lockForUpdate()
@@ -335,6 +371,7 @@ class SchoolAdminActivationService
                 if (
                     ! $challenge
                     || $challenge->school_id === null
+                    || ($request->filled('school_id') && $request->input('school_id') !== $challenge->school_id)
                     || $challenge->purpose !== 'activation'
                     || $challenge->isConsumed()
                     || $challenge->isExpired()
@@ -394,6 +431,9 @@ class SchoolAdminActivationService
                     || ! $user->active
                     || $user->is_deleted
                     || ! $user->requiresPasswordReset()
+                    || $user->suspended_at
+                    || ($user->account_locked_until && $user->account_locked_until->isFuture())
+                    || $user->temporaryPasswordExpired()
                 ) {
                     throw new \RuntimeException(
                         'Activation failed.'
@@ -515,6 +555,16 @@ class SchoolAdminActivationService
                 return $user->fresh();
             }
         );
+    }
+
+    private function lockInvitedSchool(string $challengeId): void
+    {
+        $schoolId = DB::table('authentication_challenges as c')->join('users as u', 'u.id', '=', 'c.user_id')
+            ->where('c.id', $challengeId)->whereColumn('u.school_id', 'c.school_id')
+            ->where('u.requires_school_code', true)->value('c.school_id');
+        if ($schoolId) {
+            app(SchoolBusinessWriteAccess::class)->run($schoolId, fn () => null);
+        }
     }
 
     private function hmac(
