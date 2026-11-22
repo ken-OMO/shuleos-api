@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Services\School\SubscriptionDarajaSandbox;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -203,7 +204,7 @@ final class SubscriptionSandboxCheckout extends Command
         return $row;
     }
 
-    private function payment(string $school, string $attempt): \Illuminate\Database\Query\Builder
+    private function payment(string $school, string $attempt): Builder
     {
         return DB::table('sandbox_subscription_payments')->where('school_id', $school)->where('id', $attempt);
     }
