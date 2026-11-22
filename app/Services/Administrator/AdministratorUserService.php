@@ -6,6 +6,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
 use App\Services\Auth\SchoolStaffRolePolicy;
+use App\Services\School\SchoolBusinessWriteAccess;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -84,7 +85,7 @@ class AdministratorUserService
         return $target->fresh()->load('role:id,role_name');
     }
 
-    public function action(User $actor, string $id, string $action): User
+    public function action(User $actor, string $id, string $action, array $details = []): User
     {
         $permission = match ($action) {
             'activate' => 'activate_school_users', 'suspend' => 'suspend_school_users', 'unlock' => 'unlock_school_users', 'force-password-reset' => 'force_school_user_password_reset', 'revoke-sessions' => 'revoke_school_user_sessions', 'revoke-devices' => 'revoke_school_user_devices', default => throw new AuthorizationException('Unsupported user action.')
@@ -92,9 +93,23 @@ class AdministratorUserService
         $this->access->require($actor, $permission);
         $target = $this->access->user($actor, $id);
         if ($action === 'suspend') {
-            $this->assertNotLastAdministrator($actor, $target);
-            abort_if($target->id === $actor->id, 409, 'Administrators cannot suspend their own account.');
-            $target->update(['active' => false, 'suspended_at' => now(), 'auth_generation' => $target->auth_generation + 1]);
+            return app(SchoolBusinessWriteAccess::class)->run((string) $target->school_id, function () use ($actor, $target, $details): User {
+                $actor = User::query()->lockForUpdate()->findOrFail($actor->id);
+                $this->access->require($actor, 'suspend_school_users');
+                $this->access->user($actor, $target->id);
+
+                $target = User::query()->where('school_id', $target->school_id)
+                    ->where('is_deleted', false)->lockForUpdate()->findOrFail($target->id);
+                abort_if($target->id === $actor->id, 409, 'Administrators cannot suspend their own account.');
+                abort_unless($target->active && ! $target->suspended_at, 409, 'This account is already inactive.');
+                $this->assertNotLastAdministrator($actor, $target);
+
+                $target->update(['active' => false, 'suspended_at' => now(), 'auth_generation' => $target->auth_generation + 1]);
+                $this->audit->record($actor, 'administrator_user_suspend', 'users', $target->id,
+                    ['active' => true], ['active' => false, 'action' => 'suspend', ...$details], (string) $target->school_id);
+
+                return $target->fresh()->load('role:id,role_name');
+            });
         } elseif ($action === 'activate') {
             $target->update(['active' => true, 'suspended_at' => null]);
         } elseif ($action === 'unlock') {
