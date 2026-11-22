@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class PublicSchoolRegistrationRequest extends FormRequest
 {
@@ -32,6 +33,10 @@ class PublicSchoolRegistrationRequest extends FormRequest
         return [
             'school_name' => 'required|string|max:255',
             'operating_mode' => 'required|in:day,boarding,day_and_boarding',
+            'package_id' => ['bail', 'nullable', 'required_if:trial_elections,true,1', 'required_if:trial_transport,true,1',
+                'uuid', Rule::exists('subscription_packages', 'id')->where('active', true)],
+            'trial_elections' => 'sometimes|boolean',
+            'trial_transport' => 'sometimes|boolean',
             'admin' => 'required|array:first_name,last_name,email',
             'admin.first_name' => 'required|string|max:100',
             'admin.last_name' => 'required|string|max:100',
