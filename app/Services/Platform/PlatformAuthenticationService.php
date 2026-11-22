@@ -174,6 +174,12 @@ class PlatformAuthenticationService
                 $challengeToken,
                 $request
             ) {
+                $current = User::query()->whereKey($user->id)->lockForUpdate()->first();
+                if (! $current || (int) $current->auth_generation !== (int) $user->auth_generation
+                    || ! $this->canAttempt($current)) {
+                    throw new RuntimeException('Authentication failed.');
+                }
+
                 /*
                  * Only one current login / activation attempt.
                  */
