@@ -54,7 +54,7 @@ class Grade extends TenantModel
     {
         $name = trim($name);
 
-        if (preg_match('/^PP\s*[12]$/i', $name) === 1) {
+        if (preg_match('/^(?:PG|play\s*group|PP\s*[12])$/i', $name) === 1) {
             return 0;
         }
 
