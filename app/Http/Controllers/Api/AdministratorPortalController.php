@@ -133,7 +133,13 @@ class AdministratorPortalController extends BaseApiController
 
     public function userAction(string $user, string $action)
     {
-        return $this->success($this->users->action($this->user(), $user, $action));
+        $details = $action === 'suspend' ? request()->validate([
+            'reason' => 'required|in:extended_leave,pending_review,account_compromise,temporary_duty_change,other',
+            'notes' => 'nullable|required_if:reason,other|string|max:500',
+            'review_on' => 'nullable|date_format:Y-m-d|after_or_equal:today',
+        ]) : [];
+
+        return $this->success($this->users->action($this->user(), $user, $action, $details));
     }
 
     public function roles()
