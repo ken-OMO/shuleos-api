@@ -1341,6 +1341,8 @@ Route::prefix('grades')
 
         Route::get('/', [GradeController::class, 'index']);
 
+        Route::get('/education-levels', [GradeController::class, 'educationLevels']);
+
         Route::get('/{id}', [GradeController::class, 'show']);
 
         Route::post('/', [GradeController::class, 'store']);
