@@ -71,7 +71,7 @@ class AcademicYearController extends Controller
 
             'school_id' => 'required|uuid',
 
-            'year_name' => 'required|string|max:50',
+            'year_name' => 'required|string|max:20',
 
             'start_date' => 'required|date',
 
@@ -129,7 +129,7 @@ class AcademicYearController extends Controller
 
         $validated = $request->validate([
 
-            'year_name' => 'sometimes|string|max:50',
+            'year_name' => 'sometimes|string|max:20',
 
             'start_date' => 'sometimes|date',
 
