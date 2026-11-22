@@ -2,6 +2,7 @@ You have been invited to administer {{ $schoolName }} on ShuleOS.
 
 Sign-in page: {{ $loginUrl }}
 Account type: School
+School code: {{ $schoolCode }}
 Username: {{ $username }}
 Temporary password: {{ $temporaryPassword }}
 Temporary password expires at: {{ $expiresAt }} (UTC)

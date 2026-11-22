@@ -10,6 +10,7 @@ class SchoolAdminInvitationMail extends Mailable
 {
     public function __construct(
         public readonly string $schoolName,
+        public readonly string $schoolCode,
         public readonly string $username,
         public readonly string $temporaryPassword,
         public readonly string $loginUrl,
