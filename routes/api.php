@@ -302,6 +302,7 @@ Route::prefix('admin')
             ]);
         }
     });
+Route::get('/school-registration-packages', [SchoolRegistrationRequestController::class, 'packages'])->middleware('throttle:60,1');
 Route::post('/school-registration-requests', [SchoolRegistrationRequestController::class, 'store'])->middleware('throttle:5,60,public-school-registration:');
 Route::prefix('admin/platform/school-registration-requests')->middleware([
     ...$authenticated, 'permission:access_platform_administration', 'permission:onboard_schools',

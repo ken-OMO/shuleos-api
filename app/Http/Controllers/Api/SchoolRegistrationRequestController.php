@@ -6,10 +6,18 @@ use App\Http\Controllers\BaseApiController;
 use App\Http\Requests\PublicSchoolRegistrationRequest;
 use App\Services\Platform\SchoolRegistrationRequestService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SchoolRegistrationRequestController extends BaseApiController
 {
     public function __construct(private SchoolRegistrationRequestService $registrations) {}
+
+    public function packages()
+    {
+        return $this->success(DB::table('subscription_packages')->where('active', true)
+            ->orderBy('amount')->orderBy('package_name')
+            ->get(['id', 'package_name', 'description', 'amount', 'duration_months']));
+    }
 
     public function store(PublicSchoolRegistrationRequest $request)
     {
