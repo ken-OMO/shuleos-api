@@ -277,6 +277,8 @@ class SchoolAdminGradeSetupTest extends TestCase
         $level = $this->createEducationLevel();
 
         foreach ([
+            ['PG', 0, false],
+            ['Play Group', 0, false],
             ['PP1', 0, false],
             ['Grade 2', 2, false],
             ['Grade 3', 3, true],
