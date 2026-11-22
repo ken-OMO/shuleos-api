@@ -269,6 +269,42 @@ class SchoolAdminStreamSetupTest extends TestCase
         ]);
     }
 
+    public function test_custom_stream_can_be_added_to_multiple_grades_atomically(): void
+    {
+        [$school, , , $token] = $this->schoolAdminContext();
+        $level = $this->createEducationLevel();
+        $first = $this->createGrade($school, $level);
+        $second = $this->createGrade($school, $level);
+        $third = $this->createGrade($school, $level);
+        $foreign = $this->createGrade($this->createSchool(), $level);
+        $this->withJwtToken($token);
+
+        $this->postJson('/api/streams', [
+            'grade_ids' => [$first->id, $foreign->id],
+            'stream_name' => 'M',
+        ])->assertUnprocessable()->assertJsonValidationErrors('grade_ids');
+
+        $this->assertDatabaseMissing('streams', ['grade_id' => $first->id, 'stream_name' => 'M']);
+
+        $this->postJson('/api/streams', [
+            'grade_ids' => [$first->id, $second->id],
+            'stream_name' => 'M',
+        ])->assertCreated()->assertJsonCount(2, 'data');
+
+        foreach ([$first, $second] as $grade) {
+            $this->assertDatabaseHas('streams', [
+                'school_id' => $school->id, 'grade_id' => $grade->id, 'stream_name' => 'M',
+            ]);
+        }
+
+        $this->postJson('/api/streams', [
+            'grade_ids' => [$first->id, $third->id],
+            'stream_name' => 'M',
+        ])->assertUnprocessable()->assertJsonValidationErrors('stream_name');
+
+        $this->assertDatabaseMissing('streams', ['grade_id' => $third->id, 'stream_name' => 'M']);
+    }
+
     public function test_supplied_foreign_school_id_cannot_redirect_stream_creation(): void
     {
         [$school, , , $token] = $this->schoolAdminContext();
