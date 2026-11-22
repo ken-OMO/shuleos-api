@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Str;
 use Tests\Support\Database\AcademicYearBuilder;
 use Tests\Support\Database\EducationLevelBuilder;
 use Tests\Support\Database\GradeBuilder;
@@ -35,7 +36,7 @@ class SchemeOfWorkTest extends TestCase
         $this->school = SchoolBuilder::create();
 
         $educationLevel = EducationLevelBuilder::create([
-            'level_name' => 'Junior School',
+            'level_name' => 'Junior School '.Str::random(8),
             'level_order' => 3,
         ]);
 
