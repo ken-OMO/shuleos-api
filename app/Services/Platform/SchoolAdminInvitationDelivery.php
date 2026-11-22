@@ -17,6 +17,7 @@ class SchoolAdminInvitationDelivery
         try {
             Mail::to($admin['email'])->send(new SchoolAdminInvitationMail(
                 $onboarding['school']['school_name'],
+                $onboarding['school']['school_code'],
                 $admin['username'],
                 $admin['temporary_password'],
                 rtrim((string) config('communication.frontend_url'), '/').'/login',

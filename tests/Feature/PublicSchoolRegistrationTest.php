@@ -113,8 +113,16 @@ class PublicSchoolRegistrationTest extends TestCase
         }
         // Laravel's test transaction manager executes application afterCommit callbacks
         // while retaining its outer rollback wrapper. Repeat approval must not resend.
-        Mail::assertSent(SchoolAdminInvitationMail::class, function ($mail) use ($payload) {
-            return $mail->hasTo(strtolower($payload['admin']['email']));
+        $schoolCode = School::findOrFail($schoolId)->school_code;
+        $this->assertNotEmpty($schoolCode);
+        Mail::assertSent(SchoolAdminInvitationMail::class, function ($mail) use ($payload, $schoolCode) {
+            if (! $mail->hasTo(strtolower($payload['admin']['email']))) {
+                return false;
+            }
+
+            $mail->assertSeeInText('School code: '.$schoolCode);
+
+            return true;
         });
         Mail::assertSentCount(1);
     }

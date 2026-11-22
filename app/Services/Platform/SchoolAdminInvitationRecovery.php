@@ -61,7 +61,7 @@ class SchoolAdminInvitationRecovery
             ], $schoolId);
 
             return [
-                'school' => ['id' => $schoolId, 'school_name' => $school->school_name],
+                'school' => ['id' => $schoolId, 'school_name' => $school->school_name, 'school_code' => $school->school_code],
                 'initial_admin' => [
                     'id' => $userId,
                     'email' => $user->email,

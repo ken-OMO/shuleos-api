@@ -50,7 +50,7 @@ class SchoolAdminInvitationDeliveryTest extends TestCase
     private function payload(): array
     {
         return [
-            'school' => ['id' => 'school-test-id', 'school_name' => 'Demo School'],
+            'school' => ['id' => 'school-test-id', 'school_name' => 'Demo School', 'school_code' => 'SCH-DEMO'],
             'initial_admin' => [
                 'id' => 'admin-test-id',
                 'email' => 'admin@example.test',
