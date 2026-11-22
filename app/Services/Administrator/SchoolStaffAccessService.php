@@ -33,6 +33,7 @@ final class SchoolStaffAccessService
                     ->where('roles.active', true)->where(fn ($q) => $q->whereNull('roles.school_id')->orWhere('roles.school_id', $user->school_id))->pluck('role_name')->all();
 
                 return ['id' => $user->id, 'name' => trim($user->first_name.' '.$user->last_name), 'primary_role' => $user->role?->role_name,
+                    'account_status' => $user->suspended_at ? 'suspended' : ($user->active ? 'active' : 'inactive'),
                     'additional_roles' => array_values(array_intersect($roles, ['Headteacher', 'School Secretary']))];
             })->all()];
     }
