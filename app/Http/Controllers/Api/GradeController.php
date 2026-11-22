@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\GradeResource;
+use App\Models\EducationLevel;
 use App\Models\Grade;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,17 @@ class GradeController extends BaseCrudController
     private const RELATIONS = [
         'educationLevel',
     ];
+
+    public function educationLevels()
+    {
+        $levels = EducationLevel::query()
+            ->where('active', true)
+            ->orderBy('level_order')
+            ->orderBy('level_name')
+            ->get(['id', 'level_name']);
+
+        return $this->success($levels, 'Education levels retrieved successfully.');
+    }
 
     public function index(Request $request)
     {
