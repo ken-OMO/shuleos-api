@@ -7,6 +7,7 @@ final class SchoolStaffRolePolicy
     public const OFFICE = ['access_school_office', 'view_school_office_summary'];
 
     public const HEADTEACHER = [
+        'manage_academics',
         'access_school_leadership_portal', 'view_leadership_dashboard',
         'view_school_attendance_summary', 'view_school_curriculum_summary', 'view_school_academic_summary',
         'view_school_discipline_summary', 'view_leadership_approvals', 'manage_leadership_approvals',
