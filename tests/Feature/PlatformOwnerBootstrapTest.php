@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Console\Commands\BootstrapPlatformOwner;
 use App\Services\Platform\PlatformOwnerBootstrapService;
+use App\Services\Platform\PlatformOwnerPasswordRecovery;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -142,6 +143,29 @@ class PlatformOwnerBootstrapTest extends TestCase
                 'school_id' => null,
             ]
         );
+    }
+
+    public function test_recovery_replaces_the_existing_owner_credentials(): void
+    {
+        $owner = app(PlatformOwnerBootstrapService::class)->bootstrap([
+            'email' => 'owner@example.test',
+            'username' => 'platform.owner',
+            'first_name' => 'Platform',
+            'last_name' => 'Owner',
+        ], 'Bootstrap#Password9');
+
+        app(PlatformOwnerPasswordRecovery::class)->recover($owner->email, 'Recovery#Password9');
+
+        $owner->refresh();
+        $this->assertTrue(Hash::check('Recovery#Password9', $owner->password_hash));
+        $this->assertFalse(Hash::check('Bootstrap#Password9', $owner->password_hash));
+        $this->assertTrue($owner->temporary_password);
+        $this->assertTrue($owner->first_login);
+        $this->assertSame(2, (int) $owner->auth_generation);
+        $this->assertDatabaseHas('audit_logs', [
+            'record_id' => $owner->id,
+            'action' => 'platform_owner_password_recovered',
+        ]);
     }
 
     public function test_service_refuses_second_platform_owner(): void
