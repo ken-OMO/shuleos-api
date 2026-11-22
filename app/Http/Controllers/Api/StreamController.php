@@ -55,55 +55,43 @@ class StreamController extends BaseCrudController
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'grade_id' => [
-                'required',
-                'uuid',
-            ],
-            'stream_name' => [
-                'required',
-                'string',
-                'max:50',
-            ],
+            'grade_id' => 'required_without:grade_ids|prohibits:grade_ids|uuid',
+            'grade_ids' => 'required_without:grade_id|prohibits:grade_id|array|list|min:1|max:100',
+            'grade_ids.*' => 'required|uuid|distinct:ignore_case',
+            'stream_name' => 'required|string|max:50',
         ]);
 
+        $bulk = array_key_exists('grade_ids', $validated);
+        $gradeIds = array_map('strtolower', $validated['grade_ids'] ?? [$validated['grade_id']]);
         $schoolId = $this->schoolId($request);
 
-        $gradeExists = Grade::query()
-            ->where('school_id', $schoolId)
-            ->whereKey($validated['grade_id'])
-            ->exists();
+        $streams = DB::transaction(function () use ($request, $validated, $schoolId, $gradeIds, $bulk) {
+            $grades = Grade::query()->where('school_id', $schoolId)->whereKey($gradeIds)
+                ->when($bulk, fn ($query) => $query->where('active', true))
+                ->orderBy('id')->lockForUpdate()->get();
 
-        if (! $gradeExists) {
-            throw ValidationException::withMessages([
-                'grade_id' => 'The selected grade is invalid.',
-            ]);
-        }
+            if ($grades->count() !== count($gradeIds)) {
+                throw ValidationException::withMessages([
+                    $bulk ? 'grade_ids' : 'grade_id' => 'One or more selected grades are unavailable.',
+                ]);
+            }
 
-        $duplicate = Stream::query()
-            ->where('school_id', $schoolId)
-            ->where('grade_id', $validated['grade_id'])
-            ->where(
-                'stream_name',
-                $validated['stream_name']
-            )
-            ->exists();
+            $existing = Stream::query()->where('school_id', $schoolId)->whereIn('grade_id', $gradeIds)
+                ->where('stream_name', $validated['stream_name'])->pluck('grade_id');
+            if ($existing->isNotEmpty()) {
+                $names = $grades->whereIn('id', $existing)->pluck('grade_name')->implode(', ');
 
-        if ($duplicate) {
-            throw ValidationException::withMessages([
-                'stream_name' => 'The stream name has already been taken for this grade.',
-            ]);
-        }
+                throw ValidationException::withMessages([
+                    'stream_name' => $bulk ? 'This stream already exists in: '.$names.'.'
+                        : 'The stream name has already been taken for this grade.',
+                ]);
+            }
 
-        $stream = DB::transaction(
-            function () use (
-                $request,
-                $validated,
-                $schoolId
-            ) {
+            return $grades->map(function (Grade $grade) use ($request, $validated, $schoolId) {
                 $stream = Stream::create([
                     'id' => (string) Str::uuid(),
                     'school_id' => $schoolId,
-                    'grade_id' => $validated['grade_id'],
+                    'grade_id' => $grade->id,
                     'stream_name' => $validated['stream_name'],
                     'active' => true,
                     'created_at' => now(),
@@ -119,16 +107,13 @@ class StreamController extends BaseCrudController
                     description: 'Created stream.'
                 );
 
-                return $stream;
-            }
-        );
+                return $stream->setRelation('grade', $grade);
+            });
+        });
 
-        $stream->load(self::RELATIONS);
-
-        return $this->created(
-            new StreamResource($stream),
-            'Stream created successfully.'
-        );
+        return $bulk
+            ? $this->created(StreamResource::collection($streams), 'Streams created successfully.')
+            : $this->created(new StreamResource($streams->first()), 'Stream created successfully.');
     }
 
     public function update(
