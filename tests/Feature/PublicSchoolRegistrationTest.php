@@ -144,13 +144,14 @@ class PublicSchoolRegistrationTest extends TestCase
             ->assertUnprocessable()->assertJsonValidationErrors('trial_boarding');
         $payload['operating_mode'] = 'day_and_boarding';
         $this->postJson('/api/school-registration-requests', $payload)->assertAccepted();
-        $registration = DB::table('school_registration_requests')->where('admin_email', $payload['admin']['email'])->first();
+        $email = strtolower($payload['admin']['email']);
+        $registration = DB::table('school_registration_requests')->where('admin_email', $email)->firstOrFail();
         $this->assertTrue((bool) $registration->trial_boarding);
         $this->assertTrue((bool) $registration->trial_transport);
         $this->assertFalse((bool) $registration->trial_elections);
 
         $school = app(SchoolRegistrationRequestService::class)->review($this->owner(), $registration->id, 'approve', null)['school_id'];
-        $admin = User::where('school_id', $school)->where('email', $payload['admin']['email'])->firstOrFail();
+        $admin = User::where('school_id', $school)->where('email', $email)->firstOrFail();
         $this->assertDatabaseMissing('school_subscriptions', ['school_id' => $school]);
         $token = Str::random(64);
         $challenge = AuthenticationChallenge::create([
