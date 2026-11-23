@@ -28,21 +28,23 @@ final class StudentElectionEntitlementService
             return null;
         }
         $c = app(StudentElectionCommercialEvaluator::class)->context((string) $school->id);
-        if (! $c['main'] || $c['period'] === null) {
+        if (! $c['main'] || (! $c['included'] && $c['period'] === null)) {
             return null;
         }
         $base = $c['base'];
-        $period = $c['period'];
+        $period = $c['included'] ? null : $c['period'];
         $at = $c['at'];
 
-        return ['mode' => 'normal', 'period_id' => (string) $period->id, 'main_subscription_id' => (string) $base->id,
-            'checked_at' => $at->toIso8601String(), 'ends_at' => CarbonImmutable::parse($period->ends_at)->utc()->toIso8601String()];
+        return ['mode' => 'normal', 'period_id' => $period?->id, 'main_subscription_id' => (string) $base->id,
+            'checked_at' => $at->toIso8601String(), 'ends_at' => ($period === null
+                ? CarbonImmutable::parse($c['end'], $school->timezone ?: config('app.timezone', 'UTC'))->addDay()
+                : CarbonImmutable::parse($period->ends_at))->utc()->toIso8601String()];
     }
 
     public function requireNormal(User $actor): array
     {
         $basis = $this->normal($actor);
-        abort_unless($basis !== null, 403, 'An effective Elections add-on and eligible main subscription are required.');
+        abort_unless($basis !== null, 403, 'An effective Elections entitlement and eligible main subscription are required.');
 
         return $basis;
     }

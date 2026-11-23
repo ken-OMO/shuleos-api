@@ -197,12 +197,30 @@ class StudentElectionAddonTest extends TransportHttpTestCase
         $this->annualDenied(409, fn () => $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f)));
     }
 
-    public function test_main_package_alone_never_grants_elections(): void
+    public function test_custom_package_name_does_not_grant_enterprise_elections(): void
     {
         $f = $this->fixture();
         $base = $this->base($f);
         $package = DB::table('school_subscriptions')->where('id', $base)->value('package_id');
         DB::table('subscription_packages')->where('id', $package)->update(['package_name' => 'ENTERPRISE-ISOLATED-'.Str::random(12)]);
+        $this->assertNull($this->normal($f));
+    }
+
+    public function test_enterprise_includes_elections_without_an_addon_period(): void
+    {
+        $f = $this->fixture();
+        $base = $this->base($f);
+        $package = DB::table('school_subscriptions')->where('id', $base)->value('package_id');
+        DB::table('subscription_packages')->where('id', $package)->update(['package_name' => 'Enterprise']);
+
+        $basis = $this->normal($f);
+        $this->assertNotNull($basis);
+        $this->assertNull($basis['period_id']);
+        $this->assertSame($base, $basis['main_subscription_id']);
+        $owner = $this->owner();
+        $this->annualDenied(409, fn () => $this->service()->issue($owner, $f['school']->id, $this->activation($owner, $f)));
+
+        DB::table('school_subscriptions')->where('id', $base)->update(['expiry_date' => CarbonImmutable::now('UTC')->subDays(2)->toDateString()]);
         $this->assertNull($this->normal($f));
     }
 

@@ -11,6 +11,18 @@ use LogicException;
 /** Commercial facts only; callers retain actor authorization and continuation policy. */
 final class StudentElectionCommercialEvaluator
 {
+    public const INCLUDED_FEATURE = 'Student Council Elections';
+
+    public static function enterprisePackages(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('subscription_packages')->whereRaw("LOWER(TRIM(package_name)) = 'enterprise'");
+    }
+
+    public static function includesElections(string $name): bool
+    {
+        return strtolower(trim($name)) === 'enterprise';
+    }
+
     public function context(string $school): array
     {
         if (DB::transactionLevel() < 1) {
@@ -23,8 +35,9 @@ final class StudentElectionCommercialEvaluator
         $end = $base !== null && $base->status === 'GRACE_PERIOD' ? $base->grace_end_date : ($base->expiry_date ?? null);
         $main = $s !== null && $s->active && ! $s->is_deleted && $s->lifecycle_state === 'active' && $base !== null && $base->package_id !== null && $base->start_date !== null
             && $base->start_date <= $date && $base->expiry_date !== null && in_array($base->status, ['ACTIVE', 'GRACE_PERIOD'], true) && $end !== null && $end >= $date;
+        $included = $main && self::enterprisePackages()->where('id', $base->package_id)->sharedLock()->first() !== null;
         $period = DB::table('student_election_addon_periods')->where('school_id', $school)->where('starts_at', '<=', $at->toIso8601String())->where('ends_at', '>', $at->toIso8601String())->first();
 
-        return compact('s', 'base', 'at', 'main', 'period');
+        return compact('s', 'base', 'at', 'main', 'period', 'included', 'end');
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services\Platform;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\StudentElectionSubscription\StudentElectionCommercialEvaluator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -28,7 +29,8 @@ class SchoolRegistrationRequestService
             'operating_mode' => $data['operating_mode'],
             'requested_package_id' => $data['package_id'] ?? null,
             'trial_boarding' => $data['trial_boarding'] ?? false,
-            'trial_elections' => $data['trial_elections'] ?? false,
+            'trial_elections' => ($data['trial_elections'] ?? false) && ! StudentElectionCommercialEvaluator::enterprisePackages()
+                ->where('id', $data['package_id'] ?? null)->exists(),
             'trial_transport' => $data['trial_transport'] ?? false,
             'admin_first_name' => $data['admin']['first_name'], 'admin_last_name' => $data['admin']['last_name'],
             'admin_email' => $data['admin']['email'], 'email' => $data['email'] ?? null,

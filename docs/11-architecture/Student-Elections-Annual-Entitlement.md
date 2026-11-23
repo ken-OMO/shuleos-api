@@ -10,7 +10,7 @@ Classroom rollout remains disabled. CI success and production readiness are not 
 
 Status: locally verified; real-school release remains blocked.
 
-An optional Elections add-on does not change the school's main package. Enterprise, Premium and Basic names never grant the add-on. A main subscription remains required for normal use; its existing eligible ACTIVE or GRACE_PERIOD state is checked separately.
+An optional Elections add-on does not change the school's main package. Enterprise includes Elections for the duration of its eligible main subscription. Other packages require a current Elections add-on period. Opening evidence for Enterprise records the main subscription without an add-on period. Normal use still requires an eligible ACTIVE or GRACE_PERIOD main subscription.
 
 ## Calendar period
 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseApiController;
 use App\Http\Requests\PublicSchoolRegistrationRequest;
 use App\Services\Platform\SchoolRegistrationRequestService;
+use App\Services\StudentElectionSubscription\StudentElectionCommercialEvaluator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -27,6 +28,10 @@ class SchoolRegistrationRequestController extends BaseApiController
 
         return $this->success($packages->map(function ($package) use ($features) {
             $package->features = $features->get($package->id, collect())->pluck('feature_name')->values();
+            $package->elections_included = StudentElectionCommercialEvaluator::includesElections($package->package_name);
+            if ($package->elections_included && ! $package->features->contains(StudentElectionCommercialEvaluator::INCLUDED_FEATURE)) {
+                $package->features->push(StudentElectionCommercialEvaluator::INCLUDED_FEATURE);
+            }
 
             return $package;
         }));
