@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseApiController;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\StudentElectionSubscription\StudentElectionCommercialEvaluator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -38,6 +39,10 @@ class PlatformSubscriptionCatalogController extends BaseApiController
             ->groupBy('package_id');
         $packages = DB::table('subscription_packages')->orderBy('package_name')->get()->map(function ($package) use ($features) {
             $package->features = $features->get($package->id, collect())->pluck('feature_name')->values();
+            $package->elections_included = StudentElectionCommercialEvaluator::includesElections($package->package_name);
+            if ($package->elections_included && ! $package->features->contains(StudentElectionCommercialEvaluator::INCLUDED_FEATURE)) {
+                $package->features->push(StudentElectionCommercialEvaluator::INCLUDED_FEATURE);
+            }
 
             return $package;
         });

@@ -24,9 +24,9 @@ final class StudentElectionCommercialAccess
     public function normal(string $school): array
     {
         $c = $this->context($school);
-        abort_unless($c['main'] && $c['period'] !== null, 403, 'Current Elections entitlement and an eligible main subscription are required for new work.');
+        abort_unless($c['main'] && ($c['included'] || $c['period'] !== null), 403, 'Current Elections entitlement and an eligible main subscription are required for new work.');
 
-        return ['period_id' => $c['period']->id, 'main_subscription_id' => $c['base']->id, 'checked_at' => $c['at']->toIso8601String()];
+        return ['period_id' => ($c['included'] ? null : $c['period']->id), 'main_subscription_id' => $c['base']->id, 'checked_at' => $c['at']->toIso8601String()];
     }
 
     private function window(StudentElection $e, ?object $round): array
@@ -47,6 +47,9 @@ final class StudentElectionCommercialAccess
         if ($r === null || ! CarbonImmutable::parse($r->opens_at)->equalTo(CarbonImmutable::parse($opens))
             || ! CarbonImmutable::parse($r->closes_at)->equalTo(CarbonImmutable::parse($closes))) {
             return null;
+        }
+        if ($r->period_id === null) {
+            return $r;
         }
         $period = DB::table('student_election_addon_periods')->where('school_id', $e->school_id)->where('id', $r->period_id)->first();
         if ($period === null || CarbonImmutable::parse($r->checked_at)->lt(CarbonImmutable::parse($period->starts_at))
@@ -80,12 +83,12 @@ final class StudentElectionCommercialAccess
     public function live(StudentElection $e, ?object $round = null): void
     {
         $c = $this->context($e->school_id);
-        if ($c['main'] && $c['period'] !== null) {
+        if ($c['main'] && ($c['included'] || $c['period'] !== null)) {
             return;
         }
         $r = $this->receipt($e, $round);
         abort_unless($c['main'] && $r !== null && $c['at']->gte(CarbonImmutable::parse($r->opens_at)) && $c['at']->lt(CarbonImmutable::parse($r->closes_at)), 403,
-            'Expired access can only complete a previously paid opening within its recorded window.');
+            'Expired access can only complete a previously entitled opening within its recorded window.');
     }
 
     public function available(StudentElection $e): void
@@ -103,7 +106,7 @@ final class StudentElectionCommercialAccess
         $c = $this->context($e->school_id);
         // Published evidence remains readable and its existing declaration can be verified idempotently.
         $historical = $e->status === 'published' && DB::table('student_election_declarations')->where('school_id', $e->school_id)->where('election_id', $e->id)->exists();
-        abort_unless(($c['main'] && $c['period'] !== null) || $this->receipt($e) !== null || $historical, 403,
+        abort_unless(($c['main'] && ($c['included'] || $c['period'] !== null)) || $this->receipt($e) !== null || $historical, 403,
             'An opening receipt or current entitlement is required for controlled completion.');
     }
 }

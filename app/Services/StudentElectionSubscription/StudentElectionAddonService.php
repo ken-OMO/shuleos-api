@@ -80,6 +80,8 @@ class StudentElectionAddonService
                 }
                 abort_unless((bool) $school->active
                     && in_array($school->lifecycle_state, ['active', 'grace', 'read_only', 'trial'], true), 403);
+                abort_if(app(StudentElectionCommercialEvaluator::class)->context($schoolId)['included'], 409,
+                    'Student Council Elections is already included in Enterprise.');
                 abort_if($start->lessThan(CarbonImmutable::now('UTC')), 422,
                     'New activation cannot backdate access. Retry with a current or future start.');
                 abort_unless(hash_equals($this->version($schoolId), $data['expected_version']), 409,
@@ -162,6 +164,7 @@ class StudentElectionAddonService
 
         return [
             'school_id' => $schoolId, 'product' => 'student_election',
+            'included_in_package' => app(StudentElectionCommercialEvaluator::class)->context($schoolId)['included'],
             'period_active' => $current !== null,
             'current_period' => $current === null ? null : $this->safePeriod($current),
             'next_period' => $next === null ? null : $this->safePeriod($next),
