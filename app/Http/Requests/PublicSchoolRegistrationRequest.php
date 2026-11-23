@@ -33,10 +33,15 @@ class PublicSchoolRegistrationRequest extends FormRequest
         return [
             'school_name' => 'required|string|max:255',
             'operating_mode' => 'required|in:day,boarding,day_and_boarding',
-            'package_id' => ['bail', 'nullable', 'required_if:trial_elections,true,1', 'required_if:trial_transport,true,1',
+            'package_id' => ['bail', 'nullable', 'required_if:trial_boarding,true,1', 'required_if:trial_elections,true,1', 'required_if:trial_transport,true,1',
                 'uuid', Rule::exists('subscription_packages', 'id')->where('active', true)],
             'trial_elections' => 'sometimes|boolean',
-            'trial_transport' => 'sometimes|boolean',
+            'trial_boarding' => ['sometimes', 'boolean', Rule::prohibitedIf(
+                fn () => $this->boolean('trial_boarding') && ! in_array($this->input('operating_mode'), ['boarding', 'day_and_boarding'], true)
+            )],
+            'trial_transport' => ['sometimes', 'boolean', Rule::prohibitedIf(
+                fn () => $this->boolean('trial_transport') && ! in_array($this->input('operating_mode'), ['day', 'day_and_boarding'], true)
+            )],
             'admin' => 'required|array:first_name,last_name,email',
             'admin.first_name' => 'required|string|max:100',
             'admin.last_name' => 'required|string|max:100',

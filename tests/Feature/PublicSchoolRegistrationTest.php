@@ -3,13 +3,16 @@
 namespace Tests\Feature;
 
 use App\Mail\SchoolAdminInvitationMail;
+use App\Models\AuthenticationChallenge;
 use App\Models\Role;
 use App\Models\School;
 use App\Models\User;
 use App\Services\Administrator\AdministratorAuditService;
+use App\Services\Auth\SchoolAdminActivationService;
 use App\Services\Platform\SchoolRegistrationRequestService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -125,6 +128,55 @@ class PublicSchoolRegistrationTest extends TestCase
             return true;
         });
         Mail::assertSentCount(1);
+    }
+
+    public function test_approved_package_starts_on_first_activation_and_records_selected_addons(): void
+    {
+        $package = (string) Str::uuid();
+        DB::table('subscription_packages')->insert([
+            'id' => $package, 'package_name' => 'REG-'.Str::random(12),
+            'amount' => 7100, 'duration_months' => 4, 'active' => true,
+        ]);
+        $payload = $this->payload() + [
+            'package_id' => $package, 'trial_boarding' => true, 'trial_transport' => true,
+        ];
+        $this->postJson('/api/school-registration-requests', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('trial_boarding');
+        $payload['operating_mode'] = 'day_and_boarding';
+        $this->postJson('/api/school-registration-requests', $payload)->assertAccepted();
+        $registration = DB::table('school_registration_requests')->where('admin_email', $payload['admin']['email'])->first();
+        $this->assertTrue((bool) $registration->trial_boarding);
+        $this->assertTrue((bool) $registration->trial_transport);
+        $this->assertFalse((bool) $registration->trial_elections);
+
+        $school = app(SchoolRegistrationRequestService::class)->review($this->owner(), $registration->id, 'approve', null)['school_id'];
+        $admin = User::where('school_id', $school)->where('email', $payload['admin']['email'])->firstOrFail();
+        $this->assertDatabaseMissing('school_subscriptions', ['school_id' => $school]);
+        $token = Str::random(64);
+        $challenge = AuthenticationChallenge::create([
+            'id' => (string) Str::uuid(), 'user_id' => $admin->id, 'school_id' => $school,
+            'otp_hash' => Hash::make(Str::random(64)), 'purpose' => 'activation',
+            'failed_attempts' => 0, 'resend_count' => 0, 'last_sent_at' => now(),
+            'expires_at' => now()->addMinutes(10),
+            'challenge_nonce_hash' => hash_hmac('sha256', $token, (string) config('app.key')),
+        ]);
+
+        $service = app(SchoolAdminActivationService::class);
+        $service->activate($challenge->id, $token, 'PermanentSchoolAdmin123!', Request::create('/'));
+        $start = now('Africa/Nairobi');
+        $this->assertDatabaseHas('school_subscriptions', [
+            'school_id' => $school, 'package_id' => $package, 'is_trial' => true, 'status' => 'TRIAL',
+            'start_date' => $start->toDateString(), 'expiry_date' => $start->copy()->addDays(13)->toDateString(),
+        ]);
+        $this->assertDatabaseHas('schools', ['id' => $school, 'lifecycle_state' => 'trial']);
+
+        try {
+            $service->activate($challenge->id, $token, 'PermanentSchoolAdmin123!', Request::create('/'));
+            $this->fail('The activation challenge must be single-use.');
+        } catch (\RuntimeException $error) {
+            $this->assertSame('Activation failed.', $error->getMessage());
+        }
+        $this->assertSame(1, DB::table('school_subscriptions')->where('school_id', $school)->count());
     }
 
     public function test_rejection_creates_no_school_and_cannot_later_be_approved(): void
