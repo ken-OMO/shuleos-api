@@ -4,6 +4,7 @@ namespace App\Services\TeacherPortal;
 
 use App\Models\User;
 use App\Services\Attendance\AttendanceService;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -69,6 +70,9 @@ class TeacherSyncService
             return $this->applyMarkBatch($user, $deviceId, $operation);
         }
         abort_unless(isset(self::ENTITIES[$operation['entity_type']]), 422, 'Unsupported sync entity.');
+        if ($operation['entity_type'] === 'homework') {
+            app(EnterpriseHomeworkAccess::class)->authorize($user->school_id);
+        }
         $spec = self::ENTITIES[$operation['entity_type']];
 
         return DB::transaction(function () use ($user, $deviceId, $operation, $spec) {

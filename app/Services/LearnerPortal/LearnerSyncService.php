@@ -3,6 +3,7 @@
 namespace App\Services\LearnerPortal;
 
 use App\Models\User;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use App\Services\Homework\HomeworkLearnerService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -69,6 +70,9 @@ class LearnerSyncService
         }
         abort_unless(isset(self::ENTITIES[$operation['entity_type']]), 422, 'Unsupported learner sync entity.');
         abort_unless(($operation['operation'] ?? 'update') === 'update', 422, 'Offline deletion is not supported.');
+        if ($operation['entity_type'] === 'homework_submission_draft') {
+            app(EnterpriseHomeworkAccess::class)->authorize($user->school_id);
+        }
         $spec = self::ENTITIES[$operation['entity_type']];
         if ($operation['entity_type'] === 'notification_state') {
             return $this->notification($user, $learner->id, $deviceId, $operation);

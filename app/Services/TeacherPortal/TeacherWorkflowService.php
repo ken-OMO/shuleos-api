@@ -12,6 +12,7 @@ use App\Models\TeacherDutyWeeklyReport;
 use App\Models\TeacherWorkflow;
 use App\Models\TeacherWorkflowHistory;
 use App\Models\User;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use App\Services\TeacherDuty\TeacherDutyAuthorizationService;
 use App\Services\TeacherDuty\TeacherDutyDailyReportService;
 use App\Services\TeacherDuty\TeacherDutyRosterService;
@@ -56,6 +57,9 @@ class TeacherWorkflowService
 
         return DB::transaction(function () use ($reviewer, $workflowId, $action, $reason, $scope) {
             $workflow = TeacherWorkflow::withoutGlobalScopes()->where('school_id', $reviewer->school_id)->whereKey($workflowId)->lockForUpdate()->firstOrFail();
+            if ($workflow->entity_type === 'homework') {
+                app(EnterpriseHomeworkAccess::class)->authorize($reviewer->school_id);
+            }
             abort_unless(in_array($workflow->state, ['submitted', 'under_review'], true), 409);
             abort_if($workflow->submitted_by === $reviewer->id, 403, 'Submitters cannot approve their own work.');
             $this->hod->assertWorkflow($scope, $workflow);
@@ -252,6 +256,9 @@ class TeacherWorkflowService
 
     private function ownedEntity(User $user, string $type, string $id): array
     {
+        if ($type === 'homework') {
+            app(EnterpriseHomeworkAccess::class)->authorize($user->school_id);
+        }
         $entity = $this->entity($type, $id);
         abort_unless($entity->school_id === $user->school_id, 404);
         $assignmentId = match ($type) {
