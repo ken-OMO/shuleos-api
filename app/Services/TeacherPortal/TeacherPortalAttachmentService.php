@@ -8,6 +8,7 @@ use App\Core\Security\File\FileSecurityManager;
 use App\Core\Security\File\SecureFileStorage;
 use App\Models\TeacherAttachment;
 use App\Models\User;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -55,7 +56,12 @@ class TeacherPortalAttachmentService
     {
         $this->access->teacher($user);
 
-        return TeacherAttachment::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->whereKey($id)->firstOrFail();
+        $attachment = TeacherAttachment::withoutGlobalScopes()->where('school_id', $user->school_id)->where('user_id', $user->id)->whereKey($id)->firstOrFail();
+        if ($attachment->context_type === 'homework') {
+            app(EnterpriseHomeworkAccess::class)->authorize($user->school_id);
+        }
+
+        return $attachment;
     }
 
     public function download(User $user, string $id): BinaryFileResponse
@@ -82,6 +88,9 @@ class TeacherPortalAttachmentService
 
     private function assertContext(User $user, string $type, ?string $id): void
     {
+        if ($type === 'homework') {
+            app(EnterpriseHomeworkAccess::class)->authorize($user->school_id);
+        }
         if ($type === 'profile_image') {
             abort_if($id, 422);
 

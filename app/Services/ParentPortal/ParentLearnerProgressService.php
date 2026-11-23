@@ -3,6 +3,7 @@
 namespace App\Services\ParentPortal;
 
 use App\Models\User;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use Illuminate\Support\Facades\DB;
 
 class ParentLearnerProgressService
@@ -13,7 +14,9 @@ class ParentLearnerProgressService
     {
         $learner = $this->access->requireLinkedLearner($user, $learnerId);
         $attendance = $this->portal->attendanceSummary($user, $learnerId);
-        $homework = $this->portal->homework($user, $learnerId, []);
+        $allowed = app(EnterpriseHomeworkAccess::class)->allows($user->school_id);
+        abort_if($section === 'homework' && ! $allowed, 403, 'Online Homework requires an eligible Enterprise subscription.');
+        $homework = $allowed ? $this->portal->homework($user, $learnerId, []) : [];
         $cards = $this->portal->reportCards($user, $learnerId);
         $results = $this->portal->results($user, $learnerId);
         $completed = collect($homework)->whereIn('submission_status', ['submitted', 'graded', 'returned'])->count();

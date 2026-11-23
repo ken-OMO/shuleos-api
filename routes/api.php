@@ -139,6 +139,7 @@ use App\Http\Controllers\Api\TransportHandoverController;
 use App\Http\Controllers\Api\TransportReportingController;
 use App\Http\Controllers\Api\TransportTripController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Middleware\RequireEnterpriseHomework;
 use App\Http\Middleware\StudentElectionStationBoundary;
 use App\Http\Middleware\TeacherAcademicScope;
 use App\Services\StudentElection\StudentElectionReconciliationService;
@@ -1079,7 +1080,7 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
         Route::post('/attendance/registers/{register}/cancel', [AttendanceTeacherController::class, 'cancel'])->middleware('permission:manage_authorized_attendance');
         Route::get('/attendance/registers/{register}/learners', [AttendanceTeacherController::class, 'show']);
     });
-    Route::middleware('permission:manage_assigned_homework')->group(function () {
+    Route::middleware(['permission:manage_assigned_homework', RequireEnterpriseHomework::class])->group(function () {
         Route::get('/homework', [HomeworkTeacherController::class, 'index'])->middleware('permission:manage_assigned_homework');
         Route::post('/homework', [HomeworkTeacherController::class, 'store'])->middleware(['permission:manage_assigned_homework', TeacherAcademicScope::class]);
         Route::get('/homework/{assignment}', [HomeworkTeacherController::class, 'show'])->middleware('permission:manage_assigned_homework');
@@ -1470,21 +1471,21 @@ Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/behaviour', [BehaviourLearnerController::class, 'index'])->middleware('permission:view_own_behaviour');
     Route::get('/behaviour/recognitions', [BehaviourLearnerController::class, 'recognitions'])->middleware('permission:view_own_recognitions');
     Route::get('/behaviour/actions', [BehaviourLearnerController::class, 'actions'])->middleware('permission:view_own_behaviour');
-    Route::get('/homework', [LearnerPortalPhaseTwoController::class, 'homeworkIndex'])->middleware('permission:submit_own_homework');
-    Route::get('/homework/{homework}', [LearnerPortalPhaseTwoController::class, 'homeworkShow'])->middleware('permission:submit_own_homework');
-    Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view'])->middleware('permission:submit_own_homework');
-    Route::post('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts');
-    Route::put('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts');
-    Route::post('/homework/{homework}/submission/submit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'submit'))->middleware('permission:submit_own_homework');
-    Route::post('/homework/{homework}/submission/withdraw', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'withdraw'))->middleware('permission:withdraw_own_homework_submission');
-    Route::post('/homework/{homework}/submission/resubmit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'resubmit'))->middleware('permission:resubmit_own_homework');
-    Route::get('/homework/{homework}/submission/history', [LearnerPortalPhaseTwoController::class, 'submissionHistory'])->middleware('permission:view_own_submission_history');
-    Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload'])->middleware('permission:upload_learner_portal_files');
-    Route::get('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'submission'])->middleware('permission:submit_own_homework');
-    Route::get('/homework/{assignment}/submission/files/{file}/download', [HomeworkLearnerController::class, 'download'])->middleware('permission:download_learner_portal_files');
-    Route::delete('/homework/{assignment}/submission/files/{file}', [HomeworkLearnerController::class, 'deleteFile'])->middleware('permission:edit_own_homework_drafts');
-    Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit'])->middleware('permission:submit_own_homework');
-    Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback'])->middleware('permission:view_own_submission_history');
+    Route::get('/homework', [LearnerPortalPhaseTwoController::class, 'homeworkIndex'])->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/homework/{homework}', [LearnerPortalPhaseTwoController::class, 'homeworkShow'])->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{assignment}/view', [HomeworkLearnerController::class, 'view'])->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts')->middleware(RequireEnterpriseHomework::class);
+    Route::put('/homework/{homework}/submission', [LearnerPortalPhaseTwoController::class, 'saveSubmission'])->middleware('permission:edit_own_homework_drafts')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{homework}/submission/submit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'submit'))->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{homework}/submission/withdraw', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'withdraw'))->middleware('permission:withdraw_own_homework_submission')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{homework}/submission/resubmit', fn (string $homework) => app(LearnerPortalPhaseTwoController::class)->submissionAction($homework, 'resubmit'))->middleware('permission:resubmit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/homework/{homework}/submission/history', [LearnerPortalPhaseTwoController::class, 'submissionHistory'])->middleware('permission:view_own_submission_history')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{assignment}/submission/files', [HomeworkLearnerController::class, 'upload'])->middleware('permission:upload_learner_portal_files')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/homework/{assignment}/submission', [HomeworkLearnerController::class, 'submission'])->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/homework/{assignment}/submission/files/{file}/download', [HomeworkLearnerController::class, 'download'])->middleware('permission:download_learner_portal_files')->middleware(RequireEnterpriseHomework::class);
+    Route::delete('/homework/{assignment}/submission/files/{file}', [HomeworkLearnerController::class, 'deleteFile'])->middleware('permission:edit_own_homework_drafts')->middleware(RequireEnterpriseHomework::class);
+    Route::post('/homework/{assignment}/submit', [HomeworkLearnerController::class, 'submit'])->middleware('permission:submit_own_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/homework/{assignment}/feedback', [HomeworkLearnerController::class, 'feedback'])->middleware('permission:view_own_submission_history')->middleware(RequireEnterpriseHomework::class);
     Route::get('/resources', [LearningResourceLearnerController::class, 'index'])->middleware('permission:view_published_learning_resources');
     Route::get('/resources/{resource}', [LearningResourceLearnerController::class, 'show'])->middleware('permission:view_published_learning_resources');
     Route::get('/resources/{resource}/download', [LearningResourceLearnerController::class, 'download'])->middleware('permission:view_published_learning_resources');
@@ -2048,8 +2049,8 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/children/{learner}/attendance', [ParentPortalMobileController::class, 'attendance'])->middleware('permission:view_linked_learner_attendance');
     Route::get('/children/{learner}/timetable/today', [ParentPortalMobileController::class, 'timetableToday'])->middleware('permission:view_linked_learner_timetable');
     Route::get('/children/{learner}/timetable', [ParentPortalMobileController::class, 'timetable'])->middleware('permission:view_linked_learner_timetable');
-    Route::get('/children/{learner}/homework/{homework}', [ParentPortalMobileController::class, 'homeworkShow'])->middleware('permission:view_linked_learner_homework');
-    Route::get('/children/{learner}/homework', [ParentPortalMobileController::class, 'homework'])->middleware('permission:view_linked_learner_homework');
+    Route::get('/children/{learner}/homework/{homework}', [ParentPortalMobileController::class, 'homeworkShow'])->middleware('permission:view_linked_learner_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/children/{learner}/homework', [ParentPortalMobileController::class, 'homework'])->middleware('permission:view_linked_learner_homework')->middleware(RequireEnterpriseHomework::class);
     Route::get('/children/{learner}/learning-resources/{resource}/download', [ParentPortalMobileController::class, 'learningResourceDownload'])->middleware('permission:view_linked_learner_learning_resources');
     Route::get('/children/{learner}/learning-resources/{resource}', [ParentPortalMobileController::class, 'learningResource'])->middleware('permission:view_linked_learner_learning_resources');
     Route::get('/children/{learner}/learning-resources', [ParentPortalMobileController::class, 'learningResources'])->middleware('permission:view_linked_learner_learning_resources');
@@ -2094,8 +2095,8 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     Route::get('/learners/{learner}/behaviour', [BehaviourParentController::class, 'index'])->middleware('permission:view_linked_learner_behaviour');
     Route::get('/learners/{learner}/behaviour/recognitions', [BehaviourParentController::class, 'recognitions'])->middleware('permission:view_linked_learner_recognitions');
     Route::get('/learners/{learner}/behaviour/actions', [BehaviourParentController::class, 'actions'])->middleware('permission:view_linked_learner_behaviour');
-    Route::get('/learners/{learner}/homework', [ParentPortalMobileController::class, 'homework'])->middleware('permission:view_linked_learner_homework');
-    Route::get('/learners/{learner}/homework/{homework}', [ParentPortalMobileController::class, 'homeworkShow'])->middleware('permission:view_linked_learner_homework');
+    Route::get('/learners/{learner}/homework', [ParentPortalMobileController::class, 'homework'])->middleware('permission:view_linked_learner_homework')->middleware(RequireEnterpriseHomework::class);
+    Route::get('/learners/{learner}/homework/{homework}', [ParentPortalMobileController::class, 'homeworkShow'])->middleware('permission:view_linked_learner_homework')->middleware(RequireEnterpriseHomework::class);
     Route::get('/learners/{learner}/resources', [ParentPortalMobileController::class, 'learningResources'])->middleware('permission:view_linked_learner_learning_resources');
     Route::get('/learners/{learner}/resources/{resource}', [ParentPortalMobileController::class, 'learningResource'])->middleware('permission:view_linked_learner_learning_resources');
     Route::get('/learners/{learner}/resources/{resource}/download', [ParentPortalMobileController::class, 'learningResourceDownload'])->middleware('permission:view_linked_learner_learning_resources');
@@ -2120,7 +2121,7 @@ Route::prefix('parent')->middleware($secure)->group(function () {
     }
 });
 
-Route::prefix('homework')->middleware($secure)->group(function () {
+Route::prefix('homework')->middleware([...$secure, RequireEnterpriseHomework::class])->group(function () {
     Route::get('/analytics', [HomeworkLeadershipController::class, 'analytics']);
     Route::post('/submissions/{submission}/request-moderation', fn (Request $r, string $submission) => app(HomeworkLeadershipController::class)->moderation($r, $submission));
     Route::post('/submissions/{submission}/moderate', fn (Request $r, string $submission) => app(HomeworkLeadershipController::class)->moderation($r, $submission, true));
