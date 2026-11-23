@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseApiController;
 use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Administrator\AdministratorPortalAccessService;
+use App\Services\Homework\EnterpriseHomeworkAccess;
 use App\Services\StudentElectionSubscription\StudentElectionCommercialEvaluator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -42,6 +43,11 @@ class PlatformSubscriptionCatalogController extends BaseApiController
             $package->elections_included = StudentElectionCommercialEvaluator::includesElections($package->package_name);
             if ($package->elections_included && ! $package->features->contains(StudentElectionCommercialEvaluator::INCLUDED_FEATURE)) {
                 $package->features->push(StudentElectionCommercialEvaluator::INCLUDED_FEATURE);
+            }
+
+            if (EnterpriseHomeworkAccess::includesHomework($package->package_name)
+                && ! $package->features->contains(EnterpriseHomeworkAccess::INCLUDED_FEATURE)) {
+                $package->features->push(EnterpriseHomeworkAccess::INCLUDED_FEATURE);
             }
 
             return $package;
