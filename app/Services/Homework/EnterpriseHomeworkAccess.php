@@ -8,6 +8,13 @@ use Illuminate\Support\Facades\DB;
 
 final class EnterpriseHomeworkAccess
 {
+    public const INCLUDED_FEATURE = 'Online Homework';
+
+    public static function includesHomework(?string $packageName): bool
+    {
+        return strtolower(trim($packageName ?? '')) === 'enterprise';
+    }
+
     public function allows(?string $schoolId): bool
     {
         if ($schoolId === null) {
@@ -26,7 +33,7 @@ final class EnterpriseHomeworkAccess
             ->first(['subscription.*', 'package.package_name']);
 
         $today = now($school->timezone ?: config('app.timezone'))->toDateString();
-        if ($subscription === null || strtolower(trim($subscription->package_name ?? '')) !== 'enterprise'
+        if ($subscription === null || ! self::includesHomework($subscription->package_name)
             || $subscription->start_date === null || $subscription->start_date > $today
             || $subscription->expiry_date === null || $subscription->expiry_date < $subscription->start_date) {
             return false;
