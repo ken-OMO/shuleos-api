@@ -32,7 +32,7 @@ final class SubscriptionSandboxCheckout extends Command
                 'verify' => $this->verify($daraja, $school, $attempt),
                 'record-completed' => $this->recordCompleted($daraja, $school, $attempt),
                 'record-reversal' => $this->recordReversal($school, $attempt),
-                default => throw new RuntimeException('Choose start, verify or record-reversal.'),
+                default => throw new RuntimeException('Choose start, verify, record-reversal or record-completed.'),
             };
             $this->info('Sandbox payment status: '.$status);
 
