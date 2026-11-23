@@ -13,7 +13,7 @@ use Throwable;
 
 final class SubscriptionSandboxCheckout extends Command
 {
-    protected $signature = 'shuleos:subscription-sandbox {action : start, verify or record-reversal} {school : School UUID} {attempt : Unique attempt UUID} {--package= : Package UUID for start} {--evidence= : Local callback JSONL file for reversal}';
+    protected $signature = 'shuleos:subscription-sandbox {action : start, verify, record-reversal or record-completed} {school : School UUID} {attempt : Unique attempt UUID} {--package= : Package UUID for start} {--evidence= : Local callback JSONL file for receipt review}';
 
     protected $description = 'Start or verify a Daraja sandbox checkout in an isolated local database';
 
@@ -30,6 +30,7 @@ final class SubscriptionSandboxCheckout extends Command
             $status = match ($this->argument('action')) {
                 'start' => $this->start($daraja, $school, $attempt),
                 'verify' => $this->verify($daraja, $school, $attempt),
+                'record-completed' => $this->recordCompleted($daraja, $school, $attempt),
                 'record-reversal' => $this->recordReversal($school, $attempt),
                 default => throw new RuntimeException('Choose start, verify or record-reversal.'),
             };
@@ -54,6 +55,55 @@ final class SubscriptionSandboxCheckout extends Command
             throw new RuntimeException('An interactive review of a pending checkout is required.');
         }
 
+        $this->confirmReceipt($payment, 'Reversed');
+
+        return DB::transaction(function () use ($school, $attempt, $payment) {
+            $this->lockSchool($school);
+            $current = $this->payment($school, $attempt)->lockForUpdate()->first();
+            if ($current?->status === 'reversed') {
+                return 'reversed';
+            }
+            if (! $current || $current->status !== 'pending' || $current->subscription_id !== null
+                || $current->checkout_id !== $payment->checkout_id || $current->merchant_id !== $payment->merchant_id
+                || $current->amount_kes !== $payment->amount_kes) {
+                throw new RuntimeException('The pending checkout changed during review.');
+            }
+
+            $this->payment($school, $attempt)->update(['status' => 'reversed', 'updated_at' => now()]);
+
+            return 'reversed';
+        });
+    }
+
+    private function recordCompleted(SubscriptionDarajaSandbox $daraja, string $school, string $attempt): string
+    {
+        $payment = $this->payment($school, $attempt)->first();
+        if ($payment && $payment->status !== 'pending') {
+            return $payment->status;
+        }
+        if (! $payment || ! $payment->checkout_id || ! $payment->merchant_id
+            || $payment->subscription_id !== null || ! $this->input->isInteractive()) {
+            throw new RuntimeException('An interactive review of a pending checkout is required.');
+        }
+
+        $result = $daraja->query($payment->checkout_id);
+        if (($result['CheckoutRequestID'] ?? null) !== $payment->checkout_id
+            || ($result['MerchantRequestID'] ?? null) !== $payment->merchant_id
+            || ! in_array($result['ResponseCode'] ?? null, [0, '0'], true)
+            || ! in_array($result['ResultCode'] ?? null, [0, '0'], true)) {
+            return 'query_unconfirmed';
+        }
+        if (array_key_exists('Amount', $result) && ! $this->matchesAmount($result['Amount'], $payment)) {
+            return 'amount_unverified';
+        }
+
+        $this->confirmReceipt($payment, 'Completed');
+
+        return $this->finalize($school, $attempt, $payment, false);
+    }
+
+    private function confirmReceipt(object $payment, string $status): void
+    {
         $path = $this->option('evidence');
         $size = is_string($path) && is_file($path) ? filesize($path) : false;
         if ($size === false || $size > 1048576) {
@@ -74,37 +124,18 @@ final class SubscriptionSandboxCheckout extends Command
             $amount = $callback['Amount'] ?? null;
             $receipt = $callback['MpesaReceiptNumber'] ?? null;
             if (($callback['ResultCode'] ?? null) !== '0'
-                || (! is_int($amount) && ! is_string($amount))
-                || ! preg_match('/^[0-9]+(?:\.00)?$/D', (string) $amount)
-                || (int) $amount !== (int) $payment->amount_kes
+                || ! $this->matchesAmount($amount, $payment)
                 || ! is_string($receipt) || ! preg_match('/^[A-Za-z0-9]{1,35}$/D', $receipt)) {
                 throw new RuntimeException('The callback evidence does not match.');
             }
             $receipts[$receipt] = true;
         }
 
-        $receipt = $this->secret('Enter the receipt verified as reversed in Safaricom', false);
+        $receipt = $this->secret('Enter the receipt verified in Safaricom', false);
         if (count($receipts) !== 1 || ! is_string($receipt) || ! isset($receipts[$receipt])
-            || ! $this->confirm('Confirm Safaricom shows this exact receipt and amount as reversed')) {
-            throw new RuntimeException('Safaricom reversal was not confirmed.');
+            || ! $this->confirm('Confirm Safaricom shows this exact receipt and amount as '.$status)) {
+            throw new RuntimeException('Safaricom transaction status was not confirmed.');
         }
-
-        return DB::transaction(function () use ($school, $attempt, $payment) {
-            $this->lockSchool($school);
-            $current = $this->payment($school, $attempt)->lockForUpdate()->first();
-            if ($current?->status === 'reversed') {
-                return 'reversed';
-            }
-            if (! $current || $current->status !== 'pending' || $current->subscription_id !== null
-                || $current->checkout_id !== $payment->checkout_id || $current->merchant_id !== $payment->merchant_id
-                || $current->amount_kes !== $payment->amount_kes) {
-                throw new RuntimeException('The pending checkout changed during review.');
-            }
-
-            $this->payment($school, $attempt)->update(['status' => 'reversed', 'updated_at' => now()]);
-
-            return 'reversed';
-        });
     }
 
     private function guardDatabase(): void
@@ -208,17 +239,28 @@ final class SubscriptionSandboxCheckout extends Command
             return 'pending';
         }
 
-        $amount = $result['Amount'] ?? null;
-        if (! $cancelled && ((! is_int($amount) && ! is_string($amount))
-            || ! preg_match('/^[0-9]+(?:\.00)?$/D', (string) $amount) || (int) $amount !== (int) $payment->amount_kes)) {
+        if (! $cancelled && ! $this->matchesAmount($result['Amount'] ?? null, $payment)) {
             return 'amount_unverified';
         }
 
-        return DB::transaction(function () use ($school, $attempt, $cancelled) {
+        return $this->finalize($school, $attempt, $payment, $cancelled);
+    }
+
+    private function finalize(string $school, string $attempt, object $expected, bool $cancelled): string
+    {
+        return DB::transaction(function () use ($school, $attempt, $expected, $cancelled) {
             $schoolRow = $this->lockSchool($school);
             $payment = $this->payment($school, $attempt)->lockForUpdate()->first();
+            if (! $payment) {
+                throw new RuntimeException('The pending checkout no longer exists.');
+            }
             if ($payment->status !== 'pending') {
                 return $payment->status;
+            }
+            if ($payment->checkout_id !== $expected->checkout_id || $payment->merchant_id !== $expected->merchant_id
+                || $payment->amount_kes !== $expected->amount_kes || $payment->package_id !== $expected->package_id
+                || $payment->duration_months !== $expected->duration_months || $payment->subscription_id !== null) {
+                throw new RuntimeException('The pending checkout changed during verification.');
             }
             if ($cancelled) {
                 $this->payment($school, $attempt)->update(['status' => 'cancelled', 'updated_at' => now()]);
@@ -250,6 +292,13 @@ final class SubscriptionSandboxCheckout extends Command
 
             return 'activated';
         });
+    }
+
+    private function matchesAmount(mixed $amount, object $payment): bool
+    {
+        return (is_int($amount) || is_string($amount))
+            && preg_match('/^[0-9]+(?:\.00)?$/D', (string) $amount)
+            && (int) $amount === (int) $payment->amount_kes;
     }
 
     private function hasSubscription(string $school): bool
