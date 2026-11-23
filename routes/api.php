@@ -84,6 +84,7 @@ use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\PaymentPlanController;
 use App\Http\Controllers\Api\PlatformAuthController;
 use App\Http\Controllers\Api\PlatformDashboardReadController;
+use App\Http\Controllers\Api\PlatformSubscriptionCatalogController;
 use App\Http\Controllers\Api\RecordOfWorkController;
 use App\Http\Controllers\Api\ReportCardController;
 use App\Http\Controllers\Api\ReportCardPdfController;
@@ -302,6 +303,15 @@ Route::prefix('admin')
             ]);
         }
     });
+Route::get('/school-registration-addon-prices', [PlatformSubscriptionCatalogController::class, 'addons'])->middleware('throttle:60,1');
+Route::prefix('admin/platform/subscription-catalog')->middleware([
+    ...$authenticated, 'permission:access_platform_administration',
+])->group(function () {
+    Route::get('/', [PlatformSubscriptionCatalogController::class, 'index']);
+    Route::post('/packages', [PlatformSubscriptionCatalogController::class, 'savePackage']);
+    Route::put('/packages/{package}', [PlatformSubscriptionCatalogController::class, 'savePackage'])->whereUuid('package');
+    Route::put('/addons/{addon}', [PlatformSubscriptionCatalogController::class, 'saveAddon']);
+});
 Route::get('/school-registration-packages', [SchoolRegistrationRequestController::class, 'packages'])->middleware('throttle:60,1');
 Route::post('/school-registration-requests', [SchoolRegistrationRequestController::class, 'store'])->middleware('throttle:5,60,public-school-registration:');
 Route::prefix('admin/platform/school-registration-requests')->middleware([
