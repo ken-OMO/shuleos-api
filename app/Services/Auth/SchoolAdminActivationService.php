@@ -5,7 +5,7 @@ namespace App\Services\Auth;
 use App\Mail\SchoolAdminActivationOtpMail;
 use App\Models\AuthenticationChallenge;
 use App\Models\User;
-use App\Services\School\SchoolBusinessWriteAccess;
+use App\Services\School\RegistrationTrial;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +24,7 @@ class SchoolAdminActivationService
     public function begin(User $user, Request $request): array
     {
         if ($user->requires_school_code) {
-            return app(SchoolBusinessWriteAccess::class)->run($user->school_id, function () use ($user, $request) {
+            return app(RegistrationTrial::class)->runActivation($user->school_id, $user->id, function () use ($user, $request) {
                 // Login checked credentials before obtaining the school lock. A resend may
                 // have rotated them while login waited; never create a challenge from that snapshot.
                 $current = User::query()->whereKey($user->id)->where('school_id', $user->school_id)
@@ -552,6 +552,8 @@ class SchoolAdminActivationService
                         'updated_at' => now(),
                     ]);
 
+                app(RegistrationTrial::class)->start($user);
+
                 return $user->fresh();
             }
         );
@@ -559,11 +561,18 @@ class SchoolAdminActivationService
 
     private function lockInvitedSchool(string $challengeId): void
     {
-        $schoolId = DB::table('authentication_challenges as c')->join('users as u', 'u.id', '=', 'c.user_id')
+        $invitation = DB::table('authentication_challenges as c')->join('users as u', 'u.id', '=', 'c.user_id')
             ->where('c.id', $challengeId)->whereColumn('u.school_id', 'c.school_id')
-            ->where('u.requires_school_code', true)->value('c.school_id');
-        if ($schoolId) {
-            app(SchoolBusinessWriteAccess::class)->run($schoolId, fn () => null);
+            ->where(function ($query) {
+                $query->where('u.requires_school_code', true)->orWhereExists(function ($registration) {
+                    $registration->selectRaw('1')->from('school_registration_requests as r')
+                        ->whereColumn('r.school_id', 'c.school_id')
+                        ->whereColumn('r.initial_admin_user_id', 'c.user_id')
+                        ->where('r.status', 'approved')->whereNotNull('r.requested_package_id');
+                });
+            })->first(['c.school_id', 'c.user_id']);
+        if ($invitation) {
+            app(RegistrationTrial::class)->runActivation($invitation->school_id, $invitation->user_id, fn () => null);
         }
     }
 

@@ -14,9 +14,22 @@ class SchoolRegistrationRequestController extends BaseApiController
 
     public function packages()
     {
-        return $this->success(DB::table('subscription_packages')->where('active', true)
+        $packages = DB::table('subscription_packages')->where('active', true)
             ->orderBy('amount')->orderBy('package_name')
-            ->get(['id', 'package_name', 'description', 'amount', 'duration_months']));
+            ->get(['id', 'package_name', 'description', 'amount', 'duration_months']);
+        $features = DB::table('package_features')
+            ->join('subscription_features', 'subscription_features.id', '=', 'package_features.feature_id')
+            ->whereIn('package_features.package_id', $packages->pluck('id'))
+            ->where('subscription_features.active', true)
+            ->orderBy('subscription_features.feature_name')
+            ->get(['package_features.package_id', 'subscription_features.feature_name'])
+            ->groupBy('package_id');
+
+        return $this->success($packages->map(function ($package) use ($features) {
+            $package->features = $features->get($package->id, collect())->pluck('feature_name')->values();
+
+            return $package;
+        }));
     }
 
     public function store(PublicSchoolRegistrationRequest $request)

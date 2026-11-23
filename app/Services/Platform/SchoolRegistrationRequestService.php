@@ -27,6 +27,7 @@ class SchoolRegistrationRequestService
             'id' => (string) Str::uuid(), 'school_name' => $data['school_name'],
             'operating_mode' => $data['operating_mode'],
             'requested_package_id' => $data['package_id'] ?? null,
+            'trial_boarding' => $data['trial_boarding'] ?? false,
             'trial_elections' => $data['trial_elections'] ?? false,
             'trial_transport' => $data['trial_transport'] ?? false,
             'admin_first_name' => $data['admin']['first_name'], 'admin_last_name' => $data['admin']['last_name'],
@@ -45,7 +46,7 @@ class SchoolRegistrationRequestService
             ->select('id', 'school_name', 'operating_mode', 'admin_first_name', 'admin_last_name',
                 'admin_email', 'email', 'phone', 'postal_address', 'physical_address', 'status',
                 'school_id', 'review_reason', 'created_at', 'reviewed_at',
-                'requested_package_id', 'trial_elections', 'trial_transport')
+                'requested_package_id', 'trial_boarding', 'trial_elections', 'trial_transport')
             ->addSelect(['requested_package_name' => DB::table('subscription_packages')->select('package_name')
                 ->whereColumn('subscription_packages.id', 'school_registration_requests.requested_package_id')])
             ->orderBy('created_at')->orderBy('id')->paginate(25);
@@ -64,9 +65,14 @@ class SchoolRegistrationRequestService
             }
             abort_unless($row->status === 'pending', 409, 'This registration request has already been reviewed.');
             $schoolId = null;
+            $adminId = null;
             if ($action === 'approve') {
                 if (DB::table('users')->whereRaw('LOWER(email) = ?', [$row->admin_email])->exists()) {
                     throw ValidationException::withMessages(['request' => 'The administrator email is no longer available. Review this request with the applicant.']);
+                }
+                if ($row->requested_package_id !== null && ! DB::table('subscription_packages')
+                    ->where('id', $row->requested_package_id)->where('active', true)->sharedLock()->first()) {
+                    throw ValidationException::withMessages(['package_id' => 'The requested package is no longer available.']);
                 }
                 $result = $this->onboarding->onboard($actor, [
                     'school_name' => $row->school_name, 'operating_mode' => $row->operating_mode,
@@ -75,10 +81,11 @@ class SchoolRegistrationRequestService
                     'admin' => ['first_name' => $row->admin_first_name, 'last_name' => $row->admin_last_name, 'email' => $row->admin_email],
                 ]);
                 $schoolId = $result['school']['id'];
+                $adminId = $result['initial_admin']['id'];
             }
             DB::table('school_registration_requests')->where('id', $id)->update([
                 'status' => $status, 'school_id' => $schoolId, 'reviewed_by' => $actor->id,
-                'review_reason' => $reason, 'reviewed_at' => now(), 'updated_at' => now(),
+                'initial_admin_user_id' => $adminId, 'review_reason' => $reason, 'reviewed_at' => now(), 'updated_at' => now(),
             ]);
             $this->audit->record($actor, 'school_registration_'.$status, 'school_registration_requests', $id,
                 ['status' => 'pending'], ['status' => $status, 'school_id' => $schoolId]);
