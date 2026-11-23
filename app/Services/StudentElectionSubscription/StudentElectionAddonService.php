@@ -89,9 +89,7 @@ class StudentElectionAddonService
 
                 $previous = $this->latest($schoolId);
                 if ($previous !== null) {
-                    abort_if(app(StudentElectionCommercialEvaluator::class)->context($schoolId)['included'], 409,
-                    'Student Council Elections is already included in Enterprise.');
-                abort_if($start->lessThan(CarbonImmutable::parse($previous->ends_at)), 409,
+                    abort_if($start->lessThan(CarbonImmutable::parse($previous->ends_at)), 409,
                         'Renewal overlaps an existing period.');
                 }
                 $id = (string) Str::uuid();

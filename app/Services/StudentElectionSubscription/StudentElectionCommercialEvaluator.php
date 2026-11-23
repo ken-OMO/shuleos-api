@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\StudentElectionSubscription;
 
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -13,7 +14,7 @@ final class StudentElectionCommercialEvaluator
 {
     public const INCLUDED_FEATURE = 'Student Council Elections';
 
-    public static function enterprisePackages(): \Illuminate\Database\Query\Builder
+    public static function enterprisePackages(): Builder
     {
         return DB::table('subscription_packages')->whereRaw("LOWER(TRIM(package_name)) = 'enterprise'");
     }
