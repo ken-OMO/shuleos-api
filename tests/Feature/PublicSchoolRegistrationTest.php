@@ -130,6 +130,34 @@ class PublicSchoolRegistrationTest extends TestCase
         Mail::assertSentCount(1);
     }
 
+    public function test_owner_publishes_package_features_and_addon_prices_to_registration(): void
+    {
+        $catalog = '/api/admin/platform/subscription-catalog';
+        $this->postJson($catalog.'/packages', [])->assertUnauthorized();
+        $token = JWTAuth::fromUser($this->owner());
+        $name = 'REG-CATALOG-'.Str::random(12);
+        $package = [
+            'package_name' => $name, 'description' => 'School essentials',
+            'amount' => '7000.50', 'duration_months' => 4, 'active' => false,
+            'features' => ['Report Cards', 'Exams'],
+        ];
+        $id = $this->withToken($token)->postJson($catalog.'/packages', $package)
+            ->assertOk()->json('data.id');
+        $this->getJson('/api/school-registration-packages')->assertOk()->assertJsonMissing(['id' => $id]);
+
+        $package['active'] = true;
+        $this->putJson($catalog.'/packages/'.$id, $package)->assertOk();
+        $this->putJson($catalog.'/addons/boarding', ['amount' => '1200.00', 'duration_months' => 3])->assertOk();
+        $this->flushHeaders();
+
+        $this->getJson('/api/school-registration-packages')->assertOk()->assertJsonFragment([
+            'id' => $id, 'package_name' => $name, 'features' => ['Exams', 'Report Cards'],
+        ]);
+        $this->getJson('/api/school-registration-addon-prices')->assertOk()
+            ->assertJsonPath('data.0.code', 'boarding')->assertJsonPath('data.0.duration_months', 3);
+        $this->assertDatabaseHas('registration_addon_prices', ['code' => 'boarding', 'amount' => '1200.00']);
+    }
+
     public function test_approved_package_starts_on_first_activation_and_records_selected_addons(): void
     {
         $package = (string) Str::uuid();
