@@ -136,6 +136,7 @@ class TeacherAssignmentController extends BaseCrudController
 
             return [
                 'id' => $row->id,
+                'active' => (bool) $row->active,
                 'teacher' => trim($row->first_name.' '.$row->last_name),
                 'grade' => $row->grade_name,
                 'stream' => $row->stream_name,
@@ -201,6 +202,28 @@ class TeacherAssignmentController extends BaseCrudController
             app(AdministratorAuditService::class)->record($request->user(), 'class_teacher_appointed', 'class_teachers', $id, [], $details);
 
             return $this->created(['id' => $id], 'Class teacher appointed.');
+        });
+    }
+
+    public function removeClassTeacher(Request $request, string $appointment, SchoolBusinessWriteAccess $access)
+    {
+        $schoolId = $this->workspaceSchool($request);
+
+        return $access->run($schoolId, function () use ($request, $appointment, $schoolId) {
+            $this->workspaceSchool($request);
+            $query = DB::table('class_teachers')->where('school_id', $schoolId)->where('id', $appointment);
+            $row = $query->lockForUpdate()->first();
+            abort_unless($row, 404, 'Class-teacher appointment not found.');
+
+            if ($row->active) {
+                $query->update(['active' => false]);
+                app(AdministratorAuditService::class)->record(
+                    $request->user(), 'class_teacher_removed', 'class_teachers', $appointment,
+                    ['active' => true], ['active' => false]
+                );
+            }
+
+            return $this->success(['id' => $appointment, 'active' => false], 'Class teacher removed.');
         });
     }
 
