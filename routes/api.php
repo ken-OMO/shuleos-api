@@ -1751,6 +1751,8 @@ Route::prefix('teacher-assignments')
 
         Route::post('/workspace', [TeacherAssignmentController::class, 'workspaceStore'])->withoutMiddleware('module.permission');
 
+        Route::get('/class-teacher-appointments', [TeacherAssignmentController::class, 'classTeacherAppointments'])->withoutMiddleware('module.permission');
+
         Route::post('/class-teacher-appointments', [TeacherAssignmentController::class, 'appointClassTeacher'])->withoutMiddleware('module.permission');
 
         Route::get('/{id}', [TeacherAssignmentController::class, 'show']);

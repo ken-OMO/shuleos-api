@@ -94,6 +94,61 @@ class TeacherAssignmentController extends BaseCrudController
         ]);
     }
 
+    public function classTeacherAppointments(Request $request)
+    {
+        $schoolId = $this->workspaceSchool($request);
+        $today = today('Africa/Nairobi')->toDateString();
+        $rows = DB::table('class_teachers as appointment')
+            ->join('teachers as teacher', 'teacher.id', '=', 'appointment.teacher_id')
+            ->join('users as account', 'account.id', '=', 'teacher.user_id')
+            ->join('grades as grade', 'grade.id', '=', 'appointment.grade_id')
+            ->join('streams as stream', 'stream.id', '=', 'appointment.stream_id')
+            ->join('terms as term', 'term.id', '=', 'appointment.term_id')
+            ->join('academic_years as year', 'year.id', '=', 'appointment.academic_year_id')
+            ->where('appointment.school_id', $schoolId)
+            ->where('teacher.school_id', $schoolId)->where('account.school_id', $schoolId)
+            ->where('grade.school_id', $schoolId)->where('stream.school_id', $schoolId)
+            ->where('term.school_id', $schoolId)->where('year.school_id', $schoolId)
+            ->orderByDesc('term.start_date')->orderByDesc('appointment.created_at')->orderBy('appointment.id')
+            ->get([
+                'appointment.id', 'appointment.active', 'appointment.temporary_until',
+                'account.first_name', 'account.last_name', 'account.active as account_active',
+                'account.is_deleted as account_deleted', 'account.suspended_at',
+                'teacher.active as teacher_active', 'teacher.is_deleted as teacher_deleted',
+                'grade.grade_name', 'grade.active as grade_active', 'grade.grade_number',
+                'stream.stream_name', 'stream.active as stream_active',
+                'term.term_name', 'term.start_date', 'term.end_date', 'term.active as term_active',
+                'year.year_name', 'year.active as year_active', 'year.start_date as year_start', 'year.end_date as year_end',
+            ]);
+
+        return $this->success($rows->map(function ($row) use ($today) {
+            $status = match (true) {
+                ! $row->active => 'Inactive appointment',
+                ! $row->teacher_active || $row->teacher_deleted || ! $row->account_active
+                    || $row->account_deleted || $row->suspended_at !== null => 'Teacher profile or account inactive',
+                ! $row->grade_active || ! $row->stream_active || $row->grade_number === null => 'Grade or stream unavailable',
+                ! $row->term_active || ! $row->year_active => 'Term or academic year inactive',
+                ($row->temporary_until !== null && $row->temporary_until < $today)
+                    || $row->end_date < $today || $row->year_end < $today => 'Ended',
+                $row->start_date > $today || $row->year_start > $today => 'Upcoming',
+                default => 'Current',
+            };
+
+            return [
+                'id' => $row->id,
+                'teacher' => trim($row->first_name.' '.$row->last_name),
+                'grade' => $row->grade_name,
+                'stream' => $row->stream_name,
+                'year' => $row->year_name,
+                'term' => $row->term_name,
+                'starts_on' => $row->start_date,
+                'ends_on' => $row->end_date,
+                'temporary_until' => $row->temporary_until,
+                'status' => $status,
+            ];
+        }));
+    }
+
     public function appointClassTeacher(Request $request, SchoolBusinessWriteAccess $access)
     {
         $schoolId = $this->workspaceSchool($request);
