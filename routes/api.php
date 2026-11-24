@@ -1755,6 +1755,8 @@ Route::prefix('teacher-assignments')
 
         Route::post('/class-teacher-appointments', [TeacherAssignmentController::class, 'appointClassTeacher'])->withoutMiddleware('module.permission');
 
+        Route::delete('/class-teacher-appointments/{appointment}', [TeacherAssignmentController::class, 'removeClassTeacher'])->whereUuid('appointment')->withoutMiddleware('module.permission');
+
         Route::get('/{id}', [TeacherAssignmentController::class, 'show']);
 
         Route::post('/', [TeacherAssignmentController::class, 'store']);
