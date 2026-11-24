@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\TeacherAssignmentResource;
 use App\Models\TeacherAssignment;
+use App\Services\Administrator\AdministratorAuditService;
 use App\Services\Auth\AuthContextService;
 use App\Services\School\SchoolBusinessWriteAccess;
 use App\Services\Teaching\TeacherAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class TeacherAssignmentController extends BaseCrudController
 {
@@ -90,6 +92,61 @@ class TeacherAssignmentController extends BaseCrudController
                 ->where('learning_areas.active', true)->distinct()->orderBy('learning_areas.learning_area_name')
                 ->get(['learning_area_allocations.grade_id', 'learning_areas.id', 'learning_areas.learning_area_name']),
         ]);
+    }
+
+    public function appointClassTeacher(Request $request, SchoolBusinessWriteAccess $access)
+    {
+        $schoolId = $this->workspaceSchool($request);
+        $today = today('Africa/Nairobi')->toDateString();
+        $details = $request->validate([
+            'teacher_id' => 'required|uuid',
+            'stream_id' => 'required|uuid',
+            'term_id' => 'required|uuid',
+            'temporary_until' => 'nullable|date_format:Y-m-d|after_or_equal:'.$today,
+        ]);
+
+        return $access->run($schoolId, function () use ($schoolId, $details, $today, $request) {
+            $this->workspaceSchool($request);
+            $active = fn (string $table) => DB::table($table)->where('school_id', $schoolId)->where('active', true);
+            $stream = $active('streams')->where('id', $details['stream_id'])->first();
+            $term = $active('terms')->where('id', $details['term_id'])->whereDate('end_date', '>=', $today)->first();
+            $teacher = $active('teachers')->where('id', $details['teacher_id'])->where('is_deleted', false)->first();
+            abort_unless($stream && $term && $teacher
+                && $active('grades')->where('id', $stream->grade_id)->exists()
+                && $active('academic_years')->where('id', $term->academic_year_id)->exists(), 422,
+                'Select an active teacher, class and term from this school.');
+
+            $until = $details['temporary_until'] ?? null;
+            abort_if($until && ($until < $term->start_date || $until > $term->end_date), 422,
+                'The temporary appointment must end within the selected term.');
+            $appointments = $active('class_teachers')->where('term_id', $term->id)
+                ->where(fn ($query) => $query->whereNull('temporary_until')->orWhereDate('temporary_until', '>=', $today));
+            $legacy = $active('teacher_assignments')->where('term_id', $term->id)
+                ->where('is_deleted', false)->where('is_class_teacher', true);
+            abort_if((clone $appointments)->where('stream_id', $stream->id)->exists()
+                || (clone $legacy)->where('stream_id', $stream->id)->exists(), 409,
+                'This stream already has a class teacher for the selected term.');
+
+            $teacherAppointments = (clone $appointments)->where('teacher_id', $teacher->id);
+            if ($until === null) {
+                abort_if((clone $teacherAppointments)->whereNull('temporary_until')->exists()
+                    || (clone $legacy)->where('teacher_id', $teacher->id)->exists(), 409,
+                    'This teacher already has a regular class appointment for the term. Enter an end date for temporary cover.');
+            } else {
+                abort_if((clone $teacherAppointments)->whereNotNull('temporary_until')->exists(), 409,
+                    'This teacher already has temporary class cover in the selected term.');
+            }
+
+            $id = (string) Str::uuid();
+            DB::table('class_teachers')->insert($details + [
+                'id' => $id, 'school_id' => $schoolId, 'grade_id' => $stream->grade_id,
+                'academic_year_id' => $term->academic_year_id, 'active' => true,
+            ]);
+
+            app(AdministratorAuditService::class)->record($request->user(), 'class_teacher_appointed', 'class_teachers', $id, [], $details);
+
+            return $this->created(['id' => $id], 'Class teacher appointed.');
+        });
     }
 
     public function workspaceStore(Request $request, SchoolBusinessWriteAccess $access)
