@@ -195,9 +195,10 @@ class LearnerController extends BaseCrudController
             ->where('appointment.school_id', $schoolId)->where('appointment.teacher_id', $teacher->id)
             ->where('appointment.active', true)->where('term.school_id', $schoolId)->where('year.school_id', $schoolId)
             ->whereColumn('term.academic_year_id', 'year.id')->where('term.active', true)->where('year.active', true)
-            ->whereDate('term.start_date', '<=', $today)->whereDate('term.end_date', '>=', $today)
-            ->whereDate('year.start_date', '<=', $today)->whereDate('year.end_date', '>=', $today)
-            ->where(fn ($query) => $query->whereNull('appointment.temporary_until')->orWhereDate('appointment.temporary_until', '>=', $today))
+            ->whereDate('term.end_date', '>=', $today)->whereDate('year.end_date', '>=', $today)
+            ->where(fn ($query) => $query->whereNull('appointment.temporary_until')
+                ->orWhere(fn ($cover) => $cover->whereDate('appointment.temporary_until', '>=', $today)
+                    ->whereDate('term.start_date', '<=', $today)->whereDate('year.start_date', '<=', $today)))
             ->pluck('appointment.stream_id')->all();
     }
 
@@ -219,7 +220,7 @@ class LearnerController extends BaseCrudController
 
         return $access->run($this->schoolId($request), function () use ($request) {
             abort_unless(in_array($request->input('stream_id'), $this->classTeacherStreams($request), true),
-                403, 'You can only admit learners to a class you currently oversee.');
+                403, 'You can only admit learners to a class covered by your appointment.');
 
             return $this->store($request);
         });
