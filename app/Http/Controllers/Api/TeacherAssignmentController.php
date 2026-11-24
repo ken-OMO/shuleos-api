@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\TeacherAssignmentResource;
 use App\Models\TeacherAssignment;
+use App\Services\Auth\AuthContextService;
+use App\Services\School\SchoolBusinessWriteAccess;
 use App\Services\Teaching\TeacherAssignmentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -52,10 +54,62 @@ class TeacherAssignmentController extends BaseCrudController
             : $this->notFound('Teacher assignment not found.');
     }
 
+    private function workspaceSchool(Request $request): string
+    {
+        $auth = app(AuthContextService::class);
+        $actor = $request->user();
+        $context = $auth->resolve($actor);
+        $roles = $context['roles'];
+
+        abort_unless($context['scope'] === 'school' && $context['school_id'] === $request->attributes->get('tenant_school_id')
+            && ! $request->attributes->get('client_supplied_school_id')
+            && ((in_array('Headteacher', $roles, true) && $auth->hasPermission($actor, 'manage_academics'))
+                || (in_array('School Admin', $roles, true) && $auth->hasPermission($actor, 'access_administrator_portal'))), 403);
+
+        return (string) $context['school_id'];
+    }
+
+    public function workspaceOptions(Request $request)
+    {
+        $schoolId = $this->workspaceSchool($request);
+        $active = fn (string $table) => DB::table($table)->where('school_id', $schoolId)->where('active', true);
+
+        return $this->success([
+            'teachers' => DB::table('teachers')->join('users', 'users.id', '=', 'teachers.user_id')
+                ->where('teachers.school_id', $schoolId)->where('users.school_id', $schoolId)
+                ->where('teachers.active', true)->where('teachers.is_deleted', false)
+                ->where('users.active', true)->where('users.is_deleted', false)->whereNull('users.suspended_at')
+                ->orderBy('users.last_name')->orderBy('users.first_name')
+                ->get(['teachers.id', 'users.first_name', 'users.last_name']),
+            'grades' => $active('grades')->orderBy('grade_order')->get(['id', 'grade_name']),
+            'streams' => $active('streams')->orderBy('stream_name')->get(['id', 'grade_id', 'stream_name']),
+            'years' => $active('academic_years')->orderByDesc('start_date')->get(['id', 'year_name']),
+            'terms' => $active('terms')->orderBy('start_date')->get(['id', 'academic_year_id', 'term_name']),
+            'areas' => DB::table('learning_area_allocations')->join('learning_areas', 'learning_areas.id', '=', 'learning_area_allocations.learning_area_id')
+                ->where('learning_area_allocations.school_id', $schoolId)->where('learning_area_allocations.active', true)
+                ->where('learning_areas.active', true)->distinct()->orderBy('learning_areas.learning_area_name')
+                ->get(['learning_area_allocations.grade_id', 'learning_areas.id', 'learning_areas.learning_area_name']),
+        ]);
+    }
+
+    public function workspaceStore(Request $request, SchoolBusinessWriteAccess $access)
+    {
+        $schoolId = $this->workspaceSchool($request);
+        $request->validate(['is_class_teacher' => 'prohibited', 'active' => 'prohibited']);
+
+        return $access->run($schoolId, function () use ($request) {
+            $this->workspaceSchool($request);
+
+            return $this->store($request);
+        });
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate($this->storeRules());
         $schoolId = $this->schoolId($request, $validated);
+
+        $validated['stream_id'] ??= null;
 
         $assignment = DB::transaction(function () use ($request, $validated, $schoolId) {
             $assignment = $this->service->create($validated, $schoolId);
