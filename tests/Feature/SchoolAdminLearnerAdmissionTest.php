@@ -61,6 +61,39 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         ]);
     }
 
+    public function test_siblings_can_share_a_guardian_during_admission(): void
+    {
+        [$school, $user] = $this->schoolAdminWithPermission();
+        [$grade, $stream] = $this->gradeAndStream($school);
+        $payload = $this->learnerPayload($grade, $stream) + [
+            'guardian_first_name' => 'Sample',
+            'guardian_last_name' => 'Guardian',
+            'guardian_phone' => '0700000001',
+            'guardian_relationship' => 'Parent',
+        ];
+
+        $first = $this->withToken($this->tokenFor($user))->postJson('/api/learners', $payload)
+            ->assertCreated()->json('data.id');
+        $payload['admission_no'] = 'ADM-002';
+        $payload['emergency_first_name'] = 'Sample';
+        $payload['emergency_last_name'] = 'Contact';
+        $payload['emergency_phone'] = '0700000002';
+        $payload['emergency_relationship'] = 'Aunt';
+        $second = $this->withToken($this->tokenFor($user))->postJson('/api/learners', $payload)
+            ->assertCreated()->json('data.id');
+
+        $guardian = DB::table('parents')
+            ->where('school_id', $school->id)->where('phone', '0700000001')->sole();
+        foreach ([$first, $second] as $learner) {
+            $this->assertDatabaseHas('learner_parents', [
+                'learner_id' => $learner, 'parent_id' => $guardian->id, 'is_primary_contact' => true,
+            ]);
+        }
+        $this->assertDatabaseHas('learner_parents', [
+            'learner_id' => $second, 'relationship' => 'Aunt', 'emergency_contact' => true, 'is_primary_contact' => false,
+        ]);
+    }
+
     public function test_admission_sets_active_lifecycle_status_and_active_true(): void
     {
         [$school, $user] = $this->schoolAdminWithPermission();

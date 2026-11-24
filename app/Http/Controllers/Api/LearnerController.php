@@ -6,7 +6,9 @@ use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\LearnerResource;
 use App\Models\AuditLog;
 use App\Models\Grade;
+use App\Models\Guardian;
 use App\Models\Learner;
+use App\Models\LearnerParent;
 use App\Models\Stream;
 use App\Services\CoCurricular\CoCurricularPlacement;
 use App\Services\School\LearnerActivationModeService;
@@ -276,7 +278,7 @@ class LearnerController extends BaseCrudController
             'stream_id' => 'required|uuid',
             'preview' => 'required|boolean',
             'rows' => 'required|array|list|min:1|max:500',
-            'rows.*' => 'required|array:row,admission_no,first_name,middle_name,last_name,gender,date_of_birth,mode_of_study,assessment_no,upi,kemis_no',
+            'rows.*' => 'required|array:row,admission_no,first_name,middle_name,last_name,gender,date_of_birth,mode_of_study,assessment_no,upi,kemis_no,guardian_first_name,guardian_last_name,guardian_phone,guardian_relationship,guardian_email,emergency_first_name,emergency_last_name,emergency_phone,emergency_relationship,emergency_email',
             'rows.*.row' => 'required|integer|min:2|max:1048576|distinct',
         ]);
         $schoolId = $this->schoolId($request);
@@ -288,6 +290,10 @@ class LearnerController extends BaseCrudController
             $admissionDate = today('Africa/Nairobi')->toDateString();
             $rules = $this->admissionRules($admissionDate);
             $rules['gender'] = 'required|in:F,M';
+            $rules['guardian_first_name'] = 'required|string|max:100';
+            $rules['guardian_last_name'] = 'required|string|max:100';
+            $rules['guardian_phone'] = 'required|string|max:20';
+            $rules['guardian_relationship'] = 'required|string|max:50';
             $rules['date_of_birth'] = ['required', 'date_format:Y-m-d', 'before_or_equal:'.$admissionDate];
             $validatedRows = [];
             $errors = [];
@@ -329,6 +335,16 @@ class LearnerController extends BaseCrudController
     private function admissionRules(string $admissionDate): array
     {
         return [
+            'guardian_first_name' => 'nullable|required_with:guardian_last_name,guardian_phone,guardian_relationship,guardian_email|string|max:100',
+            'guardian_last_name' => 'nullable|required_with:guardian_first_name,guardian_phone,guardian_relationship,guardian_email|string|max:100',
+            'guardian_phone' => 'nullable|required_with:guardian_first_name,guardian_last_name,guardian_relationship,guardian_email|string|max:20',
+            'guardian_relationship' => 'nullable|required_with:guardian_first_name,guardian_last_name,guardian_phone,guardian_email|string|max:50',
+            'guardian_email' => 'nullable|email|max:255',
+            'emergency_first_name' => 'nullable|required_with:emergency_last_name,emergency_phone,emergency_relationship,emergency_email|string|max:100',
+            'emergency_last_name' => 'nullable|required_with:emergency_first_name,emergency_phone,emergency_relationship,emergency_email|string|max:100',
+            'emergency_phone' => 'nullable|required_with:emergency_first_name,emergency_last_name,emergency_relationship,emergency_email|string|max:20',
+            'emergency_relationship' => 'nullable|required_with:emergency_first_name,emergency_last_name,emergency_phone,emergency_email|string|max:50',
+            'emergency_email' => 'nullable|email|max:255',
             'co_curricular' => 'sometimes|array:club,house,society',
             'co_curricular.*' => 'nullable|uuid',
             'mode_of_study' => 'required|in:day_scholar,boarder',
@@ -457,6 +473,8 @@ class LearnerController extends BaseCrudController
         $learner->refresh();
         app(CoCurricularPlacement::class)->save($schoolId, $learner->id, $validated['co_curricular'] ?? []);
 
+        $this->linkAdmissionContacts($request, $learner, $validated);
+
         $this->audit(
             request: $request,
             module: self::MODULE,
@@ -468,6 +486,55 @@ class LearnerController extends BaseCrudController
         );
 
         return $learner;
+    }
+
+    private function linkAdmissionContacts(Request $request, Learner $learner, array $details): void
+    {
+        foreach (['guardian', 'emergency'] as $prefix) {
+            if (empty($details[$prefix.'_first_name'])) {
+                continue;
+            }
+
+            $identity = [
+                'first_name' => $details[$prefix.'_first_name'],
+                'last_name' => $details[$prefix.'_last_name'],
+                'phone' => $details[$prefix.'_phone'],
+            ];
+            $guardian = Guardian::query()
+                ->where('school_id', $learner->school_id)->where('active', true)->where('is_deleted', false)
+                ->where($identity)->orderBy('created_at')->orderBy('id')->first();
+
+            if (! $guardian) {
+                $guardian = Guardian::query()->create($identity + [
+                    'id' => (string) Str::uuid(),
+                    'school_id' => $learner->school_id,
+                    'email' => $details[$prefix.'_email'] ?? null,
+                    'active' => true,
+                    'created_at' => now(),
+                ]);
+                $this->audit($request, 'Guardians', 'Create', $guardian, null, $guardian->toArray(), 'Created guardian during admission.');
+            }
+
+            $link = LearnerParent::query()->firstOrNew([
+                'learner_id' => $learner->id,
+                'parent_id' => $guardian->id,
+            ]);
+            $existing = $link->exists;
+            $oldValues = $existing ? $link->toArray() : null;
+            $link->fill([
+                'id' => $link->id ?? (string) Str::uuid(),
+                'relationship' => $existing ? $link->relationship : $details[$prefix.'_relationship'],
+                'is_primary_contact' => $existing || $prefix === 'guardian',
+                'emergency_contact' => $prefix === 'emergency',
+                'active' => true,
+                'is_deleted' => false,
+                'portal_enabled' => false,
+                'linked_by' => $request->user()->id,
+                'linked_at' => now(),
+            ])->save();
+
+            $this->audit($request, 'Guardians', 'Link', $link, $oldValues, $link->toArray(), 'Linked guardian during admission.');
+        }
     }
 
     public function update(Request $request, string $id)
