@@ -326,6 +326,7 @@ Route::prefix('admin/platform/school-registration-requests')->middleware([
 
 Route::prefix('admin/school/staff-access')->middleware([...$authenticated, 'tenant', 'permission:access_administrator_portal', 'permission:update_school_users', 'permission:assign_school_permissions'])->group(function () {
     Route::get('/', [SchoolStaffAccessController::class, 'index']);
+    Route::put('/{user}/teacher-profile', [SchoolStaffAccessController::class, 'teacherProfile'])->whereUuid('user')->middleware('throttle:10,1,teacher-profile:');
     Route::put('/{user}', [SchoolStaffAccessController::class, 'change'])->whereUuid('user')->middleware('throttle:10,1,staff-access:');
 });
 Route::get('/school/office', [SchoolStaffAccessController::class, 'office'])->middleware([...$authenticated, 'tenant', 'permission:access_school_office']);
