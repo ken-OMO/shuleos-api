@@ -29,8 +29,8 @@ final class SchoolStaffAccessController extends BaseApiController
     {
         abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
         $data = $request->validate([
-            'staff_no' => 'required|string|max:100',
-            'tsc_no' => 'required|string|max:100',
+            'staff_no' => 'required|string|max:50',
+            'tsc_no' => 'required|string|max:50',
         ]);
 
         return $this->success($staff->setUpTeacher($request->user(), $user, $data));

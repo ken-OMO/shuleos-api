@@ -65,13 +65,15 @@ final class SchoolStaffAccessService
                     return ['school_id' => $schoolId, 'user_id' => $targetId, 'teacher_id' => $teacher->id];
                 }
 
-                $teacher = $teachers->where('staff_no', $details['staff_no'])
+                $teacher = (clone $teachers)->where('staff_no', $details['staff_no'])
                     ->where('tsc_no', $details['tsc_no'])->lockForUpdate()->first();
                 if ($teacher) {
                     abort_unless($teacher->active && ! $teacher->is_deleted && $teacher->user_id === null, 409,
                         'The matching teacher profile is inactive or already linked.');
                     $teacher->update(['user_id' => $targetId]);
                 } else {
+                    abort_if($teachers->where('staff_no', $details['staff_no'])->exists(), 409,
+                        'The staff number is already in use at this school.');
                     $teacher = app(TeacherService::class)->create($details + ['school_id' => $schoolId, 'user_id' => $targetId]);
                 }
 
