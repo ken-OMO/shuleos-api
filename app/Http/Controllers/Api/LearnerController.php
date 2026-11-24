@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Grade;
 use App\Models\Learner;
 use App\Models\Stream;
+use App\Services\CoCurricular\CoCurricularPlacement;
 use App\Services\School\LearnerActivationModeService;
 use App\Services\School\SchoolOperatingModePolicy;
 use Illuminate\Database\Eloquent\Builder;
@@ -185,6 +186,8 @@ class LearnerController extends BaseCrudController
         $schoolId = $this->schoolId($request);
 
         $validated = $request->validate([
+            'co_curricular' => 'sometimes|array:club,house,society',
+            'co_curricular.*' => 'nullable|uuid',
             'mode_of_study' => 'required|in:day_scholar,boarder',
             'admission_no' => [
                 'required',
@@ -314,6 +317,7 @@ class LearnerController extends BaseCrudController
             $learner->lifecycle_status = 'active';
             $learner->save();
             $learner->refresh();
+            app(CoCurricularPlacement::class)->save($schoolId, $learner->id, $validated['co_curricular'] ?? []);
 
             $this->audit(
                 request: $request,

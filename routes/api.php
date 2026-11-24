@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\BoardingOccurrenceCategoryController;
 use App\Http\Controllers\Api\BoardingReportingObligationController;
 use App\Http\Controllers\Api\BoardingReportingPolicyController;
 use App\Http\Controllers\Api\BoardingReportOccurrenceController;
+use App\Http\Controllers\Api\CoCurricularController;
 use App\Http\Controllers\Api\CommunicationController;
 use App\Http\Controllers\Api\CommunicationPhaseTwoController;
 use App\Http\Controllers\Api\CommunicationWebhookController;
@@ -1466,6 +1467,16 @@ Route::prefix('learners')
         Route::delete('/{id}', [LearnerController::class, 'destroy'])
             ->middleware('permission:manage_learners');
     });
+
+Route::prefix('co-curricular')->middleware([...$secure, 'permission:manage_learners'])->group(function () {
+    Route::get('/groups', [CoCurricularController::class, 'groups']);
+    Route::post('/groups', [CoCurricularController::class, 'saveGroup']);
+    Route::patch('/groups/{group}', [CoCurricularController::class, 'saveGroup'])->whereUuid('group');
+    Route::post('/groups/{group}/archive', [CoCurricularController::class, 'archive'])->whereUuid('group');
+    Route::get('/learner', [CoCurricularController::class, 'findLearner']);
+    Route::get('/learners/{learner}/placements', [CoCurricularController::class, 'history'])->whereUuid('learner');
+    Route::put('/learners/{learner}/placements', [CoCurricularController::class, 'place'])->whereUuid('learner');
+});
 
 Route::prefix('learner')->middleware($secure)->group(function () {
     Route::get('/behaviour', [BehaviourLearnerController::class, 'index'])->middleware('permission:view_own_behaviour');
