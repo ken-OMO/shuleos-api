@@ -1261,6 +1261,8 @@ class FinanceDatabaseIntegrityTest extends TestCase
             'admission_no' => 'MODE-'.Str::upper(Str::random(12)),
             'first_name' => 'Admission',
             'last_name' => 'Acceptance',
+            'gender' => 'Female',
+            'date_of_birth' => '2014-05-12',
             'grade_id' => $school['grade']->id,
             'stream_id' => $school['stream']->id,
             'mode_of_study' => $mode,

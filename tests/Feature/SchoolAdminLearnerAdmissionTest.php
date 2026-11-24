@@ -36,8 +36,17 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
         [$school, $user] = $this->schoolAdminWithPermission();
         [$grade, $stream] = $this->gradeAndStream($school);
 
+        $payload = $this->learnerPayload($grade, $stream);
+        $payload['admission_date'] = '2000-01-01';
+        $requiredDetails = array_diff_key($payload, array_flip(['gender', 'date_of_birth']));
+
         $this->withToken($this->tokenFor($user))
-            ->postJson('/api/learners', $this->learnerPayload($grade, $stream))
+            ->postJson('/api/learners', $requiredDetails)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['gender', 'date_of_birth']);
+
+        $this->withToken($this->tokenFor($user))
+            ->postJson('/api/learners', $payload)
             ->assertSuccessful();
 
         $learner = Learner::query()
@@ -46,6 +55,10 @@ class SchoolAdminLearnerAdmissionTest extends TestCase
             ->firstOrFail();
 
         $this->assertSame($school->id, $learner->school_id);
+        $this->assertDatabaseHas('learners', [
+            'id' => $learner->id,
+            'admission_date' => today('Africa/Nairobi')->toDateString(),
+        ]);
     }
 
     public function test_admission_sets_active_lifecycle_status_and_active_true(): void

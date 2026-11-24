@@ -219,6 +219,7 @@ class SchoolBusinessWriteAccessTest extends TestCase
     private function payload(string $number = 'BUS-001'): array
     {
         return ['admission_no' => $number, 'first_name' => 'Synthetic', 'last_name' => 'Learner',
+            'gender' => 'Female', 'date_of_birth' => '2014-05-12',
             'mode_of_study' => 'day_scholar', 'grade_id' => $this->grade->id, 'stream_id' => $this->stream->id];
     }
 

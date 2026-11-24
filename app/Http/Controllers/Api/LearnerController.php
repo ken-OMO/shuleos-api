@@ -204,6 +204,7 @@ class LearnerController extends BaseCrudController
     public function store(Request $request)
     {
         $schoolId = $this->schoolId($request);
+        $admissionDate = today('Africa/Nairobi')->toDateString();
 
         $validated = $request->validate([
             'co_curricular' => 'sometimes|array:club,house,society',
@@ -240,14 +241,14 @@ class LearnerController extends BaseCrudController
                 'max:100',
             ],
             'gender' => [
-                'nullable',
+                'required',
                 'string',
                 'max:20',
             ],
             'date_of_birth' => [
-                'nullable',
+                'required',
                 'date',
-                'before_or_equal:today',
+                'before_or_equal:'.$admissionDate,
             ],
             'grade_id' => [
                 'required',
@@ -256,10 +257,6 @@ class LearnerController extends BaseCrudController
             'stream_id' => [
                 'required',
                 'uuid',
-            ],
-            'admission_date' => [
-                'nullable',
-                'date',
             ],
             'assessment_no' => [
                 'nullable',
@@ -298,7 +295,8 @@ class LearnerController extends BaseCrudController
         $learner = DB::transaction(function () use (
             $request,
             $schoolId,
-            $validated
+            $validated,
+            $admissionDate
         ) {
             app(SchoolOperatingModePolicy::class)
                 ->assertLearnerModeAllowed($schoolId, $validated['mode_of_study']);
@@ -314,11 +312,11 @@ class LearnerController extends BaseCrudController
                     'first_name' => $validated['first_name'],
                     'middle_name' => $validated['middle_name'] ?? null,
                     'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'] ?? null,
-                    'date_of_birth' => $validated['date_of_birth'] ?? null,
+                    'gender' => $validated['gender'],
+                    'date_of_birth' => $validated['date_of_birth'],
                     'grade_id' => $validated['grade_id'],
                     'stream_id' => $validated['stream_id'],
-                    'admission_date' => $validated['admission_date'] ?? null,
+                    'admission_date' => $admissionDate,
                     'assessment_no' => $validated['assessment_no'] ?? null,
                     'active' => true,
                     'is_deleted' => false,
