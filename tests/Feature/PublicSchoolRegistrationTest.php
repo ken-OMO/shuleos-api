@@ -52,12 +52,12 @@ class PublicSchoolRegistrationTest extends TestCase
     {
         $schools = DB::table('schools')->count();
         $users = DB::table('users')->count();
-        $payload = $this->payload();
+        $payload = $this->payload() + ['mpesa_payer_phone' => '0712 345 678'];
         $response = $this->postJson('/api/school-registration-requests', $payload)->assertStatus(202);
-        $this->assertDatabaseHas('school_registration_requests', ['school_name' => 'Mansoor Academy', 'status' => 'pending', 'admin_email' => strtolower($payload['admin']['email'])]);
+        $this->assertDatabaseHas('school_registration_requests', ['school_name' => 'Mansoor Academy', 'status' => 'pending', 'admin_email' => strtolower($payload['admin']['email']), 'mpesa_payer_phone' => '254712345678']);
         $this->assertSame($schools, DB::table('schools')->count());
         $this->assertSame($users, DB::table('users')->count());
-        foreach (['password', 'username', 'school_id', 'admin_email', 'token'] as $field) {
+        foreach (['password', 'username', 'school_id', 'admin_email', 'mpesa_payer_phone', 'token'] as $field) {
             $this->assertArrayNotHasKey($field, $response->json());
         }
         Mail::assertNothingSent();

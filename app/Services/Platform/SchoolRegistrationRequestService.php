@@ -34,6 +34,7 @@ class SchoolRegistrationRequestService
             'trial_transport' => $data['trial_transport'] ?? false,
             'admin_first_name' => $data['admin']['first_name'], 'admin_last_name' => $data['admin']['last_name'],
             'admin_email' => $data['admin']['email'], 'email' => $data['email'] ?? null,
+            'mpesa_payer_phone' => $data['mpesa_payer_phone'] ?? null,
             'phone' => $data['phone'] ?? null, 'postal_address' => $data['postal_address'] ?? null,
             'physical_address' => $data['physical_address'] ?? null,
             'status' => 'pending', 'created_at' => now(), 'updated_at' => now(),
@@ -46,7 +47,7 @@ class SchoolRegistrationRequestService
 
         return DB::table('school_registration_requests')->where('status', $status)
             ->select('id', 'school_name', 'operating_mode', 'admin_first_name', 'admin_last_name',
-                'admin_email', 'email', 'phone', 'postal_address', 'physical_address', 'status',
+                'admin_email', 'email', 'phone', 'mpesa_payer_phone', 'postal_address', 'physical_address', 'status',
                 'school_id', 'review_reason', 'created_at', 'reviewed_at',
                 'requested_package_id', 'trial_boarding', 'trial_elections', 'trial_transport')
             ->addSelect(['requested_package_name' => DB::table('subscription_packages')->select('package_name')
