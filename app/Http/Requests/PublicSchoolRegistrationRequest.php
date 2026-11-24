@@ -25,6 +25,16 @@ class PublicSchoolRegistrationRequest extends FormRequest
                 data_set($data, $field, strtolower(trim(data_get($data, $field))));
             }
         }
+        $phone = $data['mpesa_payer_phone'] ?? null;
+        if (is_string($phone)) {
+            $phone = preg_replace('/[ ()-]/', '', trim($phone));
+            if (preg_match('/^0[17][0-9]{8}$/D', $phone)) {
+                $phone = '254'.substr($phone, 1);
+            } elseif (str_starts_with($phone, '+254')) {
+                $phone = substr($phone, 1);
+            }
+            $data['mpesa_payer_phone'] = $phone === '' ? null : $phone;
+        }
         $this->replace($data);
     }
 
@@ -47,6 +57,7 @@ class PublicSchoolRegistrationRequest extends FormRequest
             'admin.last_name' => 'required|string|max:100',
             'admin.email' => 'required|email|max:255',
             'email' => 'nullable|email|max:255', 'phone' => 'nullable|string|max:30',
+            'mpesa_payer_phone' => ['nullable', 'string', 'regex:/^254[17][0-9]{8}$/D'],
             'postal_address' => 'nullable|string|max:255', 'physical_address' => 'nullable|string|max:255',
             'id' => 'prohibited', 'school_id' => 'prohibited', 'school_code' => 'prohibited',
             'status' => 'prohibited', 'reviewed_by' => 'prohibited', 'reviewed_at' => 'prohibited',
