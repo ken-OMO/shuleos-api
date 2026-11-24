@@ -181,6 +181,26 @@ class LearnerController extends BaseCrudController
         );
     }
 
+    public function admissionOptions(Request $request)
+    {
+        $schoolId = $this->schoolId($request);
+        $grades = Grade::query()
+            ->where('school_id', $schoolId)
+            ->where('active', true)
+            ->whereNotNull('grade_number')
+            ->orderBy('grade_order')
+            ->get(['id', 'grade_name', 'grade_number']);
+
+        $streams = Stream::query()
+            ->where('school_id', $schoolId)
+            ->where('active', true)
+            ->whereIn('grade_id', $grades->modelKeys())
+            ->orderBy('stream_name')
+            ->get(['id', 'stream_name', 'grade_id']);
+
+        return $this->success(['grades' => $grades, 'streams' => $streams]);
+    }
+
     public function store(Request $request)
     {
         $schoolId = $this->schoolId($request);
