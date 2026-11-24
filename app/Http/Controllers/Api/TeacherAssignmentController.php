@@ -158,7 +158,7 @@ class TeacherAssignmentController extends BaseCrudController
             'teacher_id' => 'required|uuid',
             'stream_id' => 'required|uuid',
             'term_id' => 'required|uuid',
-            'temporary_until' => 'nullable|date_format:Y-m-d|after_or_equal:'.$today,
+            'temporary_until' => 'prohibited',
         ]);
 
         return $access->run($schoolId, function () use ($schoolId, $details, $today, $request) {
@@ -172,9 +172,6 @@ class TeacherAssignmentController extends BaseCrudController
                 && $active('academic_years')->where('id', $term->academic_year_id)->exists(), 422,
                 'Select an active teacher, class and term from this school.');
 
-            $until = $details['temporary_until'] ?? null;
-            abort_if($until && ($until < $term->start_date || $until > $term->end_date), 422,
-                'The temporary appointment must end within the selected term.');
             $appointments = $active('class_teachers')->where('term_id', $term->id)
                 ->where(fn ($query) => $query->whereNull('temporary_until')->orWhereDate('temporary_until', '>=', $today));
             $legacy = $active('teacher_assignments')->where('term_id', $term->id)
@@ -183,15 +180,9 @@ class TeacherAssignmentController extends BaseCrudController
                 || (clone $legacy)->where('stream_id', $stream->id)->exists(), 409,
                 'This stream already has a class teacher for the selected term.');
 
-            $teacherAppointments = (clone $appointments)->where('teacher_id', $teacher->id);
-            if ($until === null) {
-                abort_if((clone $teacherAppointments)->whereNull('temporary_until')->exists()
-                    || (clone $legacy)->where('teacher_id', $teacher->id)->exists(), 409,
-                    'This teacher already has a regular class appointment for the term. Enter an end date for temporary cover.');
-            } else {
-                abort_if((clone $teacherAppointments)->whereNotNull('temporary_until')->exists(), 409,
-                    'This teacher already has temporary class cover in the selected term.');
-            }
+            abort_if((clone $appointments)->where('teacher_id', $teacher->id)->exists()
+                || (clone $legacy)->where('teacher_id', $teacher->id)->exists(), 409,
+                'This teacher already has a class appointment for the selected term.');
 
             $id = (string) Str::uuid();
             DB::table('class_teachers')->insert($details + [
