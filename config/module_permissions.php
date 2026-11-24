@@ -14,6 +14,7 @@ return [
     'terms' => 'manage_academics',
     'academic-weeks' => 'manage_academics',
     'learners' => 'manage_learners',
+    'co-curricular' => 'manage_learners',
     'boarding' => 'manage_boarding',
     'teacher-duty' => 'manage_teacher_duty_roster',
     'learner' => 'access_learner_portal',
