@@ -1452,6 +1452,9 @@ Route::prefix('learners')
                 'school.operational',
             ]);
 
+        Route::get('/admission-options', [LearnerController::class, 'admissionOptions'])
+            ->middleware('permission:manage_learners');
+
         Route::get('/{id}', [LearnerController::class, 'show'])
             ->middleware('permission:manage_learners');
 
