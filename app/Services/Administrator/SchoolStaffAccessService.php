@@ -3,9 +3,12 @@
 namespace App\Services\Administrator;
 
 use App\Models\Role;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Services\Auth\AuthContextService;
+use App\Services\HumanResource\TeacherService;
 use App\Services\School\SchoolBusinessWriteAccess;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 final class SchoolStaffAccessService
@@ -36,6 +39,50 @@ final class SchoolStaffAccessService
                     'account_status' => $user->suspended_at ? 'suspended' : ($user->active ? 'active' : 'inactive'),
                     'additional_roles' => array_values(array_intersect($roles, ['Headteacher', 'School Secretary']))];
             })->all()];
+    }
+
+    public function setUpTeacher(User $actor, string $targetId, array $details): array
+    {
+        $schoolId = $this->school($actor);
+
+        try {
+            return $this->writes->run($schoolId, function () use ($actor, $targetId, $details, $schoolId) {
+                $accounts = User::where('school_id', $schoolId)->whereIn('id', [$actor->id, $targetId])
+                    ->where('is_deleted', false)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+                $freshActor = $accounts->get($actor->id);
+                $target = $accounts->get($targetId);
+                abort_unless($freshActor && $target && $target->active && ! $target->suspended_at, 404);
+                $this->school($freshActor);
+                abort_unless(strtolower((string) $target->role?->role_name) === 'teacher', 422, 'Select an active Teacher account.');
+
+                $teachers = Teacher::withoutGlobalScopes()->where('school_id', $schoolId);
+                $teacher = (clone $teachers)->where('user_id', $targetId)->lockForUpdate()->first();
+                if ($teacher) {
+                    abort_unless($teacher->active && ! $teacher->is_deleted
+                        && $teacher->staff_no === $details['staff_no'] && $teacher->tsc_no === $details['tsc_no'],
+                        409, 'An existing teacher profile must be reviewed before changing this linked account.');
+
+                    return ['school_id' => $schoolId, 'user_id' => $targetId, 'teacher_id' => $teacher->id];
+                }
+
+                $teacher = $teachers->where('staff_no', $details['staff_no'])
+                    ->where('tsc_no', $details['tsc_no'])->lockForUpdate()->first();
+                if ($teacher) {
+                    abort_unless($teacher->active && ! $teacher->is_deleted && $teacher->user_id === null, 409,
+                        'The matching teacher profile is inactive or already linked.');
+                    $teacher->update(['user_id' => $targetId]);
+                } else {
+                    $teacher = app(TeacherService::class)->create($details + ['school_id' => $schoolId, 'user_id' => $targetId]);
+                }
+
+                $this->audit->record($freshActor, 'teacher_profile_linked', 'teachers', $teacher->id,
+                    ['user_id' => null], ['user_id' => $targetId]);
+
+                return ['school_id' => $schoolId, 'user_id' => $targetId, 'teacher_id' => $teacher->id];
+            });
+        } catch (UniqueConstraintViolationException) {
+            abort(409, 'The staff number or TSC number is already in use. Check the existing teacher profile.');
+        }
     }
 
     public function change(User $actor, string $targetId, string $roleName, bool $assign): array

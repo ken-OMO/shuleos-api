@@ -25,6 +25,17 @@ final class SchoolStaffAccessController extends BaseApiController
         return $this->success($staff->change($request->user(), $user, $data['role'], $data['assigned']));
     }
 
+    public function teacherProfile(Request $request, string $user, SchoolStaffAccessService $staff)
+    {
+        abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
+        $data = $request->validate([
+            'staff_no' => 'required|string|max:100',
+            'tsc_no' => 'required|string|max:100',
+        ]);
+
+        return $this->success($staff->setUpTeacher($request->user(), $user, $data));
+    }
+
     public function office(Request $request, AuthContextService $auth)
     {
         $context = $auth->resolve($request->user());
