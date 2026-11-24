@@ -16,6 +16,7 @@ use App\Services\TeacherPortal\TeacherPortalAccessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -251,7 +252,83 @@ class LearnerController extends BaseCrudController
         $schoolId = $this->schoolId($request);
         $admissionDate = today('Africa/Nairobi')->toDateString();
 
-        $validated = $request->validate([
+        $validated = $request->validate($this->admissionRules($admissionDate));
+        $this->validateAdmission($schoolId, $validated);
+
+        $learner = DB::transaction(function () use ($request, $schoolId, $validated, $admissionDate) {
+            app(SchoolOperatingModePolicy::class)->assertLearnerModeAllowed($schoolId, $validated['mode_of_study']);
+
+            return $this->createAdmission($request, $schoolId, $validated, $admissionDate);
+        });
+
+        $learner->load(self::RELATIONS);
+
+        return $this->created(
+            new LearnerResource($learner),
+            'Learner admitted successfully.'
+        );
+    }
+
+    public function classTeacherBulkAdmission(Request $request, SchoolBusinessWriteAccess $access)
+    {
+        abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
+        $batch = $request->validate([
+            'stream_id' => 'required|uuid',
+            'preview' => 'required|boolean',
+            'rows' => 'required|array|list|min:1|max:500',
+            'rows.*' => 'required|array:row,admission_no,first_name,middle_name,last_name,gender,date_of_birth,mode_of_study,assessment_no,upi,kemis_no',
+            'rows.*.row' => 'required|integer|min:2|max:1048576|distinct',
+        ]);
+        $schoolId = $this->schoolId($request);
+
+        return $access->run($schoolId, function () use ($request, $batch, $schoolId) {
+            abort_unless(in_array($batch['stream_id'], $this->classTeacherStreams($request), true),
+                403, 'You can only admit learners to a class covered by your appointment.');
+            $stream = Stream::query()->where('school_id', $schoolId)->where('active', true)->findOrFail($batch['stream_id']);
+            $admissionDate = today('Africa/Nairobi')->toDateString();
+            $rules = $this->admissionRules($admissionDate);
+            $rules['gender'] = 'required|in:F,M';
+            $rules['date_of_birth'] = ['required', 'date_format:Y-m-d', 'before_or_equal:'.$admissionDate];
+            $validatedRows = [];
+            $errors = [];
+            $admissionNumbers = [];
+
+            foreach ($batch['rows'] as $row) {
+                try {
+                    $validated = Validator::make($row + ['grade_id' => $stream->grade_id, 'stream_id' => $stream->id], $rules)->validate();
+                    $this->validateAdmission($schoolId, $validated);
+                    app(SchoolOperatingModePolicy::class)->assertLearnerModeAllowed($schoolId, $validated['mode_of_study']);
+                    $number = $validated['admission_no'];
+                    if (isset($admissionNumbers[$number])) {
+                        throw ValidationException::withMessages(['admission_no' => 'Duplicate admission number in this workbook.']);
+                    }
+                    $admissionNumbers[$number] = true;
+                    $validated['gender'] = $validated['gender'] === 'F' ? 'Female' : 'Male';
+                    $validatedRows[] = $validated;
+                } catch (ValidationException $exception) {
+                    foreach ($exception->errors() as $field => $messages) {
+                        $errors['row_'.$row['row'].'.'.$field] = $messages;
+                    }
+                }
+            }
+
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
+
+            if (! $batch['preview']) {
+                foreach ($validatedRows as $validated) {
+                    $this->createAdmission($request, $schoolId, $validated, $admissionDate);
+                }
+            }
+
+            return $this->success(['count' => count($validatedRows)]);
+        });
+    }
+
+    private function admissionRules(string $admissionDate): array
+    {
+        return [
             'co_curricular' => 'sometimes|array:club,house,society',
             'co_curricular.*' => 'nullable|uuid',
             'mode_of_study' => 'required|in:day_scholar,boarder',
@@ -308,8 +385,12 @@ class LearnerController extends BaseCrudController
                 'string',
                 'max:50',
             ],
-        ]);
+        ];
 
+    }
+
+    private function validateAdmission(string $schoolId, array $validated): void
+    {
         $this->validatePlacement(
             $schoolId,
             (string) $validated['grade_id'],
@@ -336,71 +417,57 @@ class LearnerController extends BaseCrudController
                 ],
             ]);
         }
+    }
 
-        $learner = DB::transaction(function () use (
-            $request,
-            $schoolId,
-            $validated,
-            $admissionDate
-        ) {
-            app(SchoolOperatingModePolicy::class)
-                ->assertLearnerModeAllowed($schoolId, $validated['mode_of_study']);
+    private function createAdmission(Request $request, string $schoolId, array $validated, string $admissionDate): Learner
+    {
+        $learner = Learner::query()
+            ->withoutGlobalScopes()
+            ->create([
+                'id' => (string) Str::uuid(),
+                'school_id' => $schoolId,
+                'admission_no' => $validated['admission_no'],
+                'upi' => $validated['upi'] ?? null,
+                'kemis_no' => $validated['kemis_no'] ?? null,
+                'first_name' => $validated['first_name'],
+                'middle_name' => $validated['middle_name'] ?? null,
+                'last_name' => $validated['last_name'],
+                'gender' => $validated['gender'],
+                'date_of_birth' => $validated['date_of_birth'],
+                'grade_id' => $validated['grade_id'],
+                'stream_id' => $validated['stream_id'],
+                'admission_date' => $admissionDate,
+                'assessment_no' => $validated['assessment_no'] ?? null,
+                'active' => true,
+                'is_deleted' => false,
+                'deleted_at' => null,
+                'deleted_by' => null,
+                'user_id' => null,
+                'portal_enabled' => false,
+                'portal_activated_at' => null,
+            ]);
 
-            $learner = Learner::query()
-                ->withoutGlobalScopes()
-                ->create([
-                    'id' => (string) Str::uuid(),
-                    'school_id' => $schoolId,
-                    'admission_no' => $validated['admission_no'],
-                    'upi' => $validated['upi'] ?? null,
-                    'kemis_no' => $validated['kemis_no'] ?? null,
-                    'first_name' => $validated['first_name'],
-                    'middle_name' => $validated['middle_name'] ?? null,
-                    'last_name' => $validated['last_name'],
-                    'gender' => $validated['gender'],
-                    'date_of_birth' => $validated['date_of_birth'],
-                    'grade_id' => $validated['grade_id'],
-                    'stream_id' => $validated['stream_id'],
-                    'admission_date' => $admissionDate,
-                    'assessment_no' => $validated['assessment_no'] ?? null,
-                    'active' => true,
-                    'is_deleted' => false,
-                    'deleted_at' => null,
-                    'deleted_by' => null,
-                    'user_id' => null,
-                    'portal_enabled' => false,
-                    'portal_activated_at' => null,
-                ]);
+        /*
+         * lifecycle_status deliberately remains outside Learner::$fillable.
+         * Admission owns initialization of the canonical lifecycle state.
+         */
+        $learner->mode_of_study = $validated['mode_of_study'];
+        $learner->lifecycle_status = 'active';
+        $learner->save();
+        $learner->refresh();
+        app(CoCurricularPlacement::class)->save($schoolId, $learner->id, $validated['co_curricular'] ?? []);
 
-            /*
-             * lifecycle_status deliberately remains outside Learner::$fillable.
-             * Admission owns initialization of the canonical lifecycle state.
-             */
-            $learner->mode_of_study = $validated['mode_of_study'];
-            $learner->lifecycle_status = 'active';
-            $learner->save();
-            $learner->refresh();
-            app(CoCurricularPlacement::class)->save($schoolId, $learner->id, $validated['co_curricular'] ?? []);
-
-            $this->audit(
-                request: $request,
-                module: self::MODULE,
-                action: 'Create',
-                model: $learner,
-                oldValues: null,
-                newValues: $learner->toArray(),
-                description: 'Admitted learner.'
-            );
-
-            return $learner;
-        });
-
-        $learner->load(self::RELATIONS);
-
-        return $this->created(
-            new LearnerResource($learner),
-            'Learner admitted successfully.'
+        $this->audit(
+            request: $request,
+            module: self::MODULE,
+            action: 'Create',
+            model: $learner,
+            oldValues: null,
+            newValues: $learner->toArray(),
+            description: 'Admitted learner.'
         );
+
+        return $learner;
     }
 
     public function update(Request $request, string $id)
