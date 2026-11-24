@@ -9,6 +9,7 @@ use App\Models\Stream;
 use App\Models\Teacher;
 use App\Models\TeacherAssignment;
 use App\Models\Term;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -32,9 +33,10 @@ class TeacherAssignmentService
 
     public function update(TeacherAssignment $assignment, array $data): TeacherAssignment
     {
-        if (($data['is_class_teacher'] ?? false) && ! $assignment->is_class_teacher) {
+        if (($data['is_class_teacher'] ?? $assignment->is_class_teacher) && ($data['active'] ?? $assignment->active)
+            && (! $assignment->is_class_teacher || ! $assignment->active)) {
             $this->ensureClassTeacherAvailable([
-                ...$assignment->only(['stream_id', 'academic_year_id', 'term_id']),
+                ...$assignment->only(['teacher_id', 'stream_id', 'academic_year_id', 'term_id']),
                 ...$data,
             ], $assignment->school_id, $assignment->id);
         }
@@ -98,7 +100,21 @@ class TeacherAssignmentService
             $query->whereKeyNot($exceptId);
         }
 
-        if ($query->exists()) {
+        $appointments = DB::table('class_teachers')->where('school_id', $schoolId)
+            ->where('term_id', $data['term_id'])->where('active', true);
+        $today = today('Africa/Nairobi')->toDateString();
+        $covered = (clone $appointments)->where('stream_id', $data['stream_id'])
+            ->where(fn ($q) => $q->whereNull('temporary_until')->orWhereDate('temporary_until', '>=', $today))->exists();
+        $regular = (clone $appointments)->where('teacher_id', $data['teacher_id'])->whereNull('temporary_until')->exists()
+            || TeacherAssignment::current()->where('school_id', $schoolId)->where('teacher_id', $data['teacher_id'])
+                ->where('term_id', $data['term_id'])->where('active', true)->where('is_class_teacher', true)
+                ->where('stream_id', '!=', $data['stream_id'])
+                ->when($exceptId, fn ($q) => $q->whereKeyNot($exceptId))->exists();
+        if ($regular) {
+            throw ValidationException::withMessages(['is_class_teacher' => 'This teacher already has a regular class appointment for the term.']);
+        }
+
+        if ($covered || $query->exists()) {
             throw ValidationException::withMessages(['is_class_teacher' => 'This stream already has a class teacher for the selected term.']);
         }
     }

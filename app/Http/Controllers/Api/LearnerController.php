@@ -10,7 +10,9 @@ use App\Models\Learner;
 use App\Models\Stream;
 use App\Services\CoCurricular\CoCurricularPlacement;
 use App\Services\School\LearnerActivationModeService;
+use App\Services\School\SchoolBusinessWriteAccess;
 use App\Services\School\SchoolOperatingModePolicy;
+use App\Services\TeacherPortal\TeacherPortalAccessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -179,6 +181,48 @@ class LearnerController extends BaseCrudController
             new LearnerResource($learner),
             'Learner retrieved successfully.'
         );
+    }
+
+    private function classTeacherStreams(Request $request): array
+    {
+        $schoolId = $this->schoolId($request);
+        $teacher = app(TeacherPortalAccessService::class)->teacher($request->user());
+        $today = today('Africa/Nairobi')->toDateString();
+
+        return DB::table('class_teachers as appointment')
+            ->join('terms as term', 'term.id', '=', 'appointment.term_id')
+            ->join('academic_years as year', 'year.id', '=', 'appointment.academic_year_id')
+            ->where('appointment.school_id', $schoolId)->where('appointment.teacher_id', $teacher->id)
+            ->where('appointment.active', true)->where('term.school_id', $schoolId)->where('year.school_id', $schoolId)
+            ->whereColumn('term.academic_year_id', 'year.id')->where('term.active', true)->where('year.active', true)
+            ->whereDate('term.start_date', '<=', $today)->whereDate('term.end_date', '>=', $today)
+            ->whereDate('year.start_date', '<=', $today)->whereDate('year.end_date', '>=', $today)
+            ->where(fn ($query) => $query->whereNull('appointment.temporary_until')->orWhereDate('appointment.temporary_until', '>=', $today))
+            ->pluck('appointment.stream_id')->all();
+    }
+
+    public function classTeacherAdmissionOptions(Request $request)
+    {
+        $schoolId = $this->schoolId($request);
+        $streams = Stream::query()->where('school_id', $schoolId)->where('active', true)
+            ->whereIn('id', $this->classTeacherStreams($request))->orderBy('stream_name')->get(['id', 'stream_name', 'grade_id']);
+        $grades = Grade::query()->where('school_id', $schoolId)->where('active', true)->whereNotNull('grade_number')
+            ->whereIn('id', $streams->pluck('grade_id'))->orderBy('grade_order')->get(['id', 'grade_name', 'grade_number']);
+
+        return $this->success(['grades' => $grades, 'streams' => $streams]);
+    }
+
+    public function classTeacherAdmit(Request $request, SchoolBusinessWriteAccess $access)
+    {
+        abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
+        $request->validate(['stream_id' => 'required|uuid', 'co_curricular' => 'prohibited']);
+
+        return $access->run($this->schoolId($request), function () use ($request) {
+            abort_unless(in_array($request->input('stream_id'), $this->classTeacherStreams($request), true),
+                403, 'You can only admit learners to a class you currently oversee.');
+
+            return $this->store($request);
+        });
     }
 
     public function admissionOptions(Request $request)
