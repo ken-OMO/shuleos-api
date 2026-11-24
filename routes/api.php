@@ -1745,6 +1745,10 @@ Route::prefix('teacher-assignments')
 
         Route::get('/', [TeacherAssignmentController::class, 'index']);
 
+        Route::get('/workspace', [TeacherAssignmentController::class, 'workspaceOptions'])->withoutMiddleware('module.permission');
+
+        Route::post('/workspace', [TeacherAssignmentController::class, 'workspaceStore'])->withoutMiddleware('module.permission');
+
         Route::get('/{id}', [TeacherAssignmentController::class, 'show']);
 
         Route::post('/', [TeacherAssignmentController::class, 'store']);
