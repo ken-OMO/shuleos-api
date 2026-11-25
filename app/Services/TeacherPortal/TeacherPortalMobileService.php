@@ -30,13 +30,24 @@ class TeacherPortalMobileService
         private TeacherDutyWeeklyReportService $teacherDutyWeeklyReports
     ) {}
 
-    public function assignments(User $user)
+    public function assignments(User $user, bool $includeUpcoming = false)
     {
-        return $this->access->assignments($user)->map(function ($assignment) use ($user) {
+        $assignments = $this->access->assignments($user);
+        $assignments = $assignments->map(function ($assignment) use ($user) {
             $assignment->learner_count = DB::table('learners')->where('school_id', $user->school_id)->where('grade_id', $assignment->grade_id)->where('stream_id', $assignment->stream_id)->where('active', true)->where('is_deleted', false)->count();
 
             return $assignment;
         });
+
+        if (! $includeUpcoming) {
+            return $assignments;
+        }
+
+        return $assignments->concat($this->access->assignments($user, upcoming: true)->map(function ($assignment) {
+            $assignment->assignment_status = 'upcoming';
+
+            return $assignment;
+        }));
     }
 
     public function classes(User $user)
@@ -145,7 +156,9 @@ class TeacherPortalMobileService
     {
         $limit = config('teacher_portal.dashboard_limit', 10);
 
-        return ['teacher' => $this->access->teacher($user), 'current_period' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first(), 'assignments' => $this->assignments($user)->take($limit), 'todays_timetable' => $this->portal->timetable($user, now()->dayOfWeekIso)->take($limit), 'analytics' => $this->analytics($user), 'announcements' => collect($this->portal->announcements($user))->take($limit), 'recent_communications' => $this->communications($user)->items(), 'teacher_duty' => $this->teacherDuty($user), 'last_refreshed_at' => now()->toIso8601String()];
+        $assignments = $this->assignments($user, includeUpcoming: true);
+
+        return ['teacher' => $this->access->teacher($user), 'current_period' => DB::table('terms')->where('school_id', $user->school_id)->where('active', true)->whereDate('start_date', '<=', today())->whereDate('end_date', '>=', today())->first(), 'assignments' => $assignments->whereNull('assignment_status')->take($limit)->values(), 'upcoming_assignments' => $assignments->where('assignment_status', 'upcoming')->take($limit)->values(), 'weekly_teaching_load' => (int) $assignments->whereNull('assignment_status')->sum('lessons_per_week'), 'todays_timetable' => $this->portal->timetable($user, now()->dayOfWeekIso)->take($limit), 'analytics' => $this->analytics($user), 'announcements' => collect($this->portal->announcements($user))->take($limit), 'recent_communications' => $this->communications($user)->items(), 'teacher_duty' => $this->teacherDuty($user), 'last_refreshed_at' => now()->toIso8601String()];
     }
 
     private function teacherDuty(User $user): ?array

@@ -34,22 +34,32 @@ class TeacherPortalAccessService
         return $t;
     }
 
-    public function assignments(User $u)
+    public function assignments(User $u, bool $upcoming = false)
     {
         $t = $this->teacher($u);
 
-        return TeacherAssignment::current()->where('school_id', $u->school_id)->where('teacher_id', $t->id)->where('active', true)
-            ->whereHas('academicYear', function ($query) use ($u) {
+        $today = today();
+        $query = TeacherAssignment::current()->where('school_id', $u->school_id)->where('teacher_id', $t->id)->where('active', true)
+            ->whereHas('academicYear', function ($query) use ($u, $today, $upcoming) {
                 $query->where('school_id', $u->school_id)
                     ->when(Schema::hasColumn('academic_years', 'active'), fn ($q) => $q->where('active', true))
-                    ->when(Schema::hasColumn('academic_years', 'start_date'), fn ($q) => $q->whereDate('start_date', '<=', today()))
-                    ->when(Schema::hasColumn('academic_years', 'end_date'), fn ($q) => $q->whereDate('end_date', '>=', today()));
-            })->whereHas('term', function ($query) use ($u) {
+                    ->when(! $upcoming && Schema::hasColumn('academic_years', 'start_date'), fn ($q) => $q->whereDate('start_date', '<=', $today))
+                    ->when(Schema::hasColumn('academic_years', 'end_date'), fn ($q) => $q->whereDate('end_date', '>=', $today));
+            })->whereHas('term', function ($query) use ($u, $today, $upcoming) {
                 $query->where('school_id', $u->school_id)
                     ->when(Schema::hasColumn('terms', 'active'), fn ($q) => $q->where('active', true))
-                    ->when(Schema::hasColumn('terms', 'start_date'), fn ($q) => $q->whereDate('start_date', '<=', today()))
-                    ->when(Schema::hasColumn('terms', 'end_date'), fn ($q) => $q->whereDate('end_date', '>=', today()));
-            })->with(['grade', 'stream', 'learningArea', 'academicYear', 'term'])->get();
+                    ->when(! $upcoming && Schema::hasColumn('terms', 'start_date'), fn ($q) => $q->whereDate('start_date', '<=', $today))
+                    ->when(Schema::hasColumn('terms', 'end_date'), fn ($q) => $q->whereDate('end_date', '>=', $today));
+            });
+
+        if ($upcoming) {
+            $query->where(function ($period) use ($u, $today) {
+                $period->whereHas('term', fn ($term) => $term->where('school_id', $u->school_id)->whereDate('start_date', '>', $today))
+                    ->orWhereHas('academicYear', fn ($year) => $year->where('school_id', $u->school_id)->whereDate('start_date', '>', $today));
+            });
+        }
+
+        return $query->with(['grade', 'stream', 'learningArea', 'academicYear', 'term'])->get();
     }
 
     public function requireAssignment(User $u, string $id): TeacherAssignment
