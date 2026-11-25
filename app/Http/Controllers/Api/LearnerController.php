@@ -238,6 +238,25 @@ class LearnerController extends BaseCrudController
         ]);
     }
 
+    public function teacherRosterDetails(Request $request, string $learner)
+    {
+        $target = $this->learnerQuery($request)->where('active', true)->where('is_deleted', false)
+            ->whereIn('stream_id', $this->classTeacherStreams($request))->whereKey($learner)->firstOrFail();
+
+        $contacts = DB::table('learner_parents as link')->join('parents as guardian', 'guardian.id', '=', 'link.parent_id')
+            ->where('link.learner_id', $target->id)->where('guardian.school_id', $target->school_id)
+            ->where('link.active', true)->where('link.is_deleted', false)
+            ->where('guardian.active', true)->where('guardian.is_deleted', false)
+            ->orderByDesc('link.is_primary_contact')->orderBy('link.id')
+            ->get(['link.id', 'guardian.first_name', 'guardian.last_name', 'guardian.phone', 'guardian.email',
+                'link.relationship', 'link.is_primary_contact', 'link.emergency_contact']);
+
+        return $this->success($target->only([
+            'id', 'admission_no', 'first_name', 'middle_name', 'last_name', 'gender', 'date_of_birth',
+            'upi', 'kemis_no', 'assessment_no', 'admission_date', 'mode_of_study', 'lifecycle_status',
+        ]) + ['contacts' => $contacts]);
+    }
+
     public function teacherRosterChange(Request $request, string $learner, SchoolBusinessWriteAccess $access)
     {
         abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
@@ -251,16 +270,9 @@ class LearnerController extends BaseCrudController
                 return $this->destroy($request, $target->id);
             }
 
-            $names = $request->validate([
-                'first_name' => 'required|string|max:100',
-                'middle_name' => 'nullable|string|max:100',
-                'last_name' => 'required|string|max:100',
-            ]);
-            $old = $target->getOriginal();
-            $target->update($names);
-            $this->audit($request, self::MODULE, 'Update', $target, $old, $target->toArray(), 'Updated learner names from class roster.');
+            $request->validate(['admission_date' => 'missing']);
 
-            return $this->success(['id' => $target->id]);
+            return $this->update($request, $target->id);
         });
     }
 
