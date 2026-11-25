@@ -5,12 +5,38 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\LearningAreaAllocationResource;
 use App\Models\LearningAreaAllocation;
+use App\Services\School\SchoolBusinessWriteAccess;
+use App\Services\Teaching\TeachingWorkspaceAccess;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class LearningAreaAllocationController extends Controller
 {
+    public function workspaceOptions(Request $request, TeachingWorkspaceAccess $scope)
+    {
+        $schoolId = $scope->school($request);
+
+        return response()->json(['success' => true, 'data' => [
+            'grades' => DB::table('grades')->where('school_id', $schoolId)->where('active', true)
+                ->orderBy('grade_order')->get(['id', 'grade_name']),
+            'areas' => DB::table('learning_areas')->where('active', true)
+                ->orderBy('learning_area_name')->get(['id', 'learning_area_name']),
+            'allocations' => DB::table('learning_area_allocations')->where('school_id', $schoolId)
+                ->orderBy('id')->get(['id', 'grade_id', 'learning_area_id', 'lessons_per_week', 'active']),
+        ]]);
+    }
+
+    public function workspaceStore(Request $request, TeachingWorkspaceAccess $scope, SchoolBusinessWriteAccess $access)
+    {
+        return $access->run($scope->school($request), function () use ($request, $scope) {
+            $scope->school($request);
+
+            return $this->store($request);
+        });
+    }
+
     /**
      * List allocations
      */
