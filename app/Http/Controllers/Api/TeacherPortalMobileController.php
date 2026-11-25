@@ -53,9 +53,9 @@ class TeacherPortalMobileController extends BaseApiController
         return $this->success(new TeacherProfileResource($this->profileService->update($this->user(), $request->validate(['first_name' => 'sometimes|string|max:100', 'last_name' => 'sometimes|string|max:100', 'professional_summary' => 'sometimes|nullable|string|max:4000', 'email' => 'sometimes|email:rfc|max:255', 'phone' => 'sometimes|string|max:30']))));
     }
 
-    public function assignments()
+    public function assignments(Request $request)
     {
-        return $this->success(TeacherOwnAssignmentResource::collection($this->mobile->assignments($this->user())));
+        return $this->success(TeacherOwnAssignmentResource::collection($this->mobile->assignments($this->user(), $request->boolean('include_upcoming'))));
     }
 
     public function assignment(string $assignment)
