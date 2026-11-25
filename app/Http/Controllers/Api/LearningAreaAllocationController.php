@@ -38,7 +38,7 @@ class LearningAreaAllocationController extends Controller
         return response()->json(['success' => true, 'data' => [
             'grades' => DB::table('grades')->leftJoin('education_levels', 'education_levels.id', '=', 'grades.education_level_id')
                 ->where('grades.school_id', $schoolId)->where('grades.active', true)->orderBy('grades.grade_order')
-                ->get(['grades.id', 'grades.grade_name', 'education_levels.level_name']),
+                ->get(['grades.id', 'grades.grade_name', 'grades.grade_number', 'education_levels.level_name']),
             'areas' => $areas,
             'suggestions' => $suggestions,
             'allocations' => DB::table('learning_area_allocations')->where('school_id', $schoolId)
