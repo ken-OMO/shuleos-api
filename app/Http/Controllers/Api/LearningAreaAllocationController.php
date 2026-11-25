@@ -18,11 +18,29 @@ class LearningAreaAllocationController extends Controller
     {
         $schoolId = $scope->school($request);
 
+        $areas = DB::table('learning_areas')->where('active', true)
+            ->orderBy('learning_area_name')->orderBy('id')->get(['id', 'learning_area_name']);
+        $catalog = $areas->keyBy(fn ($area) => Str::lower(trim($area->learning_area_name)));
+        $suggestions = collect(config('learning_area_suggestions'))->map(function ($choices) use ($catalog) {
+            $matched = collect($choices)->map(fn ($names) => collect($names)
+                ->map(fn ($name) => $catalog->get(Str::lower($name)))
+                ->first(fn ($area) => $area !== null))->filter();
+
+            // Use the general religious area only for catalogs without separate offerings.
+            $hasReligiousOptions = $matched->contains(fn ($area) => in_array(Str::lower($area->learning_area_name), [
+                'christian religious education', 'islamic religious education', 'hindu religious education', 'cre', 'ire', 'hre',
+            ], true));
+
+            return $matched->reject(fn ($area) => $hasReligiousOptions && Str::lower($area->learning_area_name) === 'religious activities')
+                ->pluck('id')->unique()->values();
+        });
+
         return response()->json(['success' => true, 'data' => [
-            'grades' => DB::table('grades')->where('school_id', $schoolId)->where('active', true)
-                ->orderBy('grade_order')->get(['id', 'grade_name']),
-            'areas' => DB::table('learning_areas')->where('active', true)
-                ->orderBy('learning_area_name')->get(['id', 'learning_area_name']),
+            'grades' => DB::table('grades')->leftJoin('education_levels', 'education_levels.id', '=', 'grades.education_level_id')
+                ->where('grades.school_id', $schoolId)->where('grades.active', true)->orderBy('grades.grade_order')
+                ->get(['grades.id', 'grades.grade_name', 'education_levels.level_name']),
+            'areas' => $areas,
+            'suggestions' => $suggestions,
             'allocations' => DB::table('learning_area_allocations')->where('school_id', $schoolId)
                 ->orderBy('id')->get(['id', 'grade_id', 'learning_area_id', 'lessons_per_week', 'active']),
         ]]);
