@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Services\TeacherPortal\TeacherPortalAccessService;
+use App\Services\TeacherPortal\TeacherPortalMobileService;
 use App\Services\TeacherPortal\TeacherPortalService;
 use App\Services\Teaching\TeacherAssignmentService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -381,6 +382,77 @@ class TeacherPortalTest extends TestCase
             'Tangazo la Walimu',
             $announcements->first()->subject
         );
+    }
+
+    public function test_assignment_scoped_records_exclude_unassigned_classes_and_schools(): void
+    {
+        $grade = DB::table('grades')->where('id', $this->assignment->grade_id)->first();
+        $otherStream = StreamBuilder::create($this->school, $grade);
+        LearnerBuilder::create($this->school, $grade, $otherStream);
+
+        $access = app(TeacherPortalAccessService::class);
+        $mobile = app(TeacherPortalMobileService::class);
+        $schemeId = $this->createAssignmentScheme();
+
+        $this->assertSame([$this->learner->id], $access->learners($this->user())->pluck('id')->all());
+        $this->assertSame([$this->learner->id], $mobile->learners($this->user())->getCollection()->pluck('id')->all());
+        $this->assertSame([$schemeId], $mobile->schemes($this->user())->pluck('id')->all());
+
+        $role = $this->user()->role;
+        $foreignUser = UserBuilder::create($this->otherSchool, $role);
+        TeacherBuilder::create($this->otherSchool, $foreignUser);
+        $foreignTeacher = User::with('role')->findOrFail($foreignUser->id);
+
+        $this->assertEmpty($access->learners($foreignTeacher));
+        $this->assertSame(0, $mobile->learners($foreignTeacher)->total());
+        $this->assertFalse($mobile->schemes($foreignTeacher)->exists());
+    }
+
+    public function test_teacher_without_assignments_has_no_assignment_scoped_records(): void
+    {
+        TeacherBuilder::create($this->school, $this->otherUser);
+        $teacher = User::with('role')->findOrFail($this->otherUser->id);
+        $this->createAssignmentScheme();
+
+        $this->assertEmpty(app(TeacherPortalAccessService::class)->learners($teacher));
+        $this->assertSame(0, app(TeacherPortalMobileService::class)->learners($teacher)->total());
+        $this->assertFalse(app(TeacherPortalMobileService::class)->schemes($teacher)->exists());
+    }
+
+    public function test_upcoming_assignment_is_visible_without_granting_assignment_scoped_records(): void
+    {
+        $this->createAssignmentScheme();
+        Carbon::setTestNow(Carbon::parse('2026-04-01 12:00:00'));
+
+        $access = app(TeacherPortalAccessService::class);
+        $mobile = app(TeacherPortalMobileService::class);
+        $teacher = $this->user();
+
+        $this->assertEmpty($mobile->assignments($teacher));
+        $upcoming = $mobile->assignments($teacher, includeUpcoming: true)->sole();
+        $this->assertSame($this->assignment->id, $upcoming->id);
+        $this->assertSame('upcoming', $upcoming->assignment_status);
+        $this->assertEmpty($access->learners($teacher));
+        $this->assertSame(0, $mobile->learners($teacher)->total());
+        $this->assertFalse($mobile->schemes($teacher)->exists());
+    }
+
+    private function createAssignmentScheme(): string
+    {
+        $id = (string) Str::uuid();
+        DB::table('schemes_of_work')->insert([
+            'id' => $id,
+            'school_id' => $this->school->id,
+            'learning_area_id' => $this->assignment->learning_area_id,
+            'grade_id' => $this->assignment->grade_id,
+            'academic_year_id' => $this->assignment->academic_year_id,
+            'term_id' => $this->assignment->term_id,
+            'title' => 'Synthetic Kiswahili scheme',
+            'active' => true,
+            'is_deleted' => false,
+        ]);
+
+        return $id;
     }
 
     private function user(): User

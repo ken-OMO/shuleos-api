@@ -77,6 +77,10 @@ class TeacherPortalAccessService
         $a = $this->assignments($u);
 
         return Learner::query()->where('school_id', $u->school_id)->where('active', true)->where('is_deleted', false)->where(function ($q) use ($a) {
+            if ($a->isEmpty()) {
+                $q->whereRaw('1 = 0');
+            }
+
             foreach ($a as $x) {
                 $q->orWhere(fn ($z) => $z->where('grade_id', $x->grade_id)->where('stream_id', $x->stream_id));
             }
