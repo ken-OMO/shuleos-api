@@ -13,7 +13,7 @@
             font-family: DejaVu Sans, sans-serif;
             font-size: 10.5px;
             line-height: 1.45;
-            color: #111;
+            color: #302D29;
         }
 
         .header {
@@ -65,13 +65,15 @@
         .evidence th,
         .evidence td,
         .workflow td {
-            border: 1px solid #444;
+            border: 1px solid #DDD6CB;
             padding: 5px 6px;
             vertical-align: top;
         }
 
         .teachers th,
         .evidence th {
+            background: #F6F2E9;
+            color: #392E28;
             font-weight: bold;
             text-align: left;
         }
@@ -90,14 +92,14 @@
 
         .narrative {
             min-height: 35px;
-            border: 1px solid #444;
+            border: 1px solid #DDD6CB;
             padding: 7px;
             margin-bottom: 8px;
             white-space: pre-wrap;
         }
 
         .muted {
-            color: #555;
+            color: #756E65;
         }
 
         .signature-table {
@@ -123,7 +125,7 @@
             right: 0;
             bottom: -13mm;
             font-size: 8.5px;
-            color: #555;
+            color: #756E65;
         }
 
         .footer-left {
