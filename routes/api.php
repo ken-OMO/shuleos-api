@@ -1702,6 +1702,10 @@ Route::prefix('learning-area-allocations')
 
         Route::get('/', [LearningAreaAllocationController::class, 'index']);
 
+        Route::get('/workspace', [LearningAreaAllocationController::class, 'workspaceOptions'])->withoutMiddleware('module.permission');
+
+        Route::post('/workspace', [LearningAreaAllocationController::class, 'workspaceStore'])->withoutMiddleware('module.permission');
+
         Route::get('/{id}', [LearningAreaAllocationController::class, 'show']);
 
         Route::post('/', [LearningAreaAllocationController::class, 'store']);

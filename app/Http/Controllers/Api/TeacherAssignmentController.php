@@ -6,9 +6,9 @@ use App\Http\Controllers\BaseCrudController;
 use App\Http\Resources\TeacherAssignmentResource;
 use App\Models\TeacherAssignment;
 use App\Services\Administrator\AdministratorAuditService;
-use App\Services\Auth\AuthContextService;
 use App\Services\School\SchoolBusinessWriteAccess;
 use App\Services\Teaching\TeacherAssignmentService;
+use App\Services\Teaching\TeachingWorkspaceAccess;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -56,24 +56,9 @@ class TeacherAssignmentController extends BaseCrudController
             : $this->notFound('Teacher assignment not found.');
     }
 
-    private function workspaceSchool(Request $request): string
-    {
-        $auth = app(AuthContextService::class);
-        $actor = $request->user();
-        $context = $auth->resolve($actor);
-        $roles = $context['roles'];
-
-        abort_unless($context['scope'] === 'school' && $context['school_id'] === $request->attributes->get('tenant_school_id')
-            && ! $request->attributes->get('client_supplied_school_id')
-            && ((in_array('Headteacher', $roles, true) && $auth->hasPermission($actor, 'manage_academics'))
-                || (in_array('School Admin', $roles, true) && $auth->hasPermission($actor, 'access_administrator_portal'))), 403);
-
-        return (string) $context['school_id'];
-    }
-
     public function workspaceOptions(Request $request)
     {
-        $schoolId = $this->workspaceSchool($request);
+        $schoolId = app(TeachingWorkspaceAccess::class)->school($request);
         $active = fn (string $table) => DB::table($table)->where('school_id', $schoolId)->where('active', true);
 
         return $this->success([
@@ -96,7 +81,7 @@ class TeacherAssignmentController extends BaseCrudController
 
     public function classTeacherAppointments(Request $request)
     {
-        $schoolId = $this->workspaceSchool($request);
+        $schoolId = app(TeachingWorkspaceAccess::class)->school($request);
         $today = today('Africa/Nairobi')->toDateString();
         $rows = DB::table('class_teachers as appointment')
             ->join('teachers as teacher', 'teacher.id', '=', 'appointment.teacher_id')
@@ -152,7 +137,7 @@ class TeacherAssignmentController extends BaseCrudController
 
     public function appointClassTeacher(Request $request, SchoolBusinessWriteAccess $access)
     {
-        $schoolId = $this->workspaceSchool($request);
+        $schoolId = app(TeachingWorkspaceAccess::class)->school($request);
         $today = today('Africa/Nairobi')->toDateString();
         $details = $request->validate([
             'teacher_id' => 'required|uuid',
@@ -162,7 +147,7 @@ class TeacherAssignmentController extends BaseCrudController
         ]);
 
         return $access->run($schoolId, function () use ($schoolId, $details, $today, $request) {
-            $this->workspaceSchool($request);
+            app(TeachingWorkspaceAccess::class)->school($request);
             $active = fn (string $table) => DB::table($table)->where('school_id', $schoolId)->where('active', true);
             $stream = $active('streams')->where('id', $details['stream_id'])->first();
             $term = $active('terms')->where('id', $details['term_id'])->whereDate('end_date', '>=', $today)->first();
@@ -198,10 +183,10 @@ class TeacherAssignmentController extends BaseCrudController
 
     public function removeClassTeacher(Request $request, string $appointment, SchoolBusinessWriteAccess $access)
     {
-        $schoolId = $this->workspaceSchool($request);
+        $schoolId = app(TeachingWorkspaceAccess::class)->school($request);
 
         return $access->run($schoolId, function () use ($request, $appointment, $schoolId) {
-            $this->workspaceSchool($request);
+            app(TeachingWorkspaceAccess::class)->school($request);
             $query = DB::table('class_teachers')->where('school_id', $schoolId)->where('id', $appointment);
             $row = $query->lockForUpdate()->first();
             abort_unless($row, 404, 'Class-teacher appointment not found.');
@@ -220,11 +205,11 @@ class TeacherAssignmentController extends BaseCrudController
 
     public function workspaceStore(Request $request, SchoolBusinessWriteAccess $access)
     {
-        $schoolId = $this->workspaceSchool($request);
+        $schoolId = app(TeachingWorkspaceAccess::class)->school($request);
         $request->validate(['is_class_teacher' => 'prohibited', 'active' => 'prohibited']);
 
         return $access->run($schoolId, function () use ($request) {
-            $this->workspaceSchool($request);
+            app(TeachingWorkspaceAccess::class)->school($request);
 
             return $this->store($request);
         });
