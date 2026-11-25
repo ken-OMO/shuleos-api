@@ -205,6 +205,65 @@ class LearnerController extends BaseCrudController
             ->pluck('appointment.stream_id')->all();
     }
 
+    public function teacherRoster(Request $request, TeacherPortalAccessService $access)
+    {
+        $data = $request->validate(['page' => 'sometimes|integer|min:1|max:100000']);
+        $streams = $this->classTeacherStreams($request);
+        $assignments = $access->assignments($request->user())->unique(fn ($item) => $item->grade_id.':'.$item->stream_id);
+        $rows = $this->learnerQuery($request)->where('active', true)->where('is_deleted', false)
+            ->where(function ($query) use ($streams, $assignments) {
+                $query->whereIn('stream_id', $streams);
+                foreach ($assignments as $assignment) {
+                    $query->orWhere(fn ($class) => $class->where('grade_id', $assignment->grade_id)
+                        ->when($assignment->stream_id !== null, fn ($stream) => $stream->where('stream_id', $assignment->stream_id)));
+                }
+            })->with(['grade:id,grade_name', 'stream:id,stream_name'])
+            ->orderBy('last_name')->orderBy('first_name')->orderBy('id')
+            ->paginate(25, ['id', 'grade_id', 'stream_id', 'admission_no', 'first_name', 'middle_name', 'last_name'],
+                'page', $data['page'] ?? 1);
+
+        return $this->success([
+            'page' => $rows->currentPage(),
+            'last_page' => $rows->lastPage(),
+            'learners' => $rows->getCollection()->map(fn ($learner) => [
+                'id' => $learner->id,
+                'admission_no' => $learner->admission_no,
+                'first_name' => $learner->first_name,
+                'middle_name' => $learner->middle_name,
+                'last_name' => $learner->last_name,
+                'grade' => $learner->grade?->grade_name,
+                'stream' => $learner->stream?->stream_name,
+                'can_manage' => in_array($learner->stream_id, $streams, true),
+            ]),
+        ]);
+    }
+
+    public function teacherRosterChange(Request $request, string $learner, SchoolBusinessWriteAccess $access)
+    {
+        abort_if($request->attributes->get('client_supplied_school_id'), 422, 'School overrides are prohibited.');
+
+        return $access->run($this->schoolId($request), function () use ($request, $learner) {
+            $streams = $this->classTeacherStreams($request);
+            $target = $this->learnerQuery($request)->where('active', true)->where('is_deleted', false)
+                ->whereIn('stream_id', $streams)->whereKey($learner)->lockForUpdate()->firstOrFail();
+
+            if ($request->isMethod('DELETE')) {
+                return $this->destroy($request, $target->id);
+            }
+
+            $names = $request->validate([
+                'first_name' => 'required|string|max:100',
+                'middle_name' => 'nullable|string|max:100',
+                'last_name' => 'required|string|max:100',
+            ]);
+            $old = $target->getOriginal();
+            $target->update($names);
+            $this->audit($request, self::MODULE, 'Update', $target, $old, $target->toArray(), 'Updated learner names from class roster.');
+
+            return $this->success(['id' => $target->id]);
+        });
+    }
+
     public function classTeacherAdmissionOptions(Request $request)
     {
         $schoolId = $this->schoolId($request);

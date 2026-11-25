@@ -1129,6 +1129,8 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/classes/{stream}/learners', [TeacherPortalMobileController::class, 'classLearners'])->middleware(['permission:view_assigned_learners', TeacherAcademicScope::class]);
     Route::get('/classes', [TeacherPortalMobileController::class, 'classes'])->middleware('permission:view_own_teacher_assignments');
     Route::get('/class-teacher/learning-areas', [TeachingCoverageController::class, 'ownClass']);
+    Route::get('/my-learners', [LearnerController::class, 'teacherRoster']);
+    Route::match(['put', 'delete'], '/my-learners/{learner}', [LearnerController::class, 'teacherRosterChange'])->whereUuid('learner');
     Route::get('/class-teacher/admission-options', [LearnerController::class, 'classTeacherAdmissionOptions']);
     Route::post('/class-teacher/bulk-admission', [LearnerController::class, 'classTeacherBulkAdmission'])->middleware('throttle:10,1,learner-import:');
     Route::post('/class-teacher/admit', [LearnerController::class, 'classTeacherAdmit']);
