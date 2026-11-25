@@ -124,6 +124,7 @@ use App\Http\Controllers\Api\TeacherDutyWeeklyReportPdfController;
 use App\Http\Controllers\Api\TeacherPortalController;
 use App\Http\Controllers\Api\TeacherPortalMobileController;
 use App\Http\Controllers\Api\TeacherPortalPhaseTwoController;
+use App\Http\Controllers\Api\TeachingCoverageController;
 use App\Http\Controllers\Api\TermController;
 use App\Http\Controllers\Api\TimetableConflictController;
 use App\Http\Controllers\Api\TimetableConstraintController;
@@ -1127,6 +1128,7 @@ Route::prefix('teacher')->middleware($secure)->group(function () {
     Route::get('/assignments/{assignment}', [TeacherPortalMobileController::class, 'assignment'])->middleware(['permission:view_own_teacher_assignments', TeacherAcademicScope::class]);
     Route::get('/classes/{stream}/learners', [TeacherPortalMobileController::class, 'classLearners'])->middleware(['permission:view_assigned_learners', TeacherAcademicScope::class]);
     Route::get('/classes', [TeacherPortalMobileController::class, 'classes'])->middleware('permission:view_own_teacher_assignments');
+    Route::get('/class-teacher/learning-areas', [TeachingCoverageController::class, 'ownClass']);
     Route::get('/class-teacher/admission-options', [LearnerController::class, 'classTeacherAdmissionOptions']);
     Route::post('/class-teacher/bulk-admission', [LearnerController::class, 'classTeacherBulkAdmission'])->middleware('throttle:10,1,learner-import:');
     Route::post('/class-teacher/admit', [LearnerController::class, 'classTeacherAdmit']);
@@ -1751,6 +1753,8 @@ Route::prefix('teacher-assignments')
     ->group(function () {
 
         Route::get('/', [TeacherAssignmentController::class, 'index']);
+
+        Route::get('/coverage', [TeachingCoverageController::class, 'school'])->withoutMiddleware('module.permission');
 
         Route::get('/workspace', [TeacherAssignmentController::class, 'workspaceOptions'])->withoutMiddleware('module.permission');
 
