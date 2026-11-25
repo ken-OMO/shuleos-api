@@ -59,6 +59,10 @@ class TeacherPortalMobileService
     {
         $assignments = $assignmentId ? collect([$this->access->requireAssignment($user, $assignmentId)]) : ($streamId ? collect([$this->access->requireStream($user, $streamId)]) : $this->access->assignments($user));
         $query = DB::table('learners')->where('school_id', $user->school_id)->where('active', true)->where('is_deleted', false)->where(function ($query) use ($assignments) {
+            if ($assignments->isEmpty()) {
+                $query->whereRaw('1 = 0');
+            }
+
             foreach ($assignments as $assignment) {
                 $query->orWhere(fn ($q) => $q->where('grade_id', $assignment->grade_id)->where('stream_id', $assignment->stream_id));
             }
@@ -72,6 +76,10 @@ class TeacherPortalMobileService
         $assignments = $this->access->assignments($user);
 
         return SchemeOfWork::current()->where('school_id', $user->school_id)->where(function ($query) use ($assignments) {
+            if ($assignments->isEmpty()) {
+                $query->whereRaw('1 = 0');
+            }
+
             foreach ($assignments as $a) {
                 $query->orWhere(fn ($q) => $q->where('learning_area_id', $a->learning_area_id)->where('grade_id', $a->grade_id)->where('academic_year_id', $a->academic_year_id)->where('term_id', $a->term_id));
             }

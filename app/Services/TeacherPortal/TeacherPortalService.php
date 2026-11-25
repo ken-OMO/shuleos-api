@@ -73,6 +73,10 @@ class TeacherPortalService
         $a = $this->a->assignments($u);
 
         return DB::table('exam_learning_areas as ela')->join('exams as e', 'e.id', '=', 'ela.exam_id')->where('e.school_id', $u->school_id)->where('e.is_deleted', false)->where(function ($q) use ($a) {
+            if ($a->isEmpty()) {
+                $q->whereRaw('1 = 0');
+            }
+
             foreach ($a as $x) {
                 $q->orWhere(fn ($z) => $z->where('ela.learning_area_id', $x->learning_area_id));
             }
