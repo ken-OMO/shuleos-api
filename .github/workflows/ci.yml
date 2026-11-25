@@ -262,6 +262,22 @@ jobs:
           QUEUE_CONNECTION: sync
           MAIL_MAILER: array
 
+      - name: Tenant schema validation
+        run: php artisan tenant:verify-schema --strict
+        env:
+          APP_ENV: testing
+          APP_DEBUG: false
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: shuleos_assessment_fk_test
+          DB_USERNAME: shuleos
+          DB_PASSWORD: shuleos
+          CACHE_STORE: array
+          SESSION_DRIVER: array
+          QUEUE_CONNECTION: sync
+          MAIL_MAILER: array
+
       - name: Run backend test suite
         run: php -d memory_limit=1G vendor/bin/phpunit --configuration=phpunit.xml --stop-on-error --stop-on-failure
         env:
@@ -277,18 +293,3 @@ jobs:
           SESSION_DRIVER: array
           QUEUE_CONNECTION: sync
           MAIL_MAILER: array
-
-  # Future enforcement for Rule 111:
-  #
-  # tenant-schema-check:
-  #   name: Tenant Schema Validation
-  #   runs-on: ubuntu-latest
-  #   needs:
-  #     - backend-tests
-  #
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Verify tenant tables and RLS policies
-  #       run: php artisan tenant:verify-schema --strict
